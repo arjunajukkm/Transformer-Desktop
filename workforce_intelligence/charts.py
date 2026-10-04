@@ -96,11 +96,12 @@ class ChartCanvas(ctk.CTkFrame):
     Provides responsive resize debouncing, high-DPI awareness, and clean lifecycle management.
     """
 
-    def __init__(self, parent, figsize=(8, 3), dpi=100, **kwargs):
+    def __init__(self, parent, figsize=(8, 3), dpi=100, resize_callback=None, **kwargs):
         kwargs.setdefault("fg_color", CHART_THEME["bg_card"])
         kwargs.setdefault("corner_radius", 8)
         super().__init__(parent, **kwargs)
 
+        self.resize_callback = resize_callback
         self.fig = Figure(figsize=figsize, dpi=dpi, facecolor=CHART_THEME["bg_card"])
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
         self.tk_widget = self.canvas.get_tk_widget()
@@ -108,7 +109,7 @@ class ChartCanvas(ctk.CTkFrame):
         self.tk_widget.pack(fill="both", expand=True)
 
         self._resize_timer = None
-        self.tk_widget.bind("<Configure>", self._on_configure)
+        self.bind("<Configure>", self._on_configure)
 
     def _on_configure(self, event):
         """Responsive figure resize to fill 100% of container width & height."""
@@ -120,7 +121,12 @@ class ChartCanvas(ctk.CTkFrame):
             new_h = h / dpi
             curr_w, curr_h = self.fig.get_size_inches()
             if abs(curr_w - new_w) > 0.05 or abs(curr_h - new_h) > 0.05:
-                self.fig.set_size_inches(new_w, new_h, forward=False)
+                self.fig.set_size_inches(new_w, new_h, forward=True)
+                if self.resize_callback is not None:
+                    try:
+                        self.resize_callback()
+                    except Exception:
+                        pass
         if self._resize_timer is not None:
             self.after_cancel(self._resize_timer)
         self._resize_timer = self.after(30, self._do_resize_redraw)
@@ -320,7 +326,7 @@ def render_trend_time_series(
         })
 
     # X-Axis configuration
-    ax.set_xlim(-0.35, n_pts - 1 + 0.35)
+    ax.set_xlim(-0.45, n_pts - 1 + 0.45)
     ax.set_xticks(x_indices)
     ax.set_xticklabels(x_labels, fontweight="normal")
     ax.set_ylim(y_min, y_max)
@@ -336,8 +342,8 @@ def render_trend_time_series(
     else:
         ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, pos: f"{v:.1f}"))
 
-    # Tight clean margins with room for labels
-    fig.subplots_adjust(left=0.08, right=0.96, top=0.92, bottom=0.18)
+    # Generous margins to guarantee last month and y-ticks are never cut off
+    fig.subplots_adjust(left=0.09, right=0.91, top=0.88, bottom=0.22)
 
     return node_records
 
@@ -355,67 +361,73 @@ def render_what_changed_bars(
     Renders a modern diverging horizontal bar chart centered on zero:
     - Positive delta (deterioration in lower-is-better metrics) extends Right (Rose-500).
     - Negative delta (improvement / reduction) extends Left (Emerald-500).
+    - Respects metric direction (is_adverse) so improvements are always Emerald and regressions Rose.
     - Embedded value tags at the end of each bar.
-    - BU and Exception Category badge tags.
+    - Clean Y-axis labels with dynamic margins to avoid clipping.
     """
     ax.clear()
     apply_dark_theme(fig, ax)
 
-    drivers = what_changed_data.get("drivers", []) if what_changed_data else []
+    raw_drivers = what_changed_data.get("drivers", []) if what_changed_data else []
+    # Filter drivers to only those with meaningful, evaluable delta
+    drivers = [
+        d for d in raw_drivers
+        if d.get("delta") is not None
+        and not pd.isna(d.get("delta"))
+        and abs(float(d.get("delta") or 0.0)) >= 0.05
+    ]
     if not drivers:
+        ax.axis("off")
         ax.text(
-            0.5, 0.5, "Baseline period established • Stable trajectory",
+            0.5, 0.5, "Baseline period established • Stable trajectory across active scope",
             transform=ax.transAxes, ha="center", va="center",
             color=CHART_THEME["success"], fontsize=9.5, fontweight="bold",
             fontfamily=CHART_THEME["font_family"]
         )
         return
 
+    ax.axis("on")
+
     # Take top 5 drivers in reverse order so top driver is at the top of the Y-axis
     top_drivers = list(reversed(drivers[:5]))
-    names = [d.get("driver", "Driver") for d in top_drivers]
-    deltas = [float(d.get("delta", 0.0)) for d in top_drivers]
+    names = [str(d.get("driver") or d.get("name") or "Driver") for d in top_drivers]
+    deltas = [float(d.get("delta") or 0.0) for d in top_drivers]
     f_deltas = [d.get("formatted_delta", f"{d.get('delta', 0.0):+.1f}") for d in top_drivers]
-    types = [d.get("type", "BU") for d in top_drivers]
 
     y_pos = np.arange(len(names))
-    colors = [CHART_THEME["danger"] if val > 0 else CHART_THEME["success"] for val in deltas]
+    # Correctly use is_adverse attribute from driver; fallback to val > 0 if not present
+    colors = [CHART_THEME["danger"] if d.get("is_adverse", val > 0) else CHART_THEME["success"] for d, val in zip(top_drivers, deltas)]
 
     # Bar thickness and subtle rounded aesthetic
-    bar_height = 0.52
-    bars = ax.barh(y_pos, deltas, height=bar_height, color=colors, alpha=0.88, zorder=3)
+    bar_height = 0.44
+    bars = ax.barh(y_pos, deltas, height=bar_height, color=colors, alpha=0.90, zorder=3)
 
     # Vertical reference line at x = 0
     ax.axvline(0, color=CHART_THEME["border"], linewidth=1.5, zorder=2)
 
-    # Calculate symmetric X range so zero is nicely balanced
-    max_abs = max(0.5, max(abs(v) for v in deltas) * 1.35)
+    # Calculate symmetric X range so zero is nicely balanced with room for text tags
+    max_abs = max(1.0, max(abs(v) for v in deltas) * 1.45)
     ax.set_xlim(-max_abs, max_abs)
     ax.set_ylim(-0.6, len(names) - 0.4)
 
     # Value tags beside the bars
-    for idx, (b, val, tag) in enumerate(zip(bars, deltas, f_deltas)):
+    for idx, (b, val, tag, col) in enumerate(zip(bars, deltas, f_deltas, colors)):
         if val >= 0:
-            x_txt = val + (max_abs * 0.03)
+            x_txt = val + (max_abs * 0.04)
             ha_align = "left"
-            txt_color = CHART_THEME["danger"]
         else:
-            x_txt = val - (max_abs * 0.03)
+            x_txt = val - (max_abs * 0.04)
             ha_align = "right"
-            txt_color = CHART_THEME["success"]
 
         ax.text(
             x_txt, idx, tag,
             va="center", ha=ha_align,
-            color=txt_color, fontsize=8.5, fontweight="bold",
+            color=col, fontsize=8.5, fontweight="bold",
             fontfamily=CHART_THEME["font_family"], zorder=4
         )
 
-    # Clean Y-axis labels with [BU] or [CAT] prefix
-    formatted_labels = []
-    for n, t in zip(names, types):
-        prefix = "🏢 " if t == "BU" else "⚡ "
-        formatted_labels.append(f"{prefix}{n}")
+    # Clean Y-axis labels without unsupported emojis
+    formatted_labels = [n for n in names]
 
     ax.set_yticks(y_pos)
     ax.set_yticklabels(
@@ -425,13 +437,16 @@ def render_what_changed_bars(
         fontweight="bold",
         fontfamily=CHART_THEME["font_family"]
     )
+    ax.tick_params(axis="y", colors=CHART_THEME["text_primary"], labelsize=8.5, length=0, pad=6)
 
-    # Subdued X-axis percent formatting
+    # Subdued X-axis formatting with subtle +/- tick marks
     ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, pos: f"{v:+.1f}"))
     ax.tick_params(axis="x", colors=CHART_THEME["text_dim"], labelsize=7.5)
 
-    # Margins
-    fig.subplots_adjust(left=0.32, right=0.92, top=0.92, bottom=0.18)
+    # Dynamic left margin based on longest BU label so it never clips or wastes space
+    max_len = max(len(n) for n in names) if names else 10
+    left_m = max(0.24, min(0.36, 0.016 * max_len + 0.10))
+    fig.subplots_adjust(left=left_m, right=0.90, top=0.88, bottom=0.20)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -542,10 +557,10 @@ def render_bu_ranking_lollipop(
             ha="center", va="bottom", fontfamily=CHART_THEME["font_family"], zorder=4
         )
 
-    # Calculate X limits with padding
+    # Calculate X limits with natural zero origin to prevent overlap with BU labels
     all_x = curr_vals + ([org_val] if org_val is not None else [0.0])
-    min_x = max(0.0, min(all_x) * 0.8 if min(all_x) > 0 else min(all_x) - 5)
-    max_x = max(all_x) * 1.25 if max(all_x) > 0 else 10.0
+    min_x = 0.0
+    max_x = max(all_x) * 1.30 if max(all_x) > 0 else 10.0
     if max_x <= min_x:
         max_x = min_x + 10.0
 
@@ -562,7 +577,7 @@ def render_bu_ranking_lollipop(
         ax.scatter([c_val], [y], color=col, s=70, edgecolors="#FFFFFF", linewidth=1.2, zorder=5)
 
         # Embedded value text offset
-        x_offset = span_x * 0.03
+        x_offset = span_x * 0.035
         if c_val >= base_x:
             t_x = c_val + x_offset
             t_ha = "left"
@@ -585,11 +600,12 @@ def render_bu_ranking_lollipop(
         fontweight="bold",
         fontfamily=CHART_THEME["font_family"]
     )
+    ax.tick_params(axis="y", colors=CHART_THEME["text_primary"], labelsize=8.5, length=0, pad=8)
 
     ax.set_xlim(min_x, max_x)
     ax.set_ylim(-0.6, n_items - 0.3)
     ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, pos: f"{v:.0f}%"))
     ax.tick_params(axis="x", colors=CHART_THEME["text_dim"], labelsize=7.5)
 
-    fig.subplots_adjust(left=0.28, right=0.92, top=0.90, bottom=0.18)
+    fig.subplots_adjust(left=0.26, right=0.90, top=0.88, bottom=0.20)
 

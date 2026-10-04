@@ -595,20 +595,13 @@ class PatternContext:
 
         if "approval_turnaround_days" not in self.df.columns or self.df["approval_turnaround_days"].isna().all():
             if "Approved On" in self.df.columns and "Applied On" in self.df.columns:
-                def calc_turnaround(row):
-                    app_on = row.get("Applied On")
-                    apr_on = row.get("Approved On")
-                    if pd.notna(app_on) and pd.notna(apr_on):
-                        try:
-                            ts_apr = pd.to_datetime(apr_on, errors="coerce")
-                            ts_app = pd.to_datetime(app_on, errors="coerce")
-                            if pd.notna(ts_apr) and pd.notna(ts_app):
-                                return (ts_apr.floor("D") - ts_app.floor("D")).days
-                        except Exception:
-                            return None
-                    return None
-
-                self.df["approval_turnaround_days"] = self.df.apply(calc_turnaround, axis=1).astype("Int64")
+                try:
+                    ts_apr = pd.to_datetime(self.df["Approved On"], format="mixed", errors="coerce")
+                    ts_app = pd.to_datetime(self.df["Applied On"], format="mixed", errors="coerce")
+                except Exception:
+                    ts_apr = pd.to_datetime(self.df["Approved On"], errors="coerce")
+                    ts_app = pd.to_datetime(self.df["Applied On"], errors="coerce")
+                self.df["approval_turnaround_days"] = (ts_apr.dt.floor("D") - ts_app.dt.floor("D")).dt.days.astype("Int64")
 
         # 2. Governed Employee-Day Facts
         if employee_day_facts is not None:

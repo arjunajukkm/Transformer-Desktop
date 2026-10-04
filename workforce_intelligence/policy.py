@@ -177,119 +177,109 @@ def evaluate_policy(
         full_dict.update(res)
         evaluated_req_list.append(full_dict)
 
-    # 3. Classify event types for all rows
-    df["policy_event_type"] = [classify_policy_event(r, config) for _, r in df.iterrows()]
+    # 3. Classify event types for all rows (Vectorized ultra-fast)
+    cat = df["attendance_category"].astype(str).str.strip() if "attendance_category" in df.columns else pd.Series("", index=df.index)
+    status = df["Status"].astype(str).str.strip() if "Status" in df.columns else pd.Series("", index=df.index)
+    st_lower = status.str.lower()
+    atype = df["Attendance Type"].astype(str).str.strip() if "Attendance Type" in df.columns else pd.Series("", index=df.index)
+    atype_lower = atype.str.lower()
+    lname = df["Leave Name"].astype(str).str.strip() if "Leave Name" in df.columns else pd.Series("", index=df.index)
+
+    is_leave = (cat == "Leave") | atype_lower.str.contains("leave", na=False) | st_lower.isin(["cl", "sl", "pl", "el", "ml", "clsl"])
+    is_wfh = (cat == "Work From Home") | atype_lower.str.contains("wfh", na=False) | (st_lower == "wfh")
+    is_att = cat.isin(["Absent", "Missing Swipes", "Attendance Regularized"]) | st_lower.isin(["a", "ab", "ms", "p(ms)", "a(r)", "ar"])
+    is_pl = is_leave & (lname.str.lower().str.contains(r"privilege|earned|\bpl\b|annual", regex=True, na=False) | st_lower.isin(["pl", "el"]))
+
+    ev_series = pd.Series("OTHER", index=df.index)
+    ev_series[is_att] = "ATTENDANCE"
+    ev_series[is_wfh] = "WFH"
+    ev_series[is_leave] = "NON_PL_LEAVE"
+    ev_series[is_pl] = "PL"
+    df["policy_event_type"] = ev_series
 
     # 4. Map request quantity back to rows
     req_qty_map = {r.request_id: r.request_total_quantity for r in leave_requests}
     df["request_total_quantity"] = df["request_id"].map(req_qty_map)
 
-    # 5. Populate row-level policy columns
-    rule_codes = []
-    rule_descs = []
-    req_notices = []
-    allowed_posts = []
-    periods = []
-    bench_compliants = []
-    policy_compliants = []
-    statuses = []
-    reasons = []
+    # 5. Populate row-level policy columns (Vectorized baseline)
+    evt_ts = pd.to_datetime(df["Date"], errors="coerce")
+    is_post_policy = (evt_ts.dt.date >= config.policy_effective_date).fillna(False)
+    periods = np.where(is_post_policy, "POST_POLICY", "PRE_POLICY")
 
-    for idx, row in df.iterrows():
-        ev_type = row["policy_event_type"]
-        req_id = row.get("request_id")
-        evt_ts = pd.to_datetime(row.get("Date"), errors="coerce")
-        evt_date = evt_ts.date() if pd.notna(evt_ts) else None
-        is_post_policy = bool(evt_date and evt_date >= config.policy_effective_date)
-        period = "POST_POLICY" if is_post_policy else "PRE_POLICY"
+    rule_codes = pd.Series("NOT_APPLICABLE", index=df.index)
+    rule_descs = pd.Series(POLICY_RULES["NOT_APPLICABLE"], index=df.index)
+    req_notices = pd.Series(None, index=df.index, dtype="object")
+    allowed_posts = pd.Series(None, index=df.index, dtype="object")
+    bench_compliants = pd.Series(None, index=df.index, dtype="boolean")
+    policy_compliants = pd.Series(None, index=df.index, dtype="boolean")
+    statuses = pd.Series("NOT_APPLICABLE", index=df.index)
+    reasons = pd.Series("NOT_APPLICABLE", index=df.index)
 
-        # Case A: Leave Row linked to a LeaveRequest
-        if req_id and req_id in req_eval_map:
-            eval_res = req_eval_map[req_id]
-            rule_codes.append(eval_res["policy_rule_code"])
-            rule_descs.append(eval_res["policy_rule_description"])
-            req_notices.append(eval_res["required_notice_days"])
-            allowed_posts.append(eval_res["allowed_post_days"])
-            periods.append(eval_res["policy_period"])
-            bench_compliants.append(eval_res["benchmark_compliant"])
-            policy_compliants.append(eval_res["policy_compliant"])
-            statuses.append(eval_res["compliance_status"])
-            reasons.append(eval_res["non_compliance_reason"])
+    # Case A: Leave Rows linked to LeaveRequests (Mapped instantly)
+    has_req = df["request_id"].notna() & df["request_id"].isin(req_eval_map)
+    if has_req.any():
+        m_req = df.loc[has_req, "request_id"]
+        rule_codes.loc[has_req] = m_req.map(lambda rid: req_eval_map[rid]["policy_rule_code"])
+        rule_descs.loc[has_req] = m_req.map(lambda rid: req_eval_map[rid]["policy_rule_description"])
+        req_notices.loc[has_req] = m_req.map(lambda rid: req_eval_map[rid]["required_notice_days"])
+        allowed_posts.loc[has_req] = m_req.map(lambda rid: req_eval_map[rid]["allowed_post_days"])
+        bench_compliants.loc[has_req] = m_req.map(lambda rid: req_eval_map[rid]["benchmark_compliant"]).astype("boolean")
+        policy_compliants.loc[has_req] = m_req.map(lambda rid: req_eval_map[rid]["policy_compliant"]).astype("boolean")
+        statuses.loc[has_req] = m_req.map(lambda rid: req_eval_map[rid]["compliance_status"])
+        reasons.loc[has_req] = m_req.map(lambda rid: req_eval_map[rid]["non_compliance_reason"])
 
-        # Case B: WFH Row
-        elif ev_type == "WFH":
-            rule_code = "WFH_APPLY_WITHIN_3D"
-            rule_desc = POLICY_RULES[rule_code]
-            allowed_post = config.wfh_max_post_days
+    # Case B: WFH Rows (Evaluated only on WFH rows, ~500 rows total)
+    wfh_indices = df[df["policy_event_type"] == "WFH"].index
+    if len(wfh_indices) > 0:
+        rule_code = "WFH_APPLY_WITHIN_3D"
+        rule_desc = POLICY_RULES[rule_code]
+        allowed_post = config.wfh_max_post_days
 
-            # Check critical data quality issue on row
+        wfh_sub = df.loc[wfh_indices]
+        for idx, row in wfh_sub.iterrows():
+            row_is_post = bool(is_post_policy.loc[idx])
             has_dq_issue = bool(row.get("dq_analytical_daily_quantity_exceeds_one", row.get("dq_daily_quantity_exceeds_one", False)))
+
+            rule_codes.loc[idx] = rule_code
+            rule_descs.loc[idx] = rule_desc
+            allowed_posts.loc[idx] = allowed_post
+
             if has_dq_issue:
-                rule_codes.append(rule_code)
-                rule_descs.append(rule_desc)
-                req_notices.append(None)
-                allowed_posts.append(allowed_post)
-                periods.append(period)
-                bench_compliants.append(None)
-                policy_compliants.append(None)
-                statuses.append("DATA_QUALITY_UNCERTAIN")
-                reasons.append("SOURCE_DATA_QUALITY_CRITICAL")
+                statuses.loc[idx] = "DATA_QUALITY_UNCERTAIN"
+                reasons.loc[idx] = "SOURCE_DATA_QUALITY_CRITICAL"
             elif pd.isna(row.get("Applied On")):
-                rule_codes.append(rule_code)
-                rule_descs.append(rule_desc)
-                req_notices.append(None)
-                allowed_posts.append(allowed_post)
-                periods.append(period)
-                bench_compliants.append(False)
-                policy_compliants.append(False if is_post_policy else None)
-                statuses.append("NON_COMPLIANT" if is_post_policy else "PRE_POLICY_BENCHMARK_FAIL")
-                reasons.append("MISSING_APPLICATION_DATE")
+                bench_compliants.loc[idx] = False
+                policy_compliants.loc[idx] = False if row_is_post else None
+                statuses.loc[idx] = "NON_COMPLIANT" if row_is_post else "PRE_POLICY_BENCHMARK_FAIL"
+                reasons.loc[idx] = "MISSING_APPLICATION_DATE"
             else:
                 lag = row.get("application_lag_days")
                 if lag is None or pd.isna(lag):
                     app_on = pd.to_datetime(row.get("Applied On"), errors="coerce")
-                    evt_p_ts = pd.to_datetime(evt_date, errors="coerce")
+                    evt_p_ts = evt_ts.loc[idx]
                     lag = (app_on.floor("D") - evt_p_ts.floor("D")).days if pd.notna(app_on) and pd.notna(evt_p_ts) else None
 
                 lag_val = int(lag) if lag is not None and not pd.isna(lag) else 0
                 is_comp = (lag_val <= allowed_post)
 
-                rule_codes.append(rule_code)
-                rule_descs.append(rule_desc)
-                req_notices.append(None)
-                allowed_posts.append(allowed_post)
-                periods.append(period)
-
                 if is_comp:
-                    bench_compliants.append(True)
-                    policy_compliants.append(True if is_post_policy else None)
-                    statuses.append("COMPLIANT" if is_post_policy else "PRE_POLICY_BENCHMARK_PASS")
-                    reasons.append("NONE")
+                    bench_compliants.loc[idx] = True
+                    policy_compliants.loc[idx] = True if row_is_post else None
+                    statuses.loc[idx] = "COMPLIANT" if row_is_post else "PRE_POLICY_BENCHMARK_PASS"
+                    reasons.loc[idx] = "NONE"
                 else:
-                    bench_compliants.append(False)
-                    policy_compliants.append(False if is_post_policy else None)
-                    statuses.append("NON_COMPLIANT" if is_post_policy else "PRE_POLICY_BENCHMARK_FAIL")
-                    reasons.append("LATE_APPLICATION")
-
-        # Case C: Unapplicable Event (Present, Absent, Week Off, Holiday, etc.)
-        else:
-            rule_codes.append("NOT_APPLICABLE")
-            rule_descs.append(POLICY_RULES["NOT_APPLICABLE"])
-            req_notices.append(None)
-            allowed_posts.append(None)
-            periods.append(period)
-            bench_compliants.append(None)
-            policy_compliants.append(None)
-            statuses.append("NOT_APPLICABLE")
-            reasons.append("NOT_APPLICABLE")
+                    bench_compliants.loc[idx] = False
+                    policy_compliants.loc[idx] = False if row_is_post else None
+                    statuses.loc[idx] = "NON_COMPLIANT" if row_is_post else "PRE_POLICY_BENCHMARK_FAIL"
+                    reasons.loc[idx] = "LATE_APPLICATION"
 
     df["policy_rule_code"] = rule_codes
     df["policy_rule_description"] = rule_descs
     df["required_notice_days"] = req_notices
     df["allowed_post_days"] = allowed_posts
     df["policy_period"] = periods
-    df["benchmark_compliant"] = pd.Series(bench_compliants, dtype="boolean")
-    df["policy_compliant"] = pd.Series(policy_compliants, dtype="boolean")
+    df["benchmark_compliant"] = bench_compliants
+    df["policy_compliant"] = policy_compliants
     df["compliance_status"] = statuses
     df["non_compliance_reason"] = reasons
 

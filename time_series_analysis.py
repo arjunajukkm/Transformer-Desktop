@@ -162,6 +162,36 @@ def parse_date_value(val: Any) -> Optional[date]:
     return None
 
 
+def parse_date_series(series: pd.Series) -> pd.Series:
+    """
+    Vectorized date parsing: converts a Series to datetime.date objects in milliseconds.
+    Replaces row-by-row apply(parse_date_value) with vectorized C/Cython parsing.
+    """
+    if series is None or len(series) == 0:
+        return pd.Series([], dtype="object")
+
+    if pd.api.types.is_datetime64_any_dtype(series):
+        return series.dt.date
+
+    try:
+        parsed = pd.to_datetime(series, format="mixed", errors="coerce")
+    except Exception:
+        parsed = pd.to_datetime(series, errors="coerce")
+
+    if parsed.isna().any():
+        mask = parsed.isna() & series.notna()
+        if mask.any():
+            clean_mask = mask & ~series.astype(str).str.strip().str.upper().isin(["", "NA", "N/A", "#N/A", "NAN", "NONE", "-", "NAT"])
+            if clean_mask.any():
+                try:
+                    dayfirst_parsed = pd.to_datetime(series[clean_mask], dayfirst=True, format="mixed", errors="coerce")
+                except Exception:
+                    dayfirst_parsed = pd.to_datetime(series[clean_mask], dayfirst=True, errors="coerce")
+                parsed.loc[clean_mask] = dayfirst_parsed
+
+    return parsed.dt.date
+
+
 # ════════════════════════════════════════════════════════════════
 # Data Ingestion and Normalization
 # ════════════════════════════════════════════════════════════════

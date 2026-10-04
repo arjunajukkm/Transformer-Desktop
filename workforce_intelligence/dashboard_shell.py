@@ -2087,55 +2087,55 @@ class MainTrendChartWidget(ctk.CTkFrame):
         hdr.grid_columnconfigure(0, weight=1)
         hdr.grid_columnconfigure(1, weight=0)
 
-        # Title & Subtitle
-        t_box = ctk.CTkFrame(hdr, fg_color="transparent")
-        t_box.grid(row=0, column=0, sticky="w")
+        # Title (Full width on Row 0)
         self.lbl_title = ctk.CTkLabel(
-            t_box,
+            hdr,
             text="Time-Series Trajectory & Benchmark Evaluation",
             font=ctk.CTkFont(family=ui.FONT_FAMILY, size=12, weight="bold"),
             text_color=ui.COLOR_TEXT,
             anchor="w",
         )
-        self.lbl_title.pack(anchor="w")
+        self.lbl_title.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 3))
+
+        # Subtitle (Left on Row 1)
         self.lbl_subtitle = ctk.CTkLabel(
-            t_box,
-            text="Actual vs Organisation Benchmark • Reference corridor • Policy Effective Marker",
+            hdr,
+            text="Actual vs Organisation Benchmark • Trailing baseline • Decision markers",
             font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9),
             text_color=ui.COLOR_TEXT_SEC,
             anchor="w",
         )
-        self.lbl_subtitle.pack(anchor="w")
+        self.lbl_subtitle.grid(row=1, column=0, sticky="w")
 
-        # Interactive Legend Strip
+        # Interactive Legend Strip (Right on Row 1)
         leg_box = ctk.CTkFrame(hdr, fg_color="transparent")
-        leg_box.grid(row=0, column=1, sticky="e")
+        leg_box.grid(row=1, column=1, sticky="e")
 
         # Actual
         f_act = ctk.CTkFrame(leg_box, fg_color="transparent")
-        f_act.pack(side="left", padx=(0, 10))
-        ctk.CTkLabel(f_act, text="━●", font=ctk.CTkFont(size=10, weight="bold"), text_color="#06B6D4").pack(side="left", padx=(0, 3))
-        ctk.CTkLabel(f_act, text="Actual", font=ctk.CTkFont(family=ui.FONT_FAMILY, size=10), text_color=ui.COLOR_TEXT).pack(side="left")
+        f_act.pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(f_act, text="━●", font=ctk.CTkFont(size=10, weight="bold"), text_color="#06B6D4").pack(side="left", padx=(0, 2))
+        ctk.CTkLabel(f_act, text="Actual", font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9), text_color=ui.COLOR_TEXT).pack(side="left")
 
         # Benchmark
         f_bn = ctk.CTkFrame(leg_box, fg_color="transparent")
-        f_bn.pack(side="left", padx=(0, 10))
+        f_bn.pack(side="left", padx=(0, 8))
         self.lbl_leg_bn_icon = ctk.CTkLabel(f_bn, text="╍╍", font=ctk.CTkFont(size=10, weight="bold"), text_color="#F59E0B")
-        self.lbl_leg_bn_icon.pack(side="left", padx=(0, 3))
-        self.lbl_leg_bn_text = ctk.CTkLabel(f_bn, text="Benchmark", font=ctk.CTkFont(family=ui.FONT_FAMILY, size=10), text_color=ui.COLOR_TEXT_SEC)
+        self.lbl_leg_bn_icon.pack(side="left", padx=(0, 2))
+        self.lbl_leg_bn_text = ctk.CTkLabel(f_bn, text="Benchmark", font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9), text_color=ui.COLOR_TEXT_SEC)
         self.lbl_leg_bn_text.pack(side="left")
 
         # Historical Baseline
         f_hist = ctk.CTkFrame(leg_box, fg_color="transparent")
-        f_hist.pack(side="left", padx=(0, 10))
-        ctk.CTkLabel(f_hist, text="····", font=ctk.CTkFont(size=11, weight="bold"), text_color="#8B5CF6").pack(side="left", padx=(0, 3))
-        ctk.CTkLabel(f_hist, text="Historical Baseline", font=ctk.CTkFont(family=ui.FONT_FAMILY, size=10), text_color=ui.COLOR_TEXT_SEC).pack(side="left")
+        f_hist.pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(f_hist, text="····", font=ctk.CTkFont(size=10, weight="bold"), text_color="#8B5CF6").pack(side="left", padx=(0, 2))
+        ctk.CTkLabel(f_hist, text="Historical", font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9), text_color=ui.COLOR_TEXT_SEC).pack(side="left")
 
         # Reference Corridor
         f_ref = ctk.CTkFrame(leg_box, fg_color="transparent")
-        f_ref.pack(side="left", padx=(0, 6))
-        ctk.CTkLabel(f_ref, text="■", font=ctk.CTkFont(size=11), text_color="#1E293B").pack(side="left", padx=(0, 3))
-        ctk.CTkLabel(f_ref, text="Normal Range", font=ctk.CTkFont(family=ui.FONT_FAMILY, size=10), text_color=ui.COLOR_TEXT_SEC).pack(side="left")
+        f_ref.pack(side="left", padx=(0, 2))
+        ctk.CTkLabel(f_ref, text="■", font=ctk.CTkFont(size=10), text_color="#1E293B").pack(side="left", padx=(0, 2))
+        ctk.CTkLabel(f_ref, text="Normal Range", font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9), text_color=ui.COLOR_TEXT_SEC).pack(side="left")
 
         # Matplotlib Chart Canvas container
         self.canvas_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -2162,7 +2162,8 @@ class MainTrendChartWidget(ctk.CTkFrame):
         m_name = self._chart_data.get("metric_name", "Selected Metric")
         self.lbl_title.configure(text=f"{m_name} — Trajectory & Benchmark Evaluation")
         self.lbl_subtitle.configure(text=f"Actual vs {benchmark_label} Benchmark • Trailing baseline • Decision markers")
-        self.lbl_leg_bn_text.configure(text=f"{benchmark_label} Benchmark")
+        bn_short = "Org Benchmark" if "organis" in benchmark_label.lower() else f"{benchmark_label}"
+        self.lbl_leg_bn_text.configure(text=bn_short)
 
         self._draw_chart()
 
@@ -2571,39 +2572,119 @@ class WhatChangedWidget(ctk.CTkFrame):
         self.chart_container.grid_columnconfigure(0, weight=1)
         self.chart_container.grid_rowconfigure(0, weight=1)
 
-        self.chart_canvas = ChartCanvas(self.chart_container, figsize=(4.5, 2.0), dpi=100)
+        # Baseline Info Container (displayed when single-month baseline or zero movement)
+        self.baseline_frame = ctk.CTkFrame(
+            self.chart_container,
+            fg_color="#0F172A",
+            corner_radius=8,
+            border_width=1,
+            border_color="#1E293B",
+        )
+        self.baseline_frame.grid_columnconfigure(0, weight=1)
+
+        b_center = ctk.CTkFrame(self.baseline_frame, fg_color="transparent")
+        b_center.place(relx=0.5, rely=0.5, anchor="center")
+
+        # Pill badge
+        pill_box = ctk.CTkFrame(b_center, fg_color="#064E3B", corner_radius=12)
+        pill_box.pack(pady=(0, 6))
+        lbl_pill = ctk.CTkLabel(
+            pill_box,
+            text="✓ Baseline Period Established",
+            font=ctk.CTkFont(family=ui.FONT_FAMILY, size=10, weight="bold"),
+            text_color="#10B981",
+            padx=10,
+            pady=3,
+        )
+        lbl_pill.pack()
+
+        self.lbl_baseline_title = ctk.CTkLabel(
+            b_center,
+            text="Stable Trajectory Across Active Scope",
+            font=ctk.CTkFont(family=ui.FONT_FAMILY, size=11, weight="bold"),
+            text_color=ui.COLOR_TEXT,
+            anchor="center",
+        )
+        self.lbl_baseline_title.pack(pady=(0, 4))
+
+        self.lbl_baseline_desc = ctk.CTkLabel(
+            b_center,
+            text="Month-over-month driver breakdown requires at least 2 consecutive monthly periods.\nLoad multi-month historical archive via 'Sync Time & Leave' to view variance decomposition.",
+            font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9),
+            text_color=ui.COLOR_TEXT_SEC,
+            justify="center",
+            wraplength=340,
+        )
+        self.lbl_baseline_desc.pack()
+
+        # Canvas for Diverging Bars (displayed when MoM movement drivers are present)
+        self.chart_canvas = ChartCanvas(
+            self.chart_container,
+            figsize=(3.5, 1.8),
+            dpi=100,
+            resize_callback=self._on_canvas_resize,
+        )
         self.chart_canvas.grid(row=0, column=0, sticky="nsew")
         self.chart_ax = self.chart_canvas.fig.add_subplot(111)
+
+    def _on_canvas_resize(self):
+        """Re-render diverging bars with dynamically adjusted margins upon viewport resize."""
+        if not self._what_changed_data:
+            return
+        has_mov = self._what_changed_data.get("has_movement", False)
+        drivers = self._what_changed_data.get("drivers", [])
+        if has_mov and drivers:
+            render_what_changed_bars(
+                self.chart_canvas.fig,
+                self.chart_ax,
+                self._what_changed_data,
+            )
 
     def update_data(self, what_changed: Dict[str, Any]):
         """Render driver breakdown using Matplotlib diverging bars and summary text."""
         self._what_changed_data = what_changed or {}
 
         if not what_changed:
+            self.lbl_movement.configure(
+                text="Evaluating latest period movement...",
+                text_color=ui.COLOR_TEXT,
+            )
+            self.chart_canvas.grid_remove()
+            self.baseline_frame.grid(row=0, column=0, sticky="nsew", padx=2, pady=2)
             return
 
         has_mov = what_changed.get("has_movement", False)
         drivers = what_changed.get("drivers", [])
         headline = what_changed.get("headline", "Baseline period established")
+        metric_name = what_changed.get("metric_name", "Metric")
 
         if not has_mov or not drivers:
             self.lbl_movement.configure(
-                text="✓ Baseline period established • Stable trajectory across active scope",
+                text=f"✓ {headline}" if headline else "✓ Baseline period established • Stable trajectory across active scope",
                 text_color=ui.COLOR_SUCCESS,
             )
+            self.lbl_baseline_title.configure(text=f"{metric_name} • Single Period Baseline")
+            self.lbl_baseline_desc.configure(
+                text="Month-over-month driver breakdown requires at least 2 consecutive monthly periods.\nLoad multi-month historical archive via 'Sync Time & Leave' to view variance decomposition."
+            )
+            self.chart_canvas.grid_remove()
+            self.baseline_frame.grid(row=0, column=0, sticky="nsew", padx=2, pady=2)
         else:
+            self.baseline_frame.grid_remove()
+            self.chart_canvas.grid(row=0, column=0, sticky="nsew")
+
             is_inc = "+" in headline or "increased" in headline.lower()
             self.lbl_movement.configure(
                 text=f"📈 {headline}" if is_inc else f"📉 {headline}",
                 text_color="#F43F5E" if is_inc else "#10B981",
             )
 
-        render_what_changed_bars(
-            self.chart_canvas.fig,
-            self.chart_ax,
-            self._what_changed_data,
-        )
-        self.chart_canvas.draw()
+            render_what_changed_bars(
+                self.chart_canvas.fig,
+                self.chart_ax,
+                self._what_changed_data,
+            )
+            self.chart_canvas.draw()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -3842,7 +3923,12 @@ class WorkforceDashboardView(ctk.CTkFrame):
             max_d = snap.metadata.get("max_date", "N/A")
             if hasattr(self, "lbl_period"):
                 self.lbl_period.configure(text=f"{min_d} to {max_d}")
-        self._load_overview_metrics()
+        if getattr(self, "active_view", "overview") == "trends":
+            self._last_trend_bundle = None
+            self._load_trend_metrics()
+        else:
+            self._last_metrics_bundle = None
+            self._load_overview_metrics()
 
     def _schedule_metrics_load(self):
         """Debounce metric loading by 50ms to prevent rapid consecutive recalculations."""
@@ -4679,7 +4765,21 @@ class WorkforceDashboardView(ctk.CTkFrame):
             text_color=ui.COLOR_TEXT_SEC,
             anchor="e",
         )
-        self.lbl_trend_active_scope.grid(row=0, column=4, sticky="e", padx=(4, 2))
+        self.lbl_trend_active_scope.grid(row=0, column=4, sticky="e", padx=(4, 6))
+
+        # Reset button directly inside Trends controls bar
+        self.btn_reset_trend_scope = ctk.CTkButton(
+            ctrl_inner,
+            text="↺ Reset Scope",
+            width=96,
+            height=28,
+            fg_color="transparent",
+            hover_color=ui.COLOR_CARD_HOVER,
+            text_color=ui.COLOR_TEXT_SEC,
+            font=ctk.CTkFont(family=ui.FONT_FAMILY, size=11, weight="bold"),
+            command=self._on_reset_filters_clicked,
+        )
+        self.btn_reset_trend_scope.grid(row=0, column=5, sticky="e", padx=(2, 2))
 
         # 2. State Containers (Empty, Loading, Error, Live Trends Content)
         # 2A. Empty State Container

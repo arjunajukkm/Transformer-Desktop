@@ -339,7 +339,7 @@ def extract_canonical_month(dt: Any) -> Optional[str]:
     elif isinstance(dt, (date, datetime)):
         return f"{dt.year:04d}-{dt.month:02d}-01"
     try:
-        ts = pd.to_datetime(dt, errors="coerce")
+        ts = pd.to_datetime(dt, format="mixed", errors="coerce")
         if pd.isna(ts):
             return None
         return ts.strftime("%Y-%m-01")
@@ -364,7 +364,7 @@ def calculate_monthly_compliance(
             return []
 
         if "_month" not in req_df.columns:
-            req_df["_month"] = pd.to_datetime(req_df["request_start_date"], errors="coerce").dt.strftime("%Y-%m-01")
+            req_df["_month"] = pd.to_datetime(req_df["request_start_date"], format="mixed", errors="coerce").dt.strftime("%Y-%m-01")
         valid_reqs = req_df[req_df["_month"].notna()].copy()
 
         # Filter by sub-category if applicable
@@ -381,7 +381,7 @@ def calculate_monthly_compliance(
             
             # Compliance uses benchmark_compliant before 2026-10-01 and policy_compliant on or after
             # Evaluated per request start date
-            p_dt = pd.to_datetime(p_month, errors="coerce")
+            p_dt = pd.to_datetime(p_month, format="mixed", errors="coerce")
             is_post_policy = bool(pd.notna(p_dt) and p_dt.date() >= POLICY_EFFECTIVE_DATE)
             if is_post_policy:
                 comp_num = int((m_group["policy_compliant"] == True).sum())
@@ -413,7 +413,7 @@ def calculate_monthly_compliance(
             return []
 
         if "_month" not in wfh_df.columns:
-            wfh_df["_month"] = pd.to_datetime(wfh_df["Date"], errors="coerce").dt.strftime("%Y-%m-01")
+            wfh_df["_month"] = pd.to_datetime(wfh_df["Date"], format="mixed", errors="coerce").dt.strftime("%Y-%m-01")
         valid_wfh = wfh_df[wfh_df["_month"].notna()].copy()
 
         for p_month in sorted(valid_wfh["_month"].unique()):
@@ -422,7 +422,7 @@ def calculate_monthly_compliance(
             dq_ex = int((m_group["compliance_status"] == "DATA_QUALITY_UNCERTAIN").sum())
             evaluable = tot - dq_ex
             
-            p_dt = pd.to_datetime(p_month, errors="coerce")
+            p_dt = pd.to_datetime(p_month, format="mixed", errors="coerce")
             is_post_policy = bool(pd.notna(p_dt) and p_dt.date() >= POLICY_EFFECTIVE_DATE)
             if is_post_policy:
                 comp_num = int((m_group["policy_compliant"] == True).sum())
@@ -461,7 +461,7 @@ def calculate_monthly_attendance(
 
     facts = employee_day_facts.copy()
     if "_month" not in facts.columns:
-        facts["_month"] = pd.to_datetime(facts["Date"], errors="coerce").dt.strftime("%Y-%m-01")
+        facts["_month"] = pd.to_datetime(facts["Date"], format="mixed", errors="coerce").dt.strftime("%Y-%m-01")
     valid_facts = facts[facts["_month"].notna()].copy()
 
     points: List[TrendPoint] = []
@@ -519,7 +519,7 @@ def calculate_monthly_approvals(
 
     df = evaluated_df.copy()
     if "_app_month" not in df.columns:
-        df["_app_month"] = pd.to_datetime(df["Applied On"], errors="coerce").dt.strftime("%Y-%m-01")
+        df["_app_month"] = pd.to_datetime(df["Applied On"], format="mixed", errors="coerce").dt.strftime("%Y-%m-01")
     valid_df = df[df["_app_month"].notna()].copy()
     if valid_df.empty:
         return []
@@ -530,7 +530,7 @@ def calculate_monthly_approvals(
     # As of date for pending age
     if analysis_as_of_date is None:
         if "Date" in evaluated_df.columns:
-            d_series = pd.to_datetime(evaluated_df["Date"], errors="coerce").dropna()
+            d_series = pd.to_datetime(evaluated_df["Date"], format="mixed", errors="coerce").dropna()
             if not d_series.empty:
                 analysis_as_of_date = d_series.max().date()
             else:
@@ -570,7 +570,7 @@ def calculate_monthly_approvals(
             valid_obs = pending_cnt
         elif metric_id == "average_pending_approval_age":
             if not pending_rows.empty and "Applied On" in pending_rows.columns:
-                app_ts = pd.to_datetime(pending_rows["Applied On"], errors="coerce")
+                app_ts = pd.to_datetime(pending_rows["Applied On"], format="mixed", errors="coerce")
                 ages = (as_of_ts - app_ts).dt.days
                 valid_ages = ages[(ages >= 0) & ages.notna()]
                 val = round(float(valid_ages.mean()), 2) if not valid_ages.empty else None
@@ -655,7 +655,7 @@ def calculate_monthly_working_time(
 
     df = evaluated_df.copy()
     if "_month" not in df.columns:
-        df["_month"] = pd.to_datetime(df["Date"], errors="coerce").dt.strftime("%Y-%m-01")
+        df["_month"] = pd.to_datetime(df["Date"], format="mixed", errors="coerce").dt.strftime("%Y-%m-01")
     valid_df = df[df["_month"].notna()].copy()
     if valid_df.empty:
         return []

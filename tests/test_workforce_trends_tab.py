@@ -472,3 +472,57 @@ def test_trends_with_dirty_unparseable_datetime_strings(desktop_app):
     assert "trend_pulse" in bundle
     assert "patterns" in bundle
     assert "benchmark_table" in bundle
+
+
+# =========================================================================
+# 14. Reset Filter Behavior in Trends View
+# =========================================================================
+def test_reset_filters_in_trends_view():
+    """Verify that resetting filters while on the Trends tab refreshes trends and clears scope."""
+    view = WorkforceDashboardView.__new__(WorkforceDashboardView)
+    view.active_view = "trends"
+    view._available_dates = [date(2026, 5, 10), date(2026, 7, 20)]
+    view._filter_state = {
+        "date_range": ("2026-06-01", "2026-06-30"),
+        "business_unit": "Lending",
+        "department": "Risk",
+        "manager": "Mgr X",
+        "employee": "EMP01",
+        "date_preset": "Custom",
+    }
+    view._last_trend_bundle = {"stale": True}
+    view._last_metrics_bundle = None
+
+    view.combo_date_range = MagicMock()
+    view.combo_bu = MagicMock()
+    view.combo_dept = MagicMock()
+    view.combo_manager = MagicMock()
+    view.combo_employee = MagicMock()
+    view.lbl_active_scope = MagicMock()
+    view.lbl_period = MagicMock()
+    view._populate_filters_from_snapshot = MagicMock()
+    view._load_overview_metrics = MagicMock()
+    view._load_trend_metrics = MagicMock()
+
+    # Call reset handler
+    WorkforceDashboardView._on_reset_filters_clicked(view)
+
+    # 1. State must be cleared to defaults
+    assert view._filter_state["date_range"] is None
+    assert view._filter_state["business_unit"] is None
+    assert view._filter_state["department"] is None
+    assert view._filter_state["manager"] is None
+    assert view._filter_state["employee"] is None
+    assert view._filter_state["date_preset"] == "All Dates"
+
+    # 2. Dropdown UI must be set back to defaults
+    view.combo_bu.set.assert_called_with("All Business Units")
+    view.combo_dept.set.assert_called_with("All Departments")
+    view.combo_manager.set.assert_called_with("All Reporting Managers")
+    view.combo_employee.set.assert_called_with("All Employees")
+
+    # 3. Trends metrics loader must be called to re-render trends graphs with None bundle
+    assert view._last_trend_bundle is None
+    view._load_trend_metrics.assert_called_once()
+    view._load_overview_metrics.assert_not_called()
+

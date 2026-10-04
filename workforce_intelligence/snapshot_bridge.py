@@ -1033,15 +1033,31 @@ class WorkforceIntelligenceBridge:
         }
 
         # 11. What Changed? (Deterministic Driver Attribution)
-        if len(scope_series) >= 2 and scope_series[-1].get("value") is not None and scope_series[-2].get("value") is not None:
-            latest_p = scope_series[-1]
-            prev_p = scope_series[-2]
+        valid_pts = [p for p in scope_series if p.get("value") is not None and not pd.isna(p.get("value"))]
+        if len(valid_pts) >= 2:
+            latest_p = valid_pts[-1]
+            prev_p = valid_pts[-2]
             tot_delta = round(latest_p["value"] - prev_p["value"], 2)
             dir_w = "increased" if tot_delta > 0 else ("decreased" if tot_delta < 0 else "remained stable")
-            u_txt = " percentage points" if metric_def.format == "percentage" else (" days" if metric_def.format == "days" else " units")
             sign_s = "+" if tot_delta > 0 else ""
+
+            if metric_def.format == "percentage":
+                u_txt = " percentage points"
+                tot_chg_str = f"{sign_s}{tot_delta:.1f} pp"
+            elif metric_def.format == "days":
+                u_txt = " days"
+                tot_chg_str = f"{sign_s}{tot_delta:.1f} d"
+            elif metric_def.format in ("duration", "time"):
+                u_txt = " minutes"
+                tot_chg_str = f"{sign_s}{abs(tot_delta):.0f}m" if abs(tot_delta) < 60 else f"{sign_s}{tot_delta/60:.1f}h"
+            elif metric_def.format == "integer":
+                u_txt = " requests"
+                tot_chg_str = f"{sign_s}{int(round(tot_delta))}"
+            else:
+                u_txt = " units"
+                tot_chg_str = f"{sign_s}{tot_delta:.1f}"
+
             what_summary = f"{metric_def.label} {dir_w} by {abs(tot_delta):.1f}{u_txt} in {latest_p['period_display']} (from {prev_p['formatted_value']} to {latest_p['formatted_value']})."
-            tot_chg_str = f"{sign_s}{tot_delta:.1f} {'pp' if metric_def.format == 'percentage' else ''}"
 
             # Calculate BU contributors
             drivers = []
@@ -1055,43 +1071,70 @@ class WorkforceIntelligenceBridge:
                     bv_curr = b_pts[latest_p["period"]].get("value")
                     bv_prev = b_pts[prev_p["period"]].get("value")
                     bu_ev = b_pts[latest_p["period"]].get("evaluable") or b_pts[latest_p["period"]].get("valid_observation_count") or 0
-                    if bv_curr is not None and bv_prev is not None:
+                    if bv_curr is not None and bv_prev is not None and not pd.isna(bv_curr) and not pd.isna(bv_prev):
                         d_bu = round(bv_curr - bv_prev, 2)
                         weight = bu_ev / max(1, tot_eval_curr)
                         contrib = round(d_bu * weight, 2)
                         bu_deltas.append((bu_name, d_bu, contrib))
 
-            bu_deltas.sort(key=lambda x: abs(x[2]), reverse=True)
+            # Sort primarily by absolute delta so significant BU movements are always highlighted
+            bu_deltas.sort(key=lambda x: (abs(x[1]), abs(x[2])), reverse=True)
 
-            top_bus = bu_deltas[:3]
+            top_bus = bu_deltas[:4]
             for bu_name, d_bu, contrib in top_bus:
                 if abs(d_bu) >= 0.05:
                     sign_b = "+" if d_bu > 0 else ""
                     is_adv = bool((d_bu > 0 and metric_def.direction == "lower_is_better") or (d_bu < 0 and metric_def.direction == "higher_is_better"))
-                    fmt_d = f"{sign_b}{d_bu:.1f} {'pp' if metric_def.format == 'percentage' else ''}"
+                    
+                    if metric_def.format == "percentage":
+                        fmt_d = f"{sign_b}{d_bu:.1f} pp"
+                        c_str = f"{sign_b}{contrib:.1f} pp contribution"
+                    elif metric_def.format == "days":
+                        fmt_d = f"{sign_b}{d_bu:.1f} d"
+                        c_str = f"{sign_b}{contrib:.1f} d contribution"
+                    elif metric_def.format in ("duration", "time"):
+                        fmt_d = f"{sign_b}{abs(d_bu):.0f}m" if abs(d_bu) < 60 else f"{sign_b}{d_bu/60:.1f}h"
+                        c_str = f"{sign_b}{abs(contrib):.0f}m contribution" if abs(contrib) < 60 else f"{sign_b}{contrib/60:.1f}h contribution"
+                    elif metric_def.format == "integer":
+                        fmt_d = f"{sign_b}{int(round(d_bu))}"
+                        c_str = f"{sign_b}{int(round(contrib))} contribution"
+                    else:
+                        fmt_d = f"{sign_b}{d_bu:.1f}"
+                        c_str = f"{sign_b}{contrib:.1f}"
+
                     drivers.append({
                         "driver": bu_name,
                         "name": bu_name,
                         "delta": d_bu,
                         "delta_str": fmt_d,
                         "formatted_delta": fmt_d,
-                        "contribution_str": f"{sign_b}{contrib:.1f} pp contribution" if metric_def.format == "percentage" else "",
+                        "contribution_str": c_str,
                         "is_adverse": is_adv,
                         "type": "BU",
                     })
 
-            if len(bu_deltas) > 3:
-                other_contrib = sum(x[2] for x in bu_deltas[3:])
+            if len(bu_deltas) > 4:
+                other_contrib = round(sum(x[2] for x in bu_deltas[4:]), 2)
                 if abs(other_contrib) >= 0.05:
                     sign_o = "+" if other_contrib > 0 else ""
-                    fmt_o = f"{sign_o}{other_contrib:.1f} {'pp' if metric_def.format == 'percentage' else ''}"
+                    if metric_def.format == "percentage":
+                        fmt_o = f"{sign_o}{other_contrib:.1f} pp"
+                    elif metric_def.format == "days":
+                        fmt_o = f"{sign_o}{other_contrib:.1f} d"
+                    elif metric_def.format in ("duration", "time"):
+                        fmt_o = f"{sign_o}{abs(other_contrib):.0f}m" if abs(other_contrib) < 60 else f"{sign_o}{other_contrib/60:.1f}h"
+                    elif metric_def.format == "integer":
+                        fmt_o = f"{sign_o}{int(round(other_contrib))}"
+                    else:
+                        fmt_o = f"{sign_o}{other_contrib:.1f}"
+
                     drivers.append({
                         "driver": "Other Business Units",
                         "name": "Other Business Units",
                         "delta": other_contrib,
                         "delta_str": fmt_o,
                         "formatted_delta": fmt_o,
-                        "contribution_str": f"{sign_o}{other_contrib:.1f} pp net",
+                        "contribution_str": f"{sign_o}{other_contrib:.1f} net contribution",
                         "is_adverse": bool(other_contrib > 0 if metric_def.direction == "lower_is_better" else other_contrib < 0),
                         "type": "BU",
                     })
@@ -1108,14 +1151,14 @@ class WorkforceIntelligenceBridge:
                 "drivers": drivers,
             }
         else:
-            single_lbl = scope_series[0]["period_display"] if scope_series else "Current period"
-            single_val = scope_series[0]["formatted_value"] if scope_series else "—"
+            single_lbl = valid_pts[0]["period_display"] if valid_pts else (scope_series[0]["period_display"] if scope_series else "Current period")
+            single_val = valid_pts[0]["formatted_value"] if valid_pts else (scope_series[0]["formatted_value"] if scope_series else "—")
             what_changed_data = {
                 "has_change": False,
                 "has_movement": False,
                 "title": "What Changed?",
-                "headline": f"Baseline established for {single_lbl} ({single_val}). Additional monthly history will reveal movement drivers.",
-                "summary": f"Baseline established for {single_lbl} ({single_val}). Additional monthly history will reveal movement drivers.",
+                "headline": f"Baseline established for {single_lbl} ({single_val}). Multi-month archive unlocks automated driver attribution.",
+                "summary": f"Baseline established for {single_lbl} ({single_val}). Multi-month archive unlocks automated driver attribution.",
                 "metric_name": metric_def.label,
                 "total_change_str": "Baseline",
                 "direction": "neutral",
@@ -1132,7 +1175,7 @@ class WorkforceIntelligenceBridge:
 
         if pattern_items is None:
             try:
-                _, pattern_results = detect_patterns(scoped_eval_df, scoped_eval_reqs)
+                _, pattern_results = detect_patterns(scoped_eval_df, scoped_eval_reqs, employee_day_facts=scoped_facts)
             except Exception:
                 pattern_results = []
 
