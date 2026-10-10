@@ -43,53 +43,29 @@ TREND_METRICS: Dict[str, TrendMetricDefinition] = {
     # 1. Compliance
     "leave_application_compliance": TrendMetricDefinition(
         id="leave_application_compliance",
-        label="Leave Application Compliance",
+        label="Leave Application Compliance / Timing",
         category="Compliance",
-        format="percentage",
-        direction="higher_is_better",
-        description="Monthly rate of compliant leave requests with full denominator governance.",
-    ),
-    "pl_application_compliance": TrendMetricDefinition(
-        id="pl_application_compliance",
-        label="PL Application Compliance",
-        category="Compliance",
-        format="percentage",
-        direction="higher_is_better",
-        description="Privilege Leave application timing based on leave duration: up to 3 units requires 2 days advance notice; over 3 to 7 units requires 15 days; over 7 units requires 30 days.",
-    ),
-    "non_pl_application_compliance": TrendMetricDefinition(
-        id="non_pl_application_compliance",
-        label="Non-PL Application Compliance",
-        category="Compliance",
-        format="percentage",
-        direction="higher_is_better",
-        description="Non-PL leave must be applied no later than 3 calendar days after the availed date.",
+        format="days",
+        direction="lower_is_better",
+        description="Timing of leave applications relative to leave start date, with advance, same-day, and post-leave classifications.",
     ),
     "wfh_application_compliance": TrendMetricDefinition(
         id="wfh_application_compliance",
-        label="WFH Application Compliance",
+        label="WFH Application Compliance / Timing",
         category="Compliance",
-        format="percentage",
-        direction="higher_is_better",
-        description="WFH must be applied no later than 3 calendar days after the availed date.",
+        format="days",
+        direction="lower_is_better",
+        description="Timing of WFH applications relative to availed date, with advance, same-day, and post-WFH classifications.",
     ),
 
     # 2. Attendance
-    "attendance_exception_rate": TrendMetricDefinition(
-        id="attendance_exception_rate",
-        label="Attendance Exception Rate",
-        category="Attendance",
-        format="percentage",
-        direction="lower_is_better",
-        description="Monthly percentage of evaluable eligible employee-days containing an attendance exception.",
-    ),
     "missing_swipe_rate": TrendMetricDefinition(
         id="missing_swipe_rate",
         label="Missing Swipe Rate",
         category="Attendance",
         format="percentage",
         direction="lower_is_better",
-        description="Monthly percentage of evaluable eligible employee-days with missing in or out swipe.",
+        description="Monthly percentage of eligible attendance days with status P(MS).",
     ),
     "absence_rate": TrendMetricDefinition(
         id="absence_rate",
@@ -105,7 +81,7 @@ TREND_METRICS: Dict[str, TrendMetricDefinition] = {
         category="Attendance",
         format="percentage",
         direction="neutral",
-        description="Monthly percentage of evaluable eligible employee-days with attendance regularization.",
+        description="Monthly percentage of evaluable eligible scheduled working days where Attendance Type = Regularized.",
     ),
 
     # 3. Approval
@@ -268,15 +244,119 @@ def format_duration_minutes(minutes: Optional[Union[float, int]]) -> Optional[st
     return f"{hours}h {mins:02d}m"
 
 
-def format_metric_value(val: Optional[Union[float, int]], format_type: str) -> Optional[str]:
-    """Format a metric value for display based on its format type."""
+def format_timing_days(days: Optional[Union[float, int]], event_type: str = "leave") -> Optional[str]:
+    """Format timing days into 'Applied 5 days before leave' or 'Applied 2 days after leave'."""
+    if days is None or pd.isna(days):
+        return None
+    d = float(days)
+    if abs(d) < 0.05:
+        return "Applied on same day"
+    ev_name = "WFH" if "wfh" in event_type.lower() else "leave"
+    if d < 0:
+        val_abs = abs(d)
+        d_str = f"{int(round(val_abs))}" if abs(val_abs - round(val_abs)) < 0.05 else f"{val_abs:.1f}"
+        unit = "day" if d_str == "1" else "days"
+        return f"Applied {d_str} {unit} before {ev_name}"
+    d_str = f"{int(round(d))}" if abs(d - round(d)) < 0.05 else f"{d:.1f}"
+    unit = "day" if d_str == "1" else "days"
+    return f"Applied {d_str} {unit} after {ev_name}"
+
+
+def format_benchmark_diff(
+    diff: Optional[Union[float, int]],
+    format_type: str,
+    metric_id: str = "",
+) -> str:
+    """Format difference against benchmark using natural executive language."""
+    if diff is None or pd.isna(diff):
+        return "—"
+    fd = float(diff)
+    if abs(fd) < 0.01:
+        return "At benchmark"
+
+    sign = "+" if fd > 0 else "-"
+    abs_d = abs(fd)
+
+    if metric_id in ("leave_application_compliance", "wfh_application_compliance"):
+        ev = "WFH" if "wfh" in metric_id else "leave"
+        d_str = f"{int(round(abs_d))}" if abs(abs_d - round(abs_d)) < 0.05 else f"{abs_d:.1f}"
+        unit = "day" if d_str == "1" else "days"
+        # Negative diff means applied earlier/before; positive means applied later/after
+        rel = "later" if fd > 0 else "earlier"
+        return f"{d_str} {unit} {rel}"
+
+    if format_type == "percentage":
+        return f"{sign}{abs_d:.1f} pp"
+
+    if format_type in ("duration", "time"):
+        total_mins = int(round(abs_d))
+        hours = total_mins // 60
+        mins = total_mins % 60
+        if hours > 0 and mins > 0:
+            t_str = f"{hours}h {mins:02d}m"
+        elif hours > 0:
+            t_str = f"{hours}h"
+        else:
+            t_str = f"{mins} mins"
+        if format_type == "time":
+            rel = "later" if fd > 0 else "earlier"
+            return f"{t_str} {rel}"
+        return f"{sign}{t_str}"
+
+    if format_type == "days":
+        d_str = f"{int(round(abs_d))}" if abs(abs_d - round(abs_d)) < 0.05 else f"{abs_d:.1f}"
+        unit = "day" if d_str == "1" else "days"
+        if "turnaround" in metric_id or "age" in metric_id:
+            rel = "slower" if fd > 0 else "faster"
+            return f"{d_str} {unit} {rel}"
+        return f"{sign}{d_str} {unit}"
+
+    if format_type == "integer":
+        return f"{sign}{int(round(abs_d))}"
+
+    return f"{sign}{abs_d:.1f}"
+
+
+def get_approval_turnaround_color(days: Optional[Union[float, int]]) -> Optional[str]:
+    """Return executive color for approval turnaround (0-2d green, >2-5d amber, >5d red)."""
+    if days is None or pd.isna(days):
+        return None
+    d = float(days)
+    if d <= 2.0:
+        return "#10B981"  # Green
+    if d <= 5.0:
+        return "#F59E0B"  # Amber
+    return "#F43F5E"      # Red
+
+
+def get_missing_swipe_color(rate: Optional[Union[float, int]]) -> Optional[str]:
+    """Return executive color for missing swipe rate (<5% green, 5-15% amber, >15% red)."""
+    if rate is None or pd.isna(rate):
+        return None
+    r = float(rate)
+    if r < 5.0:
+        return "#10B981"  # Green
+    if r <= 15.0:
+        return "#F59E0B"  # Amber
+    return "#F43F5E"      # Red
+
+
+def format_metric_value(
+    val: Optional[Union[float, int]],
+    format_type: str,
+    metric_id: Optional[str] = None,
+) -> Optional[str]:
+    """Format a metric value for display based on its format type and metric id."""
     if val is None or pd.isna(val):
         return None
     fval = float(val)
+    if metric_id in ("leave_application_compliance", "wfh_application_compliance"):
+        return format_timing_days(fval, "leave" if "leave" in metric_id else "WFH")
     if format_type == "percentage":
         return f"{fval:.1f}%"
     if format_type == "days":
-        return f"{fval:.1f} d"
+        d_str = f"{int(round(fval))}" if abs(fval - round(fval)) < 0.05 else f"{fval:.1f}"
+        return f"{d_str} d"
     if format_type == "time":
         return format_time_minutes(fval)
     if format_type == "duration":
@@ -301,8 +381,8 @@ def format_period_label(period_month_str: str) -> str:
 class TrendPoint:
     period: str                      # "2026-08-01"
     period_display: str              # "Aug 2026"
-    value: Optional[float]           # Metric value (in minutes for time/duration, % for rate, days for turnaround)
-    formatted_value: Optional[str]   # Human readable representation (e.g. "84.0%", "8h 14m")
+    value: Optional[float]           # Metric value (in minutes for time/duration, % for rate, days for turnaround/timing)
+    formatted_value: Optional[str]   # Human readable representation (e.g. "84.0%", "8h 14m", "Applied 5 days before leave")
     
     # Denominator & governance context
     total_applicable: Optional[int] = None
@@ -321,6 +401,21 @@ class TrendPoint:
     previous_value: Optional[float] = None
     mom_change: Optional[float] = None
     mom_change_pp: Optional[float] = None
+
+    # Timing & Submitter breakdowns (Leave & WFH compliance)
+    timing_display: Optional[str] = None
+    pct_before: Optional[float] = None
+    pct_same_day: Optional[float] = None
+    pct_after: Optional[float] = None
+    count_before: Optional[int] = None
+    count_same_day: Optional[int] = None
+    count_after: Optional[int] = None
+    pct_employee: Optional[float] = None
+    pct_admin: Optional[float] = None
+    pct_unknown: Optional[float] = None
+    count_employee: Optional[int] = None
+    count_admin: Optional[int] = None
+    count_unknown: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -352,11 +447,10 @@ def calculate_monthly_compliance(
     evaluated_requests: Optional[List[Dict[str, Any]]],
     metric_id: str,
 ) -> List[TrendPoint]:
-    """Aggregate monthly compliance metrics with full denominator governance."""
-    metric_def = TREND_METRICS[metric_id]
+    """Aggregate monthly compliance metrics with timing and submitter source breakdowns."""
     points: List[TrendPoint] = []
 
-    if metric_id in ("leave_application_compliance", "pl_application_compliance", "non_pl_application_compliance"):
+    if metric_id == "leave_application_compliance":
         if not evaluated_requests:
             return []
         req_df = pd.DataFrame(evaluated_requests)
@@ -367,44 +461,92 @@ def calculate_monthly_compliance(
             req_df["_month"] = pd.to_datetime(req_df["request_start_date"], format="mixed", errors="coerce").dt.strftime("%Y-%m-01")
         valid_reqs = req_df[req_df["_month"].notna()].copy()
 
-        # Filter by sub-category if applicable
-        if metric_id == "pl_application_compliance":
-            valid_reqs = valid_reqs[valid_reqs["is_pl"] == True]
-        elif metric_id == "non_pl_application_compliance":
-            valid_reqs = valid_reqs[valid_reqs["is_pl"] == False]
-
         for p_month in sorted(valid_reqs["_month"].unique()):
             m_group = valid_reqs[valid_reqs["_month"] == p_month]
             tot = len(m_group)
-            dq_ex = int((m_group["compliance_status"] == "DATA_QUALITY_UNCERTAIN").sum())
-            evaluable = tot - dq_ex
-            
-            # Compliance uses benchmark_compliant before 2026-10-01 and policy_compliant on or after
-            # Evaluated per request start date
-            p_dt = pd.to_datetime(p_month, format="mixed", errors="coerce")
-            is_post_policy = bool(pd.notna(p_dt) and p_dt.date() >= POLICY_EFFECTIVE_DATE)
-            if is_post_policy:
-                comp_num = int((m_group["policy_compliant"] == True).sum())
-            else:
-                comp_num = int((m_group["benchmark_compliant"] == True).sum())
+            dq_ex = int((m_group["compliance_status"] == "DATA_QUALITY_UNCERTAIN").sum()) if "compliance_status" in m_group.columns else 0
+            evaluable_group = m_group[m_group["compliance_status"] != "DATA_QUALITY_UNCERTAIN"] if "compliance_status" in m_group.columns else m_group
+            evaluable = len(evaluable_group)
 
-            rate = _safe_rate(comp_num, evaluable)
-            vol_st = classify_volume_status(evaluable)
-            vol_lbl = f"Volume: {vol_st.capitalize()} · {evaluable} evaluable request{'s' if evaluable != 1 else ''}"
+            lag_series = []
+            for _, r in evaluable_group.iterrows():
+                app_on = r.get("applied_on")
+                st_dt = r.get("request_start_date")
+                if app_on is not None and pd.notna(app_on) and st_dt is not None and pd.notna(st_dt):
+                    try:
+                        app_d = pd.to_datetime(app_on).date()
+                        st_d = pd.to_datetime(st_dt).date()
+                        lag_series.append((app_d - st_d).days)
+                    except Exception:
+                        pass
+
+            valid_lags = pd.Series(lag_series, dtype=float) if lag_series else pd.Series([], dtype=float)
+            obs_cnt = len(valid_lags)
+
+            if not valid_lags.empty:
+                avg_timing = round(float(valid_lags.mean()), 1)
+                before_cnt = int((valid_lags < 0).sum())
+                same_cnt = int((valid_lags == 0).sum())
+                after_cnt = int((valid_lags > 0).sum())
+                pct_before = round((before_cnt / obs_cnt) * 100.0, 1)
+                pct_same = round((same_cnt / obs_cnt) * 100.0, 1)
+                pct_after = round((after_cnt / obs_cnt) * 100.0, 1)
+            else:
+                avg_timing = None
+                before_cnt = same_cnt = after_cnt = 0
+                pct_before = pct_same = pct_after = None
+
+            emp_cnt = adm_cnt = unk_cnt = 0
+            for _, r in evaluable_group.iterrows():
+                src_val = r.get("applied_by") or r.get("Applied By") or ""
+                s_str = str(src_val).strip().lower()
+                if "emp" in s_str:
+                    emp_cnt += 1
+                elif "adm" in s_str or "hr" in s_str or "sys" in s_str:
+                    adm_cnt += 1
+                elif not s_str or s_str in ("na", "none", "unknown", "nan", ""):
+                    unk_cnt += 1
+                else:
+                    unk_cnt += 1
+
+            src_total = emp_cnt + adm_cnt + unk_cnt
+            if src_total > 0:
+                pct_emp = round((emp_cnt / src_total) * 100.0, 1)
+                pct_adm = round((adm_cnt / src_total) * 100.0, 1)
+                pct_unk = round((unk_cnt / src_total) * 100.0, 1)
+            else:
+                pct_emp = pct_adm = pct_unk = None
+
+            vol_st = classify_volume_status(obs_cnt if obs_cnt > 0 else evaluable)
+            vol_lbl = f"Volume: {vol_st.capitalize()} · {obs_cnt} evaluable timing request{'s' if obs_cnt != 1 else ''}"
 
             points.append(TrendPoint(
                 period=p_month,
                 period_display=format_period_label(p_month),
-                value=rate,
-                formatted_value=format_metric_value(rate, "percentage"),
+                value=avg_timing,
+                formatted_value=format_timing_days(avg_timing, "leave") if avg_timing is not None else "Insufficient Data",
+                timing_display=format_timing_days(avg_timing, "leave"),
                 total_applicable=tot,
-                evaluable=evaluable,
+                evaluable=obs_cnt if obs_cnt > 0 else evaluable,
                 excluded_data_quality=dq_ex,
-                numerator=comp_num,
-                denominator=evaluable,
-                rate=rate,
+                numerator=before_cnt + same_cnt,
+                denominator=obs_cnt if obs_cnt > 0 else evaluable,
+                rate=round(((before_cnt + same_cnt) / obs_cnt) * 100.0, 1) if obs_cnt > 0 else None,
+                valid_observation_count=obs_cnt,
                 volume_status=vol_st,
                 volume_label=vol_lbl,
+                pct_before=pct_before,
+                pct_same_day=pct_same,
+                pct_after=pct_after,
+                count_before=before_cnt,
+                count_same_day=same_cnt,
+                count_after=after_cnt,
+                pct_employee=pct_emp,
+                pct_admin=pct_adm,
+                pct_unknown=pct_unk,
+                count_employee=emp_cnt,
+                count_admin=adm_cnt,
+                count_unknown=unk_cnt,
             ))
 
     elif metric_id == "wfh_application_compliance":
@@ -419,33 +561,89 @@ def calculate_monthly_compliance(
         for p_month in sorted(valid_wfh["_month"].unique()):
             m_group = valid_wfh[valid_wfh["_month"] == p_month]
             tot = len(m_group)
-            dq_ex = int((m_group["compliance_status"] == "DATA_QUALITY_UNCERTAIN").sum())
-            evaluable = tot - dq_ex
-            
-            p_dt = pd.to_datetime(p_month, format="mixed", errors="coerce")
-            is_post_policy = bool(pd.notna(p_dt) and p_dt.date() >= POLICY_EFFECTIVE_DATE)
-            if is_post_policy:
-                comp_num = int((m_group["policy_compliant"] == True).sum())
-            else:
-                comp_num = int((m_group["benchmark_compliant"] == True).sum())
+            dq_ex = int((m_group["compliance_status"] == "DATA_QUALITY_UNCERTAIN").sum()) if "compliance_status" in m_group.columns else 0
+            evaluable_group = m_group[m_group["compliance_status"] != "DATA_QUALITY_UNCERTAIN"] if "compliance_status" in m_group.columns else m_group
+            evaluable = len(evaluable_group)
 
-            rate = _safe_rate(comp_num, evaluable)
-            vol_st = classify_volume_status(evaluable)
-            vol_lbl = f"Volume: {vol_st.capitalize()} · {evaluable} evaluable event{'s' if evaluable != 1 else ''}"
+            lag_series = []
+            for _, r in evaluable_group.iterrows():
+                app_on = r.get("Applied On") or r.get("applied_on")
+                wfh_dt = r.get("Date")
+                if app_on is not None and pd.notna(app_on) and wfh_dt is not None and pd.notna(wfh_dt):
+                    try:
+                        app_d = pd.to_datetime(app_on).date()
+                        wfh_d = pd.to_datetime(wfh_dt).date()
+                        lag_series.append((app_d - wfh_d).days)
+                    except Exception:
+                        pass
+
+            valid_lags = pd.Series(lag_series, dtype=float) if lag_series else pd.Series([], dtype=float)
+            obs_cnt = len(valid_lags)
+
+            if not valid_lags.empty:
+                avg_timing = round(float(valid_lags.mean()), 1)
+                before_cnt = int((valid_lags < 0).sum())
+                same_cnt = int((valid_lags == 0).sum())
+                after_cnt = int((valid_lags > 0).sum())
+                pct_before = round((before_cnt / obs_cnt) * 100.0, 1)
+                pct_same = round((same_cnt / obs_cnt) * 100.0, 1)
+                pct_after = round((after_cnt / obs_cnt) * 100.0, 1)
+            else:
+                avg_timing = None
+                before_cnt = same_cnt = after_cnt = 0
+                pct_before = pct_same = pct_after = None
+
+            emp_cnt = adm_cnt = unk_cnt = 0
+            for _, r in evaluable_group.iterrows():
+                src_val = r.get("Applied By") or r.get("applied_by") or ""
+                s_str = str(src_val).strip().lower()
+                if "emp" in s_str:
+                    emp_cnt += 1
+                elif "adm" in s_str or "hr" in s_str or "sys" in s_str:
+                    adm_cnt += 1
+                elif not s_str or s_str in ("na", "none", "unknown", "nan", ""):
+                    unk_cnt += 1
+                else:
+                    unk_cnt += 1
+
+            src_total = emp_cnt + adm_cnt + unk_cnt
+            if src_total > 0:
+                pct_emp = round((emp_cnt / src_total) * 100.0, 1)
+                pct_adm = round((adm_cnt / src_total) * 100.0, 1)
+                pct_unk = round((unk_cnt / src_total) * 100.0, 1)
+            else:
+                pct_emp = pct_adm = pct_unk = None
+
+            vol_st = classify_volume_status(obs_cnt if obs_cnt > 0 else evaluable)
+            vol_lbl = f"Volume: {vol_st.capitalize()} · {obs_cnt} evaluable WFH request{'s' if obs_cnt != 1 else ''}"
 
             points.append(TrendPoint(
                 period=p_month,
                 period_display=format_period_label(p_month),
-                value=rate,
-                formatted_value=format_metric_value(rate, "percentage"),
+                value=avg_timing,
+                formatted_value=format_timing_days(avg_timing, "WFH") if avg_timing is not None else "Insufficient Data",
+                timing_display=format_timing_days(avg_timing, "WFH"),
                 total_applicable=tot,
-                evaluable=evaluable,
+                evaluable=obs_cnt if obs_cnt > 0 else evaluable,
                 excluded_data_quality=dq_ex,
-                numerator=comp_num,
-                denominator=evaluable,
-                rate=rate,
+                numerator=before_cnt + same_cnt,
+                denominator=obs_cnt if obs_cnt > 0 else evaluable,
+                rate=round(((before_cnt + same_cnt) / obs_cnt) * 100.0, 1) if obs_cnt > 0 else None,
+                valid_observation_count=obs_cnt,
                 volume_status=vol_st,
                 volume_label=vol_lbl,
+                pct_before=pct_before,
+                pct_same_day=pct_same,
+                pct_after=pct_after,
+                count_before=before_cnt,
+                count_same_day=same_cnt,
+                count_after=after_cnt,
+                pct_employee=pct_emp,
+                pct_admin=pct_adm,
+                pct_unknown=pct_unk,
+                count_employee=emp_cnt,
+                count_admin=adm_cnt,
+                count_unknown=unk_cnt,
             ))
 
     return points
@@ -475,9 +673,7 @@ def calculate_monthly_attendance(
 
         evaluable_rows = m_group[evaluable_mask]
 
-        if metric_id == "attendance_exception_rate":
-            num = int((evaluable_rows["is_attendance_exception"] == True).sum())
-        elif metric_id == "missing_swipe_rate":
+        if metric_id == "missing_swipe_rate":
             num = int((evaluable_rows["has_missing_swipe"] == True).sum())
         elif metric_id == "absence_rate":
             num = int((evaluable_rows["has_absent"] == True).sum())
@@ -494,7 +690,7 @@ def calculate_monthly_attendance(
             period=p_month,
             period_display=format_period_label(p_month),
             value=rate,
-            formatted_value=format_metric_value(rate, "percentage"),
+            formatted_value=format_metric_value(rate, "percentage", metric_id),
             total_applicable=raw_eligible,
             evaluable=evaluable,
             excluded_data_quality=dq_ex,
@@ -586,7 +782,7 @@ def calculate_monthly_approvals(
             period=p_month,
             period_display=format_period_label(p_month),
             value=val,
-            formatted_value=format_metric_value(val, fmt_type),
+            formatted_value=format_metric_value(val, fmt_type, metric_id),
             valid_observation_count=valid_obs,
             volume_status=vol_st,
             volume_label=vol_lbl,
@@ -649,7 +845,10 @@ def calculate_monthly_working_time(
     evaluated_df: pd.DataFrame,
     metric_id: str,
 ) -> List[TrendPoint]:
-    """Aggregate monthly working time metrics (minutes internally, formatted for display)."""
+    """
+    Aggregate monthly working time metrics (minutes internally, formatted for display).
+    Only includes rows where Attendance Status is P or P(MS).
+    """
     if evaluated_df.empty or "Date" not in evaluated_df.columns:
         return []
 
@@ -657,6 +856,18 @@ def calculate_monthly_working_time(
     if "_month" not in df.columns:
         df["_month"] = pd.to_datetime(df["Date"], format="mixed", errors="coerce").dt.strftime("%Y-%m-01")
     valid_df = df[df["_month"].notna()].copy()
+    if valid_df.empty:
+        return []
+
+    # Strictly filter rows to Attendance Status in ('P', 'P(MS)')
+    status_col = None
+    for sc in ("Status", "_status", "Attendance Status"):
+        if sc in valid_df.columns:
+            status_col = sc
+            break
+    if status_col:
+        st_clean = valid_df[status_col].astype(str).str.strip().str.upper()
+        valid_df = valid_df[st_clean.isin(["P", "P(MS)", "P (MS)"])].copy()
     if valid_df.empty:
         return []
 
@@ -693,7 +904,7 @@ def calculate_monthly_working_time(
             period=p_month,
             period_display=format_period_label(p_month),
             value=val,
-            formatted_value=format_metric_value(val, fmt_type),
+            formatted_value=format_metric_value(val, fmt_type, metric_id),
             valid_observation_count=valid_obs,
             volume_status=vol_st,
             volume_label=vol_lbl,
@@ -959,7 +1170,7 @@ def calculate_time_series_trends(
     evaluated_df: pd.DataFrame,
     evaluated_requests: Optional[List[Dict[str, Any]]] = None,
     employee_day_facts: Optional[pd.DataFrame] = None,
-    metric_id: str = "attendance_exception_rate",
+    metric_id: str = "missing_swipe_rate",
     analysis_as_of_date: Optional[Union[date, datetime]] = None,
 ) -> Dict[str, Any]:
     """

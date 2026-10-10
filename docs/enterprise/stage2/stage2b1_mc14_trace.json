@@ -1,0 +1,693 @@
+{
+  "synthetic": true,
+  "before": {
+    "raw": {
+      "Employee Number": "SYN_MC14",
+      "Employee Name": "Synthetic MC14",
+      "Business Unit": "SYN_BU",
+      "Date": "2026-10-01",
+      "Attendance Type": "Absent",
+      "Status": "A(R)",
+      "Quantity": 1.0
+    },
+    "snapshot_helpers": [
+      {
+        "Attendance Type": "Absent",
+        "Status": "A(R)",
+        "Quantity": 1.0,
+        "_att_type": "Regularized",
+        "_status": "A(R)"
+      }
+    ],
+    "normalized": [
+      {
+        "Attendance Type": "Absent",
+        "Status": "A(R)",
+        "Quantity": 1.0,
+        "attendance_category": "Attendance Regularized",
+        "record_id": "rec_000001",
+        "source_row_number": 2
+      }
+    ],
+    "canonical_records": [
+      {
+        "record_id": "f001_rec_000001",
+        "source_row_number": 2,
+        "source_file_name": "dataset",
+        "employee_id": "SYN_MC14",
+        "employee_name": "Synthetic MC14",
+        "business_unit": "SYN_BU",
+        "department": null,
+        "reporting_manager": null,
+        "date": "2026-10-01",
+        "attendance_status": "A(R)",
+        "attendance_type": "Absent",
+        "attendance_category": "Attendance Regularized",
+        "leave_name": null,
+        "in_time": null,
+        "out_time": null,
+        "in_time_minutes": null,
+        "out_time_minutes": null,
+        "working_hours": null,
+        "quantity": 1.0,
+        "applied_by": null,
+        "applied_on": null,
+        "approved_by": null,
+        "approved_on": null,
+        "approval_status": null,
+        "source_request_id": null,
+        "is_attendance_exception": true,
+        "attendance_exception_types": [
+          "ATTENDANCE_REGULARIZED"
+        ],
+        "include_in_analysis": true,
+        "analysis_exclusion_reason": "NONE"
+      }
+    ],
+    "canonical_day_facts": [
+      {
+        "employee_id": "SYN_MC14",
+        "date": "2026-10-01",
+        "business_unit": "SYN_BU",
+        "raw_business_unit": "SYN_BU",
+        "effective_business_unit": "SYN_BU",
+        "department": null,
+        "sub_department": null,
+        "location": null,
+        "reporting_manager": null,
+        "record_count": 1,
+        "raw_record_count": 1,
+        "daily_total_quantity": 1.0,
+        "raw_daily_total_quantity": 1.0,
+        "has_present": false,
+        "has_leave": false,
+        "has_wfh": false,
+        "has_absent": false,
+        "has_missing_swipe": false,
+        "has_regularization": true,
+        "has_week_off": false,
+        "has_holiday": false,
+        "has_on_duty": false,
+        "is_attendance_exception": true,
+        "attendance_exception_types": [
+          "ATTENDANCE_REGULARIZED"
+        ],
+        "is_eligible_attendance_day": true,
+        "working_hours": null,
+        "in_time_minutes": null,
+        "out_time_minutes": null,
+        "record_ids": [
+          "f001_rec_000001"
+        ],
+        "quality_status": "VALID",
+        "is_evaluable": true,
+        "has_conflict": false,
+        "conflict_reasons": [],
+        "dq_reasons": []
+      }
+    ],
+    "governed_day_facts": [
+      {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Department": NaN,
+        "Sub Department": NaN,
+        "Location": NaN,
+        "Reporting Manager": NaN,
+        "Date": "2026-10-01 00:00:00",
+        "record_count": 1,
+        "raw_record_count": 1,
+        "daily_total_quantity": 1.0,
+        "raw_daily_total_quantity": 1.0,
+        "analytical_daily_total_quantity": 1.0,
+        "has_present": false,
+        "has_leave": false,
+        "has_wfh": false,
+        "has_absent": false,
+        "has_missing_swipe": false,
+        "has_regularization": true,
+        "has_week_off": false,
+        "has_holiday": false,
+        "is_attendance_exception": true,
+        "attendance_exception_types": "ATTENDANCE_REGULARIZED",
+        "is_eligible_attendance_day": true,
+        "dq_daily_quantity_exceeds_one": false,
+        "dq_analytical_daily_quantity_exceeds_one": false,
+        "employee_day_quality_status": "VALID",
+        "is_metric_evaluable": true,
+        "metric_exclusion_reason": "NONE"
+      }
+    ],
+    "kpi_trace": {
+      "classification": [
+        {
+          "Attendance Type": "Absent",
+          "Status": "A(R)",
+          "Quantity": 1.0,
+          "_att_type": "Regularized",
+          "_status": "A(R)",
+          "_cat": "UNCLASSIFIED",
+          "_clean_qty": 1.0
+        }
+      ],
+      "quantity_accumulators": {
+        "q_pres": 0.0,
+        "q_absent": 0.0,
+        "q_unclassified": 1.0,
+        "total_quantity_recorded": 1.0
+      }
+    },
+    "bundle": {
+      "kpi_3_present_days": 0.0,
+      "kpi_absent_days": 0.0,
+      "attendance_composition_denominator": 1.0,
+      "kpi_9_attendance_exceptions_days": 1,
+      "attendance_composition": [
+        {
+          "category": "Present",
+          "label": "Present",
+          "days": 0.0,
+          "pct": 0.0,
+          "color": "#10B981",
+          "description": "Physical attendance days",
+          "is_exception": false
+        },
+        {
+          "category": "On Duty",
+          "label": "On Duty",
+          "days": 0.0,
+          "pct": 0.0,
+          "color": "#0EA5E9",
+          "description": "Official duty assignments",
+          "is_exception": false
+        },
+        {
+          "category": "Leave",
+          "label": "Leave",
+          "days": 0.0,
+          "pct": 0.0,
+          "color": "#8B5CF6",
+          "description": "Quantity-weighted leave days",
+          "is_exception": false
+        },
+        {
+          "category": "WFH",
+          "label": "WFH",
+          "days": 0.0,
+          "pct": 0.0,
+          "color": "#6366F1",
+          "description": "Work from home days",
+          "is_exception": false
+        },
+        {
+          "category": "Holiday",
+          "label": "Holiday",
+          "days": 0.0,
+          "pct": 0.0,
+          "color": "#F59E0B",
+          "description": "Recognized organization holidays",
+          "is_exception": false
+        },
+        {
+          "category": "Week Off",
+          "label": "Week Off",
+          "days": 0.0,
+          "pct": 0.0,
+          "color": "#94A3B8",
+          "description": "Scheduled weekly rest days",
+          "is_exception": false
+        },
+        {
+          "category": "Absent",
+          "label": "Absent",
+          "days": 0.0,
+          "pct": 0.0,
+          "color": "#EF4444",
+          "description": "Recorded employee absence days",
+          "is_exception": false
+        },
+        {
+          "category": "Unclassified / Unresolved",
+          "label": "Unclassified / Unresolved",
+          "days": 1.0,
+          "pct": 100.0,
+          "color": "#F97316",
+          "description": "Unclassified records or unresolved conflicts",
+          "is_exception": false
+        }
+      ],
+      "daily_attendance_trend": [
+        {
+          "date": "2026-10-01",
+          "date_str": "Oct 01",
+          "date_iso": "2026-10-01",
+          "present_days": 0.0,
+          "absent_days": 0.0,
+          "missing_swipe_days": 0,
+          "regularized_days": 1,
+          "wfh_days": 0.0,
+          "leave_days": 0.0,
+          "recorded_days": 1
+        }
+      ],
+      "bu_comparison_total": {
+        "business_unit": "Total (Organization-Wide)",
+        "observed_headcount": 1,
+        "recorded_employee_days": 1,
+        "present_days": 0.0,
+        "present_pct": 0.0,
+        "leave_days": 0.0,
+        "leave_pct": 0.0,
+        "wfh_days": 0.0,
+        "wfh_pct": 0.0,
+        "od_days": 0.0,
+        "od_pct": 0.0,
+        "holiday_days": 0.0,
+        "holiday_pct": 0.0,
+        "week_off_days": 0.0,
+        "week_off_pct": 0.0,
+        "absent_days": 0.0,
+        "absent_pct": 0.0,
+        "unclassified_days": 1.0,
+        "unclass_pct": 100.0,
+        "exception_days": 1,
+        "exception_rate_pct": 100.0,
+        "regularized_days": 1,
+        "regularized_rate_pct": 100.0,
+        "missing_swipe_days": 0,
+        "missing_swipe_rate_pct": 0.0,
+        "composition_denominator": 1.0
+      }
+    },
+    "trends": {
+      "absence_rate": {
+        "period": "2026-10-01",
+        "period_display": "Oct 2026",
+        "value": 0.0,
+        "formatted_value": "0.0%",
+        "total_applicable": 1,
+        "evaluable": 1,
+        "excluded_data_quality": 0,
+        "numerator": 0,
+        "denominator": 1,
+        "rate": 0.0,
+        "valid_observation_count": null,
+        "volume_status": "LOW",
+        "volume_label": "Volume: Low \u00b7 1 evaluable employee-days",
+        "previous_value": null,
+        "mom_change": null,
+        "mom_change_pp": null,
+        "timing_display": null,
+        "pct_before": null,
+        "pct_same_day": null,
+        "pct_after": null,
+        "count_before": null,
+        "count_same_day": null,
+        "count_after": null,
+        "pct_employee": null,
+        "pct_admin": null,
+        "pct_unknown": null,
+        "count_employee": null,
+        "count_admin": null,
+        "count_unknown": null
+      },
+      "regularization_rate": {
+        "period": "2026-10-01",
+        "period_display": "Oct 2026",
+        "value": 100.0,
+        "formatted_value": "100.0%",
+        "total_applicable": 1,
+        "evaluable": 1,
+        "excluded_data_quality": 0,
+        "numerator": 1,
+        "denominator": 1,
+        "rate": 100.0,
+        "valid_observation_count": null,
+        "volume_status": "LOW",
+        "volume_label": "Volume: Low \u00b7 1 evaluable employee-days",
+        "previous_value": null,
+        "mom_change": null,
+        "mom_change_pp": null,
+        "timing_display": null,
+        "pct_before": null,
+        "pct_same_day": null,
+        "pct_after": null,
+        "count_before": null,
+        "count_same_day": null,
+        "count_after": null,
+        "pct_employee": null,
+        "pct_admin": null,
+        "pct_unknown": null,
+        "count_employee": null,
+        "count_admin": null,
+        "count_unknown": null
+      }
+    }
+  },
+  "after": {
+    "raw": {
+      "Employee Number": "SYN_MC14",
+      "Employee Name": "Synthetic MC14",
+      "Business Unit": "SYN_BU",
+      "Date": "2026-10-01",
+      "Attendance Type": "Absent",
+      "Status": "A(R)",
+      "Quantity": 1.0
+    },
+    "snapshot_helpers": [
+      {
+        "Attendance Type": "Absent",
+        "Status": "A(R)",
+        "Quantity": 1.0,
+        "_att_type": "Regularized",
+        "_status": "A(R)"
+      }
+    ],
+    "normalized": [
+      {
+        "Attendance Type": "Absent",
+        "Status": "A(R)",
+        "Quantity": 1.0,
+        "attendance_category": "Attendance Regularized",
+        "record_id": "rec_000001",
+        "source_row_number": 2
+      }
+    ],
+    "canonical_records": [
+      {
+        "record_id": "f001_rec_000001",
+        "source_row_number": 2,
+        "source_file_name": "dataset",
+        "employee_id": "SYN_MC14",
+        "employee_name": "Synthetic MC14",
+        "business_unit": "SYN_BU",
+        "department": null,
+        "reporting_manager": null,
+        "date": "2026-10-01",
+        "attendance_status": "A(R)",
+        "attendance_type": "Absent",
+        "attendance_category": "Attendance Regularized",
+        "leave_name": null,
+        "in_time": null,
+        "out_time": null,
+        "in_time_minutes": null,
+        "out_time_minutes": null,
+        "working_hours": null,
+        "quantity": 1.0,
+        "applied_by": null,
+        "applied_on": null,
+        "approved_by": null,
+        "approved_on": null,
+        "approval_status": null,
+        "source_request_id": null,
+        "is_attendance_exception": true,
+        "attendance_exception_types": [
+          "ATTENDANCE_REGULARIZED"
+        ],
+        "include_in_analysis": true,
+        "analysis_exclusion_reason": "NONE"
+      }
+    ],
+    "canonical_day_facts": [
+      {
+        "employee_id": "SYN_MC14",
+        "date": "2026-10-01",
+        "business_unit": "SYN_BU",
+        "raw_business_unit": "SYN_BU",
+        "effective_business_unit": "SYN_BU",
+        "department": null,
+        "sub_department": null,
+        "location": null,
+        "reporting_manager": null,
+        "record_count": 1,
+        "raw_record_count": 1,
+        "daily_total_quantity": 1.0,
+        "raw_daily_total_quantity": 1.0,
+        "has_present": false,
+        "has_leave": false,
+        "has_wfh": false,
+        "has_absent": false,
+        "has_missing_swipe": false,
+        "has_regularization": true,
+        "has_week_off": false,
+        "has_holiday": false,
+        "has_on_duty": false,
+        "is_attendance_exception": true,
+        "attendance_exception_types": [
+          "ATTENDANCE_REGULARIZED"
+        ],
+        "is_eligible_attendance_day": true,
+        "working_hours": null,
+        "in_time_minutes": null,
+        "out_time_minutes": null,
+        "record_ids": [
+          "f001_rec_000001"
+        ],
+        "quality_status": "VALID",
+        "is_evaluable": true,
+        "has_conflict": false,
+        "conflict_reasons": [],
+        "dq_reasons": []
+      }
+    ],
+    "governed_day_facts": [
+      {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Department": NaN,
+        "Sub Department": NaN,
+        "Location": NaN,
+        "Reporting Manager": NaN,
+        "Date": "2026-10-01 00:00:00",
+        "record_count": 1,
+        "raw_record_count": 1,
+        "daily_total_quantity": 1.0,
+        "raw_daily_total_quantity": 1.0,
+        "analytical_daily_total_quantity": 1.0,
+        "has_present": false,
+        "has_leave": false,
+        "has_wfh": false,
+        "has_absent": false,
+        "has_missing_swipe": false,
+        "has_regularization": true,
+        "has_week_off": false,
+        "has_holiday": false,
+        "is_attendance_exception": true,
+        "attendance_exception_types": "ATTENDANCE_REGULARIZED",
+        "is_eligible_attendance_day": true,
+        "dq_daily_quantity_exceeds_one": false,
+        "dq_analytical_daily_quantity_exceeds_one": false,
+        "employee_day_quality_status": "VALID",
+        "is_metric_evaluable": true,
+        "metric_exclusion_reason": "NONE"
+      }
+    ],
+    "kpi_trace": {
+      "classification": [
+        {
+          "Attendance Type": "Absent",
+          "Status": "A(R)",
+          "Quantity": 1.0,
+          "_att_type": "Regularized",
+          "_status": "A(R)",
+          "_cat": "PRESENT",
+          "_clean_qty": 1.0
+        }
+      ],
+      "quantity_accumulators": {
+        "q_pres": 1.0,
+        "q_absent": 0.0,
+        "q_unclassified": 0.0,
+        "total_quantity_recorded": 1.0
+      }
+    },
+    "bundle": {
+      "kpi_3_present_days": 1.0,
+      "kpi_absent_days": 0.0,
+      "attendance_composition_denominator": 1.0,
+      "kpi_9_attendance_exceptions_days": 1,
+      "attendance_composition": [
+        {
+          "category": "Present",
+          "label": "Present",
+          "days": 1.0,
+          "pct": 100.0,
+          "color": "#10B981",
+          "description": "Physical attendance days",
+          "is_exception": false
+        },
+        {
+          "category": "On Duty",
+          "label": "On Duty",
+          "days": 0.0,
+          "pct": 0.0,
+          "color": "#0EA5E9",
+          "description": "Official duty assignments",
+          "is_exception": false
+        },
+        {
+          "category": "Leave",
+          "label": "Leave",
+          "days": 0.0,
+          "pct": 0.0,
+          "color": "#8B5CF6",
+          "description": "Quantity-weighted leave days",
+          "is_exception": false
+        },
+        {
+          "category": "WFH",
+          "label": "WFH",
+          "days": 0.0,
+          "pct": 0.0,
+          "color": "#6366F1",
+          "description": "Work from home days",
+          "is_exception": false
+        },
+        {
+          "category": "Holiday",
+          "label": "Holiday",
+          "days": 0.0,
+          "pct": 0.0,
+          "color": "#F59E0B",
+          "description": "Recognized organization holidays",
+          "is_exception": false
+        },
+        {
+          "category": "Week Off",
+          "label": "Week Off",
+          "days": 0.0,
+          "pct": 0.0,
+          "color": "#94A3B8",
+          "description": "Scheduled weekly rest days",
+          "is_exception": false
+        },
+        {
+          "category": "Absent",
+          "label": "Absent",
+          "days": 0.0,
+          "pct": 0.0,
+          "color": "#EF4444",
+          "description": "Recorded employee absence days",
+          "is_exception": false
+        },
+        {
+          "category": "Unclassified / Unresolved",
+          "label": "Unclassified / Unresolved",
+          "days": 0.0,
+          "pct": 0.0,
+          "color": "#F97316",
+          "description": "Unclassified records or unresolved conflicts",
+          "is_exception": false
+        }
+      ],
+      "daily_attendance_trend": [
+        {
+          "date": "2026-10-01",
+          "date_str": "Oct 01",
+          "date_iso": "2026-10-01",
+          "present_days": 1.0,
+          "absent_days": 0.0,
+          "missing_swipe_days": 0,
+          "regularized_days": 1,
+          "wfh_days": 0.0,
+          "leave_days": 0.0,
+          "recorded_days": 1
+        }
+      ],
+      "bu_comparison_total": {
+        "business_unit": "Total (Organization-Wide)",
+        "observed_headcount": 1,
+        "recorded_employee_days": 1,
+        "present_days": 1.0,
+        "present_pct": 100.0,
+        "leave_days": 0.0,
+        "leave_pct": 0.0,
+        "wfh_days": 0.0,
+        "wfh_pct": 0.0,
+        "od_days": 0.0,
+        "od_pct": 0.0,
+        "holiday_days": 0.0,
+        "holiday_pct": 0.0,
+        "week_off_days": 0.0,
+        "week_off_pct": 0.0,
+        "absent_days": 0.0,
+        "absent_pct": 0.0,
+        "unclassified_days": 0.0,
+        "unclass_pct": 0.0,
+        "exception_days": 1,
+        "exception_rate_pct": 100.0,
+        "regularized_days": 1,
+        "regularized_rate_pct": 100.0,
+        "missing_swipe_days": 0,
+        "missing_swipe_rate_pct": 0.0,
+        "composition_denominator": 1.0
+      }
+    },
+    "trends": {
+      "absence_rate": {
+        "period": "2026-10-01",
+        "period_display": "Oct 2026",
+        "value": 0.0,
+        "formatted_value": "0.0%",
+        "total_applicable": 1,
+        "evaluable": 1,
+        "excluded_data_quality": 0,
+        "numerator": 0,
+        "denominator": 1,
+        "rate": 0.0,
+        "valid_observation_count": null,
+        "volume_status": "LOW",
+        "volume_label": "Volume: Low \u00b7 1 evaluable employee-days",
+        "previous_value": null,
+        "mom_change": null,
+        "mom_change_pp": null,
+        "timing_display": null,
+        "pct_before": null,
+        "pct_same_day": null,
+        "pct_after": null,
+        "count_before": null,
+        "count_same_day": null,
+        "count_after": null,
+        "pct_employee": null,
+        "pct_admin": null,
+        "pct_unknown": null,
+        "count_employee": null,
+        "count_admin": null,
+        "count_unknown": null
+      },
+      "regularization_rate": {
+        "period": "2026-10-01",
+        "period_display": "Oct 2026",
+        "value": 100.0,
+        "formatted_value": "100.0%",
+        "total_applicable": 1,
+        "evaluable": 1,
+        "excluded_data_quality": 0,
+        "numerator": 1,
+        "denominator": 1,
+        "rate": 100.0,
+        "valid_observation_count": null,
+        "volume_status": "LOW",
+        "volume_label": "Volume: Low \u00b7 1 evaluable employee-days",
+        "previous_value": null,
+        "mom_change": null,
+        "mom_change_pp": null,
+        "timing_display": null,
+        "pct_before": null,
+        "pct_same_day": null,
+        "pct_after": null,
+        "count_before": null,
+        "count_same_day": null,
+        "count_after": null,
+        "pct_employee": null,
+        "pct_admin": null,
+        "pct_unknown": null,
+        "count_employee": null,
+        "count_admin": null,
+        "count_unknown": null
+      }
+    }
+  }
+}

@@ -1,0 +1,372 @@
+{
+  "remaining": [
+    {
+      "test": "tests/test_attendance_regularization_ar.py::test_kpi_engine_ar_with_absent_attendance_type_not_absent",
+      "module": "tests/test_attendance_regularization_ar.py",
+      "exception": "assert 0.0 == 1.0",
+      "classification": "APPLICATION_DEFECT",
+      "evidence": "A(R) expected present quantity 1, observed 0; reproduced by synthetic MC14 cases. Existing desired assertions preserved.",
+      "owner_action": "Attendance domain owner; targeted Stage2B correction, not Stage2A.",
+      "stage2a_may_resolve": false,
+      "disposition": "Preserved, not weakened; blocking gate"
+    },
+    {
+      "test": "tests/test_desktop_integration.py::test_successful_upload_and_snapshot_activation",
+      "module": "tests/test_desktop_integration.py",
+      "exception": "AttributeError: '_tkinter.tkapp' object has no attribute 'ts_bu_combo'",
+      "classification": "TEST_DEFECT",
+      "evidence": "Assertions address legacy Time Series widgets/tree/breakdown state; app routes analysis through WorkforceDashboardView. Missing attributes reproduce in isolated module; no production change or deletion performed.",
+      "owner_action": "Desktop/test owner; map assertions to current UI while preserving workflow invariants.",
+      "stage2a_may_resolve": false,
+      "disposition": "Preserved, not weakened; blocking gate"
+    },
+    {
+      "test": "tests/test_desktop_integration.py::test_dashboard_metrics_matching_existing_analytical_engine",
+      "module": "tests/test_desktop_integration.py",
+      "exception": "AttributeError: '_tkinter.tkapp' object has no attribute 'lbl_kpi_leave_val'",
+      "classification": "TEST_DEFECT",
+      "evidence": "Assertions address legacy Time Series widgets/tree/breakdown state; app routes analysis through WorkforceDashboardView. Missing attributes reproduce in isolated module; no production change or deletion performed.",
+      "owner_action": "Desktop/test owner; map assertions to current UI while preserving workflow invariants.",
+      "stage2a_may_resolve": false,
+      "disposition": "Preserved, not weakened; blocking gate"
+    },
+    {
+      "test": "tests/test_desktop_integration.py::test_breakdowns_matching_existing_analytical_engine",
+      "module": "tests/test_desktop_integration.py",
+      "exception": "AssertionError: assert 0 == 3",
+      "classification": "TEST_DEFECT",
+      "evidence": "Assertions address legacy Time Series widgets/tree/breakdown state; app routes analysis through WorkforceDashboardView. Missing attributes reproduce in isolated module; no production change or deletion performed.",
+      "owner_action": "Desktop/test owner; map assertions to current UI while preserving workflow invariants.",
+      "stage2a_may_resolve": false,
+      "disposition": "Preserved, not weakened; blocking gate"
+    },
+    {
+      "test": "tests/test_desktop_integration.py::test_search_filtering_without_recalculation",
+      "module": "tests/test_desktop_integration.py",
+      "exception": "AttributeError: '_tkinter.tkapp' object has no attribute 'ts_tree'",
+      "classification": "TEST_DEFECT",
+      "evidence": "Assertions address legacy Time Series widgets/tree/breakdown state; app routes analysis through WorkforceDashboardView. Missing attributes reproduce in isolated module; no production change or deletion performed.",
+      "owner_action": "Desktop/test owner; map assertions to current UI while preserving workflow invariants.",
+      "stage2a_may_resolve": false,
+      "disposition": "Preserved, not weakened; blocking gate"
+    },
+    {
+      "test": "tests/test_desktop_integration.py::test_correct_dataset_replacement",
+      "module": "tests/test_desktop_integration.py",
+      "exception": "AttributeError: '_tkinter.tkapp' object has no attribute 'ts_bu_combo'",
+      "classification": "TEST_DEFECT",
+      "evidence": "Assertions address legacy Time Series widgets/tree/breakdown state; app routes analysis through WorkforceDashboardView. Missing attributes reproduce in isolated module; no production change or deletion performed.",
+      "owner_action": "Desktop/test owner; map assertions to current UI while preserving workflow invariants.",
+      "stage2a_may_resolve": false,
+      "disposition": "Preserved, not weakened; blocking gate"
+    },
+    {
+      "test": "tests/test_desktop_integration.py::test_failed_upload_preserving_existing_dataset_and_ui_state",
+      "module": "tests/test_desktop_integration.py",
+      "exception": "AssertionError: current source path differs from stale expected fixture path",
+      "classification": "TEST_DEFECT",
+      "evidence": "Module-shared App retains a newer load job; the test later expects its older synthetic path. Snapshot identity/content preservation assertions pass before the final stale-path assertion.",
+      "owner_action": "Test owner; isolate App/job state and retain all preservation assertions in subsequent test-infrastructure slice.",
+      "stage2a_may_resolve": false,
+      "disposition": "Preserved, not weakened; blocking gate"
+    },
+    {
+      "test": "tests/test_desktop_integration.py::test_older_processing_jobs_not_overwriting_newer_results",
+      "module": "tests/test_desktop_integration.py",
+      "exception": "AttributeError: '_tkinter.tkapp' object has no attribute 'ts_bu_combo'",
+      "classification": "TEST_DEFECT",
+      "evidence": "Assertions address legacy Time Series widgets/tree/breakdown state; app routes analysis through WorkforceDashboardView. Missing attributes reproduce in isolated module; no production change or deletion performed.",
+      "owner_action": "Desktop/test owner; map assertions to current UI while preserving workflow invariants.",
+      "stage2a_may_resolve": false,
+      "disposition": "Preserved, not weakened; blocking gate"
+    },
+    {
+      "test": "tests/test_workforce_attendance_intelligence.py::test_11_to_14_global_filters_and_attendance_view",
+      "module": "tests/test_workforce_attendance_intelligence.py",
+      "exception": "AssertionError: assert 'overview' == 'attendance'",
+      "classification": "TEST_DEFECT",
+      "evidence": "Tests expect standalone attendance tab/att_kpi_cards; current VIEW_KEYS expose Overview and Trends. Reproduces with fresh App.",
+      "owner_action": "Desktop/product owner; disposition of older interaction contract before adapting tests.",
+      "stage2a_may_resolve": false,
+      "disposition": "Preserved, not weakened; blocking gate"
+    },
+    {
+      "test": "tests/test_workforce_attendance_intelligence.py::test_15_dataset_replacement_and_stale_job_safeguard",
+      "module": "tests/test_workforce_attendance_intelligence.py",
+      "exception": "AttributeError: 'WorkforceDashboardView' object has no attribute 'att_kpi_cards'. Did you mean: 'kpi_cards'?",
+      "classification": "TEST_DEFECT",
+      "evidence": "Tests expect standalone attendance tab/att_kpi_cards; current VIEW_KEYS expose Overview and Trends. Reproduces with fresh App.",
+      "owner_action": "Desktop/product owner; disposition of older interaction contract before adapting tests.",
+      "stage2a_may_resolve": false,
+      "disposition": "Preserved, not weakened; blocking gate"
+    },
+    {
+      "test": "tests/test_workforce_overview_kpis.py::test_attendance_composition_and_absent_kpi_remain_unchanged",
+      "module": "tests/test_workforce_overview_kpis.py",
+      "exception": "assert 1.0 == 2.0",
+      "classification": "APPLICATION_DEFECT",
+      "evidence": "A(R) expected present quantity 1, observed 0; reproduced by synthetic MC14 cases. Existing desired assertions preserved.",
+      "owner_action": "Attendance domain owner; targeted Stage2B correction, not Stage2A.",
+      "stage2a_may_resolve": false,
+      "disposition": "Preserved, not weakened; blocking gate"
+    },
+    {
+      "test": "tests/test_workforce_step29a_responsive.py::test_header_dq_badge_accessible_in_both_sidebar_states",
+      "module": "tests/test_workforce_step29a_responsive.py",
+      "exception": "KeyError: 'column'",
+      "classification": "TEST_DEFECT",
+      "evidence": "Test expects grid column on control whose current layout uses pack; grid_info returns no column.",
+      "owner_action": "Desktop/test owner; preserve visibility/accessibility checks using actual layout.",
+      "stage2a_may_resolve": false,
+      "disposition": "Preserved, not weakened; blocking gate"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_01_02_sidebar_starts_compact_and_no_fullwidth",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "AssertionError: assert '' == '\u26a1'",
+      "classification": "TEST_DEFECT",
+      "evidence": "Test expects lightning text; current compact logo is an image with empty text.",
+      "owner_action": "Desktop/test owner; verify logo visibility without an obsolete glyph assertion.",
+      "stage2a_may_resolve": false,
+      "disposition": "Preserved, not weakened; blocking gate"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_07_outside_click_and_escape_close_flyout",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "AttributeError: 'NoneType' object has no attribute 'focus_set'",
+      "classification": "APPLICATION_DEFECT",
+      "evidence": "Image-only CTkButton has no _text_label; app._on_flyout_escape calls CTkButton.focus_set and raises AttributeError. Reproduces in fresh process.",
+      "owner_action": "Desktop technical owner; separate focused repair after baseline.",
+      "stage2a_may_resolve": false,
+      "disposition": "Preserved, not weakened; blocking gate"
+    }
+  ],
+  "initial_environment_failures_resolved_by_isolation": [
+    {
+      "test": "tests/test_workforce_filters.py::test_29_desktop_ui_filter_and_reset_live_integration",
+      "module": "tests/test_workforce_filters.py",
+      "exception": "AssertionError: retained UI filter state",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29a_responsive.py::test_kpi_card_responsive_wrapping_at_narrow_width",
+      "module": "tests/test_workforce_step29a_responsive.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29a_responsive.py::test_header_dq_badge_accessible_in_both_sidebar_states",
+      "module": "tests/test_workforce_step29a_responsive.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29a_responsive.py::test_reconciliation_notice_responsive_wrapping",
+      "module": "tests/test_workforce_step29a_responsive.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29a_responsive.py::test_filters_update_all_overview_components_consistently",
+      "module": "tests/test_workforce_step29a_responsive.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_01_02_sidebar_starts_compact_and_no_fullwidth",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_03_hover_opens_floating_submenu",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_04_clicking_parent_opens_submenu",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_05_pointer_transition_into_submenu_does_not_close_prematurely",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_06_only_one_submenu_open_at_a_time",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_07_outside_click_and_escape_close_flyout",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_08_09_all_navigation_destinations_and_highlighting",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_10_navigation_flyouts_do_not_recalculate_kpis",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_11_filter_search_case_insensitive_matching",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_12_employee_search_by_name_and_stable_id",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_13_14_long_options_scrollbar_and_mousewheel_isolation",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_15_16_17_keyboard_navigation_selection_and_escape",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_18_cascading_dropdown_options",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_19_20_combined_filters_and_reset",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_21_dq_status_remains_accessible",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_22_no_workbook_reread_on_dropdown_interactions",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    },
+    {
+      "test": "tests/test_workforce_step29b_sidebar_filters.py::test_23_24_bu_table_and_export_structure_unchanged",
+      "module": "tests/test_workforce_step29b_sidebar_filters.py",
+      "exception": "TclError: image belongs to another Tk interpreter",
+      "classification": "TEST_ENVIRONMENT_DEFECT",
+      "evidence": "Single-process setup/global-state failure disappears with fresh-process module execution; some previously masked call assertions still fail and are separately classified. Root conftest and two module fixtures create separate Tk roots in one process.",
+      "owner_action": "Test infrastructure owner; use checked-in --per-file baseline runner.",
+      "stage2a_may_resolve": true,
+      "disposition": "Isolated without changing existing assertions or runtime"
+    }
+  ],
+  "first_exploratory_runner_failure": {
+    "classification": "TEST_ENVIRONMENT_DEFECT",
+    "exception": "Scratch work/copy.py shadowed stdlib copy before pytest started",
+    "resolution": "Removed scratch directory from sys.path; repository runner lives in scripts and uses isolated source. Not counted as a test failure."
+  },
+  "new_test_authoring_corrections": "Initial draft tests used wrong result key, omitted mock base_url, included normalized internal IDs in raw duplicate input, and miscounted compliant requests as 7 instead of 6. Corrected tests/hand arithmetic after source inspection; no runtime changes or tolerance widening."
+}

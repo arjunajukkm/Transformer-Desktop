@@ -1,0 +1,60 @@
+{
+  "version": "1",
+  "synthetic": true,
+  "requests": [
+    {
+      "request_id": "REQ_SYN_T1",
+      "request_start_date": "2026-10-10",
+      "applied_on": "2026-10-08",
+      "compliance_status": "COMPLIANT"
+    },
+    {
+      "request_id": "REQ_SYN_T2",
+      "request_start_date": "2026-10-12",
+      "applied_on": "2026-10-12",
+      "compliance_status": "COMPLIANT"
+    },
+    {
+      "request_id": "REQ_SYN_T3",
+      "request_start_date": "2026-10-13",
+      "applied_on": "2026-10-17",
+      "compliance_status": "NON_COMPLIANT"
+    },
+    {
+      "request_id": "REQ_SYN_T4",
+      "request_start_date": "2026-10-14",
+      "applied_on": null,
+      "compliance_status": "NON_COMPLIANT"
+    },
+    {
+      "request_id": "REQ_SYN_T5",
+      "request_start_date": "2026-10-15",
+      "applied_on": "2026-10-01",
+      "compliance_status": "DATA_QUALITY_UNCERTAIN"
+    }
+  ],
+  "expected": {
+    "included_request_ids": [
+      "REQ_SYN_T1",
+      "REQ_SYN_T2",
+      "REQ_SYN_T3"
+    ],
+    "mean_inputs": [
+      -2,
+      0,
+      4
+    ],
+    "sum": 2,
+    "count": 3,
+    "unrounded_mean": "2/3",
+    "displayed_value": 0.7,
+    "excluded_dq": 1,
+    "unknown_count": 1,
+    "total_applicable": 5,
+    "point_numerator_before_or_same": 2,
+    "point_denominator": 3,
+    "point_rate": 66.7,
+    "period": "2026-10-01",
+    "legacy_single_event_lead_days": 2
+  }
+}

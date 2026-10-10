@@ -1,0 +1,353 @@
+{
+  "synthetic": true,
+  "version": "mc14-v2",
+  "status": "KNOWN_DEFECT_CORRECTED",
+  "business_approval": "NO_OTHER_METRIC_DECISION_APPROVED",
+  "legacy": {
+    "version": "mc14-legacy-v1",
+    "present": 0.0,
+    "absent": 0.0,
+    "unclassified": 1.0,
+    "total": 1.0
+  },
+  "corrected": {
+    "present": 1.0,
+    "absent": 0.0,
+    "unclassified": 0.0,
+    "total": 1.0
+  },
+  "reason": "Existing desired assertions establish A(R) as Present without a separate Approval Status requirement. Classification is corrected before employee-day quantity aggregation.",
+  "cases": [
+    {
+      "id": "ar_absent_full",
+      "row": {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Date": "2026-10-01",
+        "Status": "A(R)",
+        "Quantity": 1,
+        "record_id": "SYN_ar_absent_full",
+        "Attendance Type": "Absent"
+      },
+      "expected": {
+        "present": 1,
+        "absent": 0,
+        "unclassified": 0,
+        "leave": 0,
+        "wfh": 0,
+        "total": 1,
+        "regularized_days": 1
+      }
+    },
+    {
+      "id": "ar_absent_half",
+      "row": {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Date": "2026-10-01",
+        "Status": "A(R)",
+        "Quantity": 0.5,
+        "record_id": "SYN_ar_absent_half",
+        "Attendance Type": "Absent"
+      },
+      "expected": {
+        "present": 0.5,
+        "absent": 0,
+        "unclassified": 0,
+        "leave": 0,
+        "wfh": 0,
+        "total": 0.5,
+        "regularized_days": 1
+      }
+    },
+    {
+      "id": "ar_regularized",
+      "row": {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Date": "2026-10-01",
+        "Status": "A(R)",
+        "Quantity": 1,
+        "record_id": "SYN_ar_regularized",
+        "Attendance Type": "Regularized"
+      },
+      "expected": {
+        "present": 1,
+        "absent": 0,
+        "unclassified": 0,
+        "leave": 0,
+        "wfh": 0,
+        "total": 1,
+        "regularized_days": 1
+      }
+    },
+    {
+      "id": "ar_missing_type",
+      "row": {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Date": "2026-10-01",
+        "Status": "A(R)",
+        "Quantity": 1,
+        "record_id": "SYN_ar_missing_type"
+      },
+      "expected": {
+        "present": 1,
+        "absent": 0,
+        "unclassified": 0,
+        "leave": 0,
+        "wfh": 0,
+        "total": 1,
+        "regularized_days": 1
+      }
+    },
+    {
+      "id": "ar_alias",
+      "row": {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Date": "2026-10-01",
+        "Status": "AR",
+        "Quantity": 0.5,
+        "record_id": "SYN_ar_alias",
+        "Attendance Type": "Absent"
+      },
+      "expected": {
+        "present": 0.5,
+        "absent": 0,
+        "unclassified": 0,
+        "leave": 0,
+        "wfh": 0,
+        "total": 0.5,
+        "regularized_days": 1
+      }
+    },
+    {
+      "id": "ar_case_space",
+      "row": {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Date": "2026-10-01",
+        "Status": " ar ",
+        "Quantity": 1,
+        "record_id": "SYN_ar_case_space",
+        "Attendance Type": "Absent"
+      },
+      "expected": {
+        "present": 1,
+        "absent": 0,
+        "unclassified": 0,
+        "leave": 0,
+        "wfh": 0,
+        "total": 1,
+        "regularized_days": 1
+      }
+    },
+    {
+      "id": "ar_approved",
+      "row": {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Date": "2026-10-01",
+        "Status": "A(R)",
+        "Quantity": 1,
+        "record_id": "SYN_ar_approved",
+        "Attendance Type": "Absent",
+        "Approval Status": "Approved"
+      },
+      "expected": {
+        "present": 1,
+        "absent": 0,
+        "unclassified": 0,
+        "leave": 0,
+        "wfh": 0,
+        "total": 1,
+        "regularized_days": 1
+      }
+    },
+    {
+      "id": "normal_absent",
+      "row": {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Date": "2026-10-01",
+        "Status": "A",
+        "Quantity": 1,
+        "record_id": "SYN_normal_absent",
+        "Attendance Type": "Absent"
+      },
+      "expected": {
+        "present": 0,
+        "absent": 1,
+        "unclassified": 0,
+        "leave": 0,
+        "wfh": 0,
+        "total": 1,
+        "regularized_days": 0
+      }
+    },
+    {
+      "id": "normal_present",
+      "row": {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Date": "2026-10-01",
+        "Status": "P",
+        "Quantity": 1,
+        "record_id": "SYN_normal_present",
+        "Attendance Type": "Present"
+      },
+      "expected": {
+        "present": 1,
+        "absent": 0,
+        "unclassified": 0,
+        "leave": 0,
+        "wfh": 0,
+        "total": 1,
+        "regularized_days": 0
+      }
+    },
+    {
+      "id": "pr_unapproved",
+      "row": {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Date": "2026-10-01",
+        "Status": "P(R)",
+        "Quantity": 1,
+        "record_id": "SYN_pr_unapproved",
+        "Attendance Type": "Regularized"
+      },
+      "expected": {
+        "present": 0,
+        "absent": 0,
+        "unclassified": 1,
+        "leave": 0,
+        "wfh": 0,
+        "total": 1,
+        "regularized_days": 1
+      }
+    },
+    {
+      "id": "pr_approved",
+      "row": {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Date": "2026-10-01",
+        "Status": "P(R)",
+        "Quantity": 1,
+        "record_id": "SYN_pr_approved",
+        "Attendance Type": "Regularized",
+        "Approval Status": "Approved"
+      },
+      "expected": {
+        "present": 1,
+        "absent": 0,
+        "unclassified": 0,
+        "leave": 0,
+        "wfh": 0,
+        "total": 1,
+        "regularized_days": 1
+      }
+    },
+    {
+      "id": "generic_regularized",
+      "row": {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Date": "2026-10-01",
+        "Status": null,
+        "Quantity": 1,
+        "record_id": "SYN_generic_regularized",
+        "Attendance Type": "Regularized"
+      },
+      "expected": {
+        "present": 0,
+        "absent": 0,
+        "unclassified": 1,
+        "leave": 0,
+        "wfh": 0,
+        "total": 1,
+        "regularized_days": 1
+      }
+    },
+    {
+      "id": "unknown",
+      "row": {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Date": "2026-10-01",
+        "Status": "UNKNOWN",
+        "Quantity": 1,
+        "record_id": "SYN_unknown",
+        "Attendance Type": "Mystery"
+      },
+      "expected": {
+        "present": 0,
+        "absent": 0,
+        "unclassified": 1,
+        "leave": 0,
+        "wfh": 0,
+        "total": 1,
+        "regularized_days": 0
+      }
+    },
+    {
+      "id": "ar_leave_priority",
+      "row": {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Date": "2026-10-01",
+        "Status": "A(R)",
+        "Quantity": 0.5,
+        "record_id": "SYN_ar_leave_priority",
+        "Attendance Type": "Casual Leave"
+      },
+      "expected": {
+        "present": 0,
+        "absent": 0,
+        "unclassified": 0,
+        "leave": 0.5,
+        "wfh": 0,
+        "total": 0.5,
+        "regularized_days": 0
+      }
+    },
+    {
+      "id": "ar_wfh_priority",
+      "row": {
+        "Employee Number": "SYN_MC14",
+        "Employee Name": "Synthetic MC14",
+        "Business Unit": "SYN_BU",
+        "Date": "2026-10-01",
+        "Status": "A(R)",
+        "Quantity": 0.5,
+        "record_id": "SYN_ar_wfh_priority",
+        "Attendance Type": "Work From Home"
+      },
+      "expected": {
+        "present": 0,
+        "absent": 0,
+        "unclassified": 0,
+        "leave": 0,
+        "wfh": 0.5,
+        "total": 0.5,
+        "regularized_days": 0
+      }
+    }
+  ]
+}

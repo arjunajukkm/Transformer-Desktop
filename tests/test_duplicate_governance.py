@@ -518,7 +518,7 @@ def test_11_synthetic_overlapping_file_exports():
         # Total days: 28 Sep, 29 Sep, 30 Sep, 01 Oct, 02 Oct = exactly 5 employee days!
         assert len(facts) == 5
 
-        trends = calculate_time_series_trends(eval_df, metric_id="attendance_exception_rate")
+        trends = calculate_time_series_trends(eval_df, metric_id="missing_swipe_rate")
         assert len(trends["time_series"]) == 2
 
         sep_point = [p for p in trends["time_series"] if p["period"] == "2026-09-01"][0]

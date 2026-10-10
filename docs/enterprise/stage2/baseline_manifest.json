@@ -1,0 +1,410 @@
+{
+  "stage": "2A",
+  "status": "COMPLETE_WITH_FAILING_OR_BLOCKED_GATES",
+  "timestamp": "2026-10-04T17:51:14.589573+00:00",
+  "repository_commit": "fcb0ecc9f80e9eff6fa8a9cdeea5afc90252c3fe",
+  "branch": "feature/workforce-intelligence",
+  "starting_working_tree_id": "6c8d92f3802ac6fb5128c51a8fbfbc7acc6f03e94673b0fbc9ae5d77da7153d8",
+  "tested_state_identifier": "b80819f3c568f21bebb458933097462116a7cd6e9d1a59d0a01865b29ceb151d",
+  "state_identifier_scope": "All copied runtime/tests/config plus new runner/benchmark and dependency profile files; documentation excluded to avoid self-referential hashes. Child source hashes verified against repository for EVERY module.",
+  "python": "3.14.2 (tags/v3.14.2:df79316, Dec  5 2025, 17:18:21) [MSC v.1944 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "dependency_lock": {
+    "path": "requirements/full-win-py314.lock",
+    "sha256": "bedeb8bf284e12acb8824086bd2fc4dd98411a44564e6794ce7b93413a3d8c51"
+  },
+  "test_suite_result": {
+    "file": "full_suite_result.json",
+    "sha256": "1240febdaf4278a47c030f10e71a611923b45ab71a1a48f3123d88d0987ebb9c",
+    "collected": 534,
+    "passed": 517,
+    "failed": 14,
+    "skipped": 3,
+    "errors": 0,
+    "new_tests_passed": 60,
+    "mode": "fresh process per test module"
+  },
+  "known_failing_tests": [
+    "tests/test_attendance_regularization_ar.py::test_kpi_engine_ar_with_absent_attendance_type_not_absent",
+    "tests/test_desktop_integration.py::test_successful_upload_and_snapshot_activation",
+    "tests/test_desktop_integration.py::test_dashboard_metrics_matching_existing_analytical_engine",
+    "tests/test_desktop_integration.py::test_breakdowns_matching_existing_analytical_engine",
+    "tests/test_desktop_integration.py::test_search_filtering_without_recalculation",
+    "tests/test_desktop_integration.py::test_correct_dataset_replacement",
+    "tests/test_desktop_integration.py::test_failed_upload_preserving_existing_dataset_and_ui_state",
+    "tests/test_desktop_integration.py::test_older_processing_jobs_not_overwriting_newer_results",
+    "tests/test_workforce_attendance_intelligence.py::test_11_to_14_global_filters_and_attendance_view",
+    "tests/test_workforce_attendance_intelligence.py::test_15_dataset_replacement_and_stale_job_safeguard",
+    "tests/test_workforce_overview_kpis.py::test_attendance_composition_and_absent_kpi_remain_unchanged",
+    "tests/test_workforce_step29a_responsive.py::test_header_dq_badge_accessible_in_both_sidebar_states",
+    "tests/test_workforce_step29b_sidebar_filters.py::test_01_02_sidebar_starts_compact_and_no_fullwidth",
+    "tests/test_workforce_step29b_sidebar_filters.py::test_07_outside_click_and_escape_close_flyout"
+  ],
+  "golden_dataset_version": "1",
+  "golden_scenarios": {
+    "executable": 58,
+    "future_only": 8,
+    "total": 66
+  },
+  "metric_contract_version": "legacy-characterization-v1",
+  "characterized_metrics": 20,
+  "policy_configuration": {
+    "path": "workforce_intelligence/policy_config.py",
+    "effective_date": "2026-10-01",
+    "sha256": "9e2669707b1e18ac01e3b97b34a891b2cc30f843f6c745760eef52c69ce434d4"
+  },
+  "gates": {
+    "G01": "FAIL",
+    "G02": "BLOCKED",
+    "implementation_parity": "PASS for characterized cases",
+    "business_approval": "NOT_ASSERTED"
+  },
+  "runtime_changes": 0,
+  "preexisting_files_changed": 0,
+  "added_files": [
+    {
+      "file": "docs/enterprise/stage2/01_BASELINE_REPORT.md",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/02_TEST_INVENTORY.md",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/03_METRIC_DECISION_REGISTER.md",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/04_GOLDEN_DATASET_CATALOGUE.md",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/05_GATE_EVIDENCE.md",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/06_STAGE2A_CHANGELOG.md",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/README.md",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/baseline_manifest.json",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/dependency_evidence.json",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/dependency_import_inventory.json",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/failure_classifications.json",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/full_suite_result.json",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/golden_scenarios.json",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/initial_suite_result.json",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/metric_decisions.json",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/performance_provenance.json",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/starting_worktree.json",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "docs/enterprise/stage2/test_inventory.json",
+      "classification": "DOCUMENTATION",
+      "reason": "Stage2A baseline, decisions, inventory, golden/gate evidence or machine-readable provenance."
+    },
+    {
+      "file": "requirements/README.md",
+      "classification": "DEPENDENCY",
+      "reason": "Reviewed direct profile / platform-specific transitive hash lock / reproducible installation instructions; preserves selected versions."
+    },
+    {
+      "file": "requirements/build.in",
+      "classification": "DEPENDENCY",
+      "reason": "Reviewed direct profile / platform-specific transitive hash lock / reproducible installation instructions; preserves selected versions."
+    },
+    {
+      "file": "requirements/core-win-py314.lock",
+      "classification": "DEPENDENCY",
+      "reason": "Reviewed direct profile / platform-specific transitive hash lock / reproducible installation instructions; preserves selected versions."
+    },
+    {
+      "file": "requirements/core.in",
+      "classification": "DEPENDENCY",
+      "reason": "Reviewed direct profile / platform-specific transitive hash lock / reproducible installation instructions; preserves selected versions."
+    },
+    {
+      "file": "requirements/full-win-py314.lock",
+      "classification": "DEPENDENCY",
+      "reason": "Reviewed direct profile / platform-specific transitive hash lock / reproducible installation instructions; preserves selected versions."
+    },
+    {
+      "file": "requirements/full.in",
+      "classification": "DEPENDENCY",
+      "reason": "Reviewed direct profile / platform-specific transitive hash lock / reproducible installation instructions; preserves selected versions."
+    },
+    {
+      "file": "requirements/optional.in",
+      "classification": "DEPENDENCY",
+      "reason": "Reviewed direct profile / platform-specific transitive hash lock / reproducible installation instructions; preserves selected versions."
+    },
+    {
+      "file": "requirements/test-win-py314.lock",
+      "classification": "DEPENDENCY",
+      "reason": "Reviewed direct profile / platform-specific transitive hash lock / reproducible installation instructions; preserves selected versions."
+    },
+    {
+      "file": "requirements/test.in",
+      "classification": "DEPENDENCY",
+      "reason": "Reviewed direct profile / platform-specific transitive hash lock / reproducible installation instructions; preserves selected versions."
+    },
+    {
+      "file": "scripts/benchmark_stage2_baseline.py",
+      "classification": "TOOLING",
+      "reason": "Reproducible 10K/100K-only benchmark harness; not an enterprise benchmark."
+    },
+    {
+      "file": "scripts/run_stage2_baseline.py",
+      "classification": "TOOLING",
+      "reason": "Offline source-only test copies, fake home, complete evidence and process-per-module Tk isolation; existing assertions unchanged."
+    },
+    {
+      "file": "tests/characterization/test_legacy_conflicts.py",
+      "classification": "TEST",
+      "reason": "Current-behavior characterization and contract checks; known defects are explicitly labeled."
+    },
+    {
+      "file": "tests/contracts/test_catalogue_integrity.py",
+      "classification": "TEST",
+      "reason": "Current-behavior characterization and contract checks; known defects are explicitly labeled."
+    },
+    {
+      "file": "tests/contracts/test_metric_golden.py",
+      "classification": "TEST",
+      "reason": "Current-behavior characterization and contract checks; known defects are explicitly labeled."
+    },
+    {
+      "file": "tests/golden/README.md",
+      "classification": "FIXTURE",
+      "reason": "Synthetic hand-reviewable inputs/expected components or metric metadata; no runtime engine."
+    },
+    {
+      "file": "tests/golden/approvals.json",
+      "classification": "FIXTURE",
+      "reason": "Synthetic hand-reviewable inputs/expected components or metric metadata; no runtime engine."
+    },
+    {
+      "file": "tests/golden/attendance.json",
+      "classification": "FIXTURE",
+      "reason": "Synthetic hand-reviewable inputs/expected components or metric metadata; no runtime engine."
+    },
+    {
+      "file": "tests/golden/future_expectations.json",
+      "classification": "FIXTURE",
+      "reason": "Synthetic hand-reviewable inputs/expected components or metric metadata; no runtime engine."
+    },
+    {
+      "file": "tests/golden/metric_contracts.json",
+      "classification": "FIXTURE",
+      "reason": "Synthetic hand-reviewable inputs/expected components or metric metadata; no runtime engine."
+    },
+    {
+      "file": "tests/golden/policy.json",
+      "classification": "FIXTURE",
+      "reason": "Synthetic hand-reviewable inputs/expected components or metric metadata; no runtime engine."
+    },
+    {
+      "file": "tests/golden/timing.json",
+      "classification": "FIXTURE",
+      "reason": "Synthetic hand-reviewable inputs/expected components or metric metadata; no runtime engine."
+    },
+    {
+      "file": "tests/golden/wfh.json",
+      "classification": "FIXTURE",
+      "reason": "Synthetic hand-reviewable inputs/expected components or metric metadata; no runtime engine."
+    },
+    {
+      "file": "tests/golden/working_time.json",
+      "classification": "FIXTURE",
+      "reason": "Synthetic hand-reviewable inputs/expected components or metric metadata; no runtime engine."
+    }
+  ],
+  "original_runtime_sha256": {
+    "absent_management.py": "622cbd80538616f5df56a01c9fdec757e4dbf440b7e17350ab58330d3a8d9ecc",
+    "app.py": "9f533da0028c1fcdf19bb90554c25bdc56f2112bc17099dff6b12f538b29d869",
+    "attendance_summary.py": "33b7d7803ecba986a079db3b7ca6743b3ad50d88baaec222486d02b167f5a2b7",
+    "config/__init__.py": "10cba09fc47b94b81b4ea7ef8cdf85a337292cd2e90d8dddfa97363eff644152",
+    "config/settings.py": "966161c317232b7516ff51ef670aba8b87625c78118d597e53abbc3996d2dbce",
+    "conftest.py": "66e112fbaa7d386fd3cab4d75d16b752af410ae65f5b5789c569abc28c87908a",
+    "dev.py": "368e498c50addd503e269bbb5c36e59857fef9c142a06c79ae57b89946ef2d79",
+    "generate_id_cards.py": "e6208707edc676e44b3276df8b3a6ef15217c060ce80b2add5c6cfacc5a74835",
+    "generate_upload.py": "b9c768788f5b8733ab2a7bb0bd6e0a6d88e23852d2fb1fc0029f3051221340ba",
+    "id_card_module.py": "9c6f62c7920a41214a1dd195b79f61be62422f1e62d7ced1802a89179f3019cf",
+    "ingestion/__init__.py": "d14ba23ff966b5f3cc56135fed723d33005a22513af3e20993e0d937c81dc51b",
+    "keka_data_fetcher.py": "5e45ef7dfc34ec40f630383ea51a59747924597fd55e01159afff8a4b283d937",
+    "storage/__init__.py": "65bc60213c57027bf5a91a5b4e3546490c2b14c578b3d23d8f51e537b0c5f3e7",
+    "storage/cache_manager.py": "2ed7f672b95c6695ac659542ac7bd8c83fe4877e0fa771d24a9009dbaadd27f2",
+    "storage/snapshot_service.py": "b3ef8b2428594d9e8aae6b4eacc5adce35e49eee622addbe15679ef04536f013",
+    "time_leave_master.py": "13704172f98c113a3a15f661d72f7676c2c3a2378f8d0e96127abf29aad98da7",
+    "time_series_analysis.py": "35bdb34352a2a3adc508ee63abf31ce8b1f8d80a861a9ee856c52a68000cb87e",
+    "ui_components.py": "e7be993c3f360176c997762225e04d3ea077218aad74f88e92f5a5cd09d917af",
+    "workforce_intelligence/__init__.py": "d74240c518159895afaba9f3265d30daf09170785c86e6db523f13c7140ea6a6",
+    "workforce_intelligence/charts.py": "cf78b1d9ee96ce93143e90040f45c25757e942eaf734a2a3044b79bdb136ea36",
+    "workforce_intelligence/dashboard_shell.py": "c0c134353459b6a1994091d9727a697b6763454d3c66d255b53f1704d37ef5f0",
+    "workforce_intelligence/data_foundation.py": "3b344c5a47d800968e174f747a1b257db96e453881a3338eb3f672334c3bfd1e",
+    "workforce_intelligence/historical_sync.py": "0d903544eed62f0ffa52fdc7b54375147e2154b43dd269c29c8fbae1626e3aca",
+    "workforce_intelligence/ingestion.py": "502093cc01f403444ada1704c8731c92bb9d53c3b4bedd3a7486009f010a5d3d",
+    "workforce_intelligence/kpi_engine.py": "a98bee61592e464b5a5968a1d7dfeed6ac6d378e4d24b5e6d50f97b52cc66a9c",
+    "workforce_intelligence/metrics.py": "0783689623e355339d42b95f9c21509f68e813433984c64f60e9a958006d74ef",
+    "workforce_intelligence/normalization.py": "de577965b173d7e92b28e34474dfa04fdd4028648c376d3d2031d9a14e21c144",
+    "workforce_intelligence/patterns.py": "cff771e9d584405a2f1a1bceccf7898b5b3bbd61bf232e90588f1cb14a141381",
+    "workforce_intelligence/policy.py": "c6ee535d77bff7000a44923300a55acd829d916494752dce72a8b72b97390305",
+    "workforce_intelligence/policy_config.py": "9e2669707b1e18ac01e3b97b34a891b2cc30f843f6c745760eef52c69ce434d4",
+    "workforce_intelligence/quality.py": "cbd9e804edbebf7d4c5c67bec781521f809a543b0794887839a665a4af1e2e1d",
+    "workforce_intelligence/requests.py": "156e55386ab02bf0cf26054089785a8c0820c93f538a81439e79e80af62b7b16",
+    "workforce_intelligence/schema.py": "4ad677671636b6bd21764bdd1a5801e522b0e23c9d9416f41e4aea4aebf340d7",
+    "workforce_intelligence/snapshot_bridge.py": "7521d860791beaa7d47dfa69b2ea22a331d83b68df96ac7173b178207aed30f2",
+    "workforce_intelligence/trends.py": "c8f85461b23449309cf9f5e0891444012b4ed7f05e7f676ff76e70bee0a54db1",
+    "workforce_intelligence/validation.py": "616bf486bfde156b5f0720903f13bbdeded2cd5b52f6262c8c8d6c0a2e5d7fd0"
+  },
+  "tested_source_and_tooling_sha256": {
+    "absent_management.py": "622cbd80538616f5df56a01c9fdec757e4dbf440b7e17350ab58330d3a8d9ecc",
+    "app.py": "9f533da0028c1fcdf19bb90554c25bdc56f2112bc17099dff6b12f538b29d869",
+    "attendance_summary.py": "33b7d7803ecba986a079db3b7ca6743b3ad50d88baaec222486d02b167f5a2b7",
+    "conftest.py": "66e112fbaa7d386fd3cab4d75d16b752af410ae65f5b5789c569abc28c87908a",
+    "dev.py": "368e498c50addd503e269bbb5c36e59857fef9c142a06c79ae57b89946ef2d79",
+    "generate_id_cards.py": "e6208707edc676e44b3276df8b3a6ef15217c060ce80b2add5c6cfacc5a74835",
+    "generate_upload.py": "b9c768788f5b8733ab2a7bb0bd6e0a6d88e23852d2fb1fc0029f3051221340ba",
+    "id_card_module.py": "9c6f62c7920a41214a1dd195b79f61be62422f1e62d7ced1802a89179f3019cf",
+    "keka_data_fetcher.py": "5e45ef7dfc34ec40f630383ea51a59747924597fd55e01159afff8a4b283d937",
+    "time_leave_master.py": "13704172f98c113a3a15f661d72f7676c2c3a2378f8d0e96127abf29aad98da7",
+    "time_series_analysis.py": "35bdb34352a2a3adc508ee63abf31ce8b1f8d80a861a9ee856c52a68000cb87e",
+    "ui_components.py": "e7be993c3f360176c997762225e04d3ea077218aad74f88e92f5a5cd09d917af",
+    "pytest.ini": "63dbaf767ca56e53ebedd31f838a526b96993b651dc3d4dc10254f751b23088b",
+    "Transformers.spec": "0656202549037ac12ef4ccb5b79a6af44d166e119bd4edbbd93d697a1153664c",
+    "tests/test_absent_ui_integration.py": "af5c6f1a3182f83e04c1eec9d75760024a07fd553caede0be2abf7565ab9e700",
+    "tests/test_attendance_regularization_ar.py": "2cfc420ac5c39393e19470d5e3ef7176e0c270b3ee37e609ade7b39b75788931",
+    "tests/test_connectors.py": "4ebae3ee07b4393fe4a0ca55346ea0951357899629863b246d3781222ac08c90",
+    "tests/test_data_foundation.py": "5c49784f137f6b2aef808a5af00d828336bd3553481cab907e142e48050fce7f",
+    "tests/test_desktop_architecture.py": "1c9b213a62d86448a7ddc96a32323dd6c00e63d3b365dd5b100abb4b146adc34",
+    "tests/test_desktop_integration.py": "7877355f52aa592ce181ef9d8f97fa9c68589d7dd2ac09d53b93f8f1e1ce6dcb",
+    "tests/test_duplicate_governance.py": "89b66baf005c65a1c7d55757ecf1d4d1ef748ec9c1187691a5ea9a0012203761",
+    "tests/test_historical_sync.py": "66c510f9120a55e10391ae650846ceda33bc0896c7e9cd2a6e3934982bd20965",
+    "tests/test_id_generator_methods.py": "e4c5c3a7a79b5385e6024d3fc6759ff38054d20e3ff3ba499c086ca2ae85099c",
+    "tests/test_keka_data_fetcher.py": "09accefae056bc8ab462289f79467b1a61bfa05429981d951a9193689724e8c7",
+    "tests/test_okr_upload.py": "7169dd997eb50a4480dc5ac8c2c09493026dbf093f8426652ec602cef9c58b66",
+    "tests/test_snapshot_engine.py": "dd2de2f5a1c641be830fd6bae27a4cccab81bc0e7c95a466bff9367468ab35c3",
+    "tests/test_time_leave_master.py": "079df1f5c7a3f6867357471f22229ac78ed9d0abc99f9bbfac3aada0a240594f",
+    "tests/test_time_series_analysis.py": "0144031457cb1cbec52b3ee4863a748a615415a1d9d0341c5bc424b1729593db",
+    "tests/test_unified_time_leave.py": "0f05c755594def23732f392a078382befa7dd155d6a7266e361250dddf31c86e",
+    "tests/test_workforce_attendance_intelligence.py": "f57ef81b1a0ec7de28ac05073eb42c20d18414e6d59517c76d90c3a1bdbb84ab",
+    "tests/test_workforce_dashboard_shell.py": "4fb5e32d3486ee46d37320f84123d3bd428d1713d4a1a67951d05eeade3ba645",
+    "tests/test_workforce_filters.py": "6879cdb024e6ce38bb83316d672a9a1dfac01236c3de55c0843b1233fd9e699b",
+    "tests/test_workforce_ingestion.py": "3f413c6373f72258d104eef1a3cf3343eb4e672f17dcd0efab4168ddc442c0ef",
+    "tests/test_workforce_kpi_engine.py": "dae8ca66047e5eb2bad250ef3736e645c929c83cfa7d801e1043518cc8f6d5d0",
+    "tests/test_workforce_overview_kpis.py": "b60bb7bbd1e5c43593291dde780ba9548b1d7fdb8114016ac25a6463996fff9f",
+    "tests/test_workforce_patterns.py": "259f575ca518c12de0d327064d0ac5f9144b72f807b94a7d9c1e4463cc4a7819",
+    "tests/test_workforce_policy.py": "7c75515263c169b5d05477afc5160461c3ab0942f604ef21a4eedec00a0a0696",
+    "tests/test_workforce_step29a_responsive.py": "5719f2eef966efcd602b8b402081c5143e0e50315afed28eebcf8acf8c38957d",
+    "tests/test_workforce_step29b_sidebar_filters.py": "77bb3be985ef1ce1f4f81827eb93ea34103cc8fad930c5ab08a4d985e8828088",
+    "tests/test_workforce_trends.py": "5b58b232d7b0dcc5b476703b41cb2603e4c0fd53a1e33aa73abb45fbaa6e8c96",
+    "tests/test_workforce_trends_tab.py": "a5ff3c826286ab2b1fc38cd832a6da21063942b4fd109739d3563b5c2d25e322",
+    "tests/characterization/test_legacy_conflicts.py": "3b9fb2a12b5166b28485ae87b4b6abad660640e629ac4a2bbdcef9d206346d66",
+    "tests/contracts/test_catalogue_integrity.py": "0d124a59d4d73aba3e7422e4acea639713fc358e0fe4093b2b15f23dc814ed19",
+    "tests/contracts/test_metric_golden.py": "f900c6402415c29d2232e86f160451566a1e2b1675703ab55eefad4d222b2ae1",
+    "tests/golden/approvals.json": "ca8e8685fe82743b453cfb2d6a8144e8ebbb054f018117724e9e023352228bb0",
+    "tests/golden/attendance.json": "5f252c3e8f86c743d1f3c8c9d69dd32f92f34a7ae9ebf433833a8bfe799752ce",
+    "tests/golden/future_expectations.json": "50f390744a3df7bc9dcafac3abf84f762aa18c41354928af20ff26da856210f6",
+    "tests/golden/metric_contracts.json": "5158860533925acf7e45acde7caf27e6ec663305e4c9c84a4e62a4306ffaed98",
+    "tests/golden/policy.json": "ae1e1389094e8221eb17287b93b2786afa22faa8caf4916fc018fd58f3ff2e22",
+    "tests/golden/timing.json": "bfbf3e2f5bd7f80a0ed8b75e255318d9f68031916641ba55ae0b0acdd1162dbe",
+    "tests/golden/wfh.json": "f11c18a57bdf9a0d7179f7fd9d70b9b4b22b1262901b9c0a1f965c1fedb0538e",
+    "tests/golden/working_time.json": "c4b53ecf5c98494ec939a7c72147cc955207c8c3af2c46cb0df78c822063f1de",
+    "workforce_intelligence/charts.py": "cf78b1d9ee96ce93143e90040f45c25757e942eaf734a2a3044b79bdb136ea36",
+    "workforce_intelligence/dashboard_shell.py": "c0c134353459b6a1994091d9727a697b6763454d3c66d255b53f1704d37ef5f0",
+    "workforce_intelligence/data_foundation.py": "3b344c5a47d800968e174f747a1b257db96e453881a3338eb3f672334c3bfd1e",
+    "workforce_intelligence/historical_sync.py": "0d903544eed62f0ffa52fdc7b54375147e2154b43dd269c29c8fbae1626e3aca",
+    "workforce_intelligence/ingestion.py": "502093cc01f403444ada1704c8731c92bb9d53c3b4bedd3a7486009f010a5d3d",
+    "workforce_intelligence/kpi_engine.py": "a98bee61592e464b5a5968a1d7dfeed6ac6d378e4d24b5e6d50f97b52cc66a9c",
+    "workforce_intelligence/metrics.py": "0783689623e355339d42b95f9c21509f68e813433984c64f60e9a958006d74ef",
+    "workforce_intelligence/normalization.py": "de577965b173d7e92b28e34474dfa04fdd4028648c376d3d2031d9a14e21c144",
+    "workforce_intelligence/patterns.py": "cff771e9d584405a2f1a1bceccf7898b5b3bbd61bf232e90588f1cb14a141381",
+    "workforce_intelligence/policy.py": "c6ee535d77bff7000a44923300a55acd829d916494752dce72a8b72b97390305",
+    "workforce_intelligence/policy_config.py": "9e2669707b1e18ac01e3b97b34a891b2cc30f843f6c745760eef52c69ce434d4",
+    "workforce_intelligence/quality.py": "cbd9e804edbebf7d4c5c67bec781521f809a543b0794887839a665a4af1e2e1d",
+    "workforce_intelligence/requests.py": "156e55386ab02bf0cf26054089785a8c0820c93f538a81439e79e80af62b7b16",
+    "workforce_intelligence/schema.py": "4ad677671636b6bd21764bdd1a5801e522b0e23c9d9416f41e4aea4aebf340d7",
+    "workforce_intelligence/snapshot_bridge.py": "7521d860791beaa7d47dfa69b2ea22a331d83b68df96ac7173b178207aed30f2",
+    "workforce_intelligence/trends.py": "c8f85461b23449309cf9f5e0891444012b4ed7f05e7f676ff76e70bee0a54db1",
+    "workforce_intelligence/validation.py": "616bf486bfde156b5f0720903f13bbdeded2cd5b52f6262c8c8d6c0a2e5d7fd0",
+    "workforce_intelligence/__init__.py": "d74240c518159895afaba9f3265d30daf09170785c86e6db523f13c7140ea6a6",
+    "storage/cache_manager.py": "2ed7f672b95c6695ac659542ac7bd8c83fe4877e0fa771d24a9009dbaadd27f2",
+    "storage/snapshot_service.py": "b3ef8b2428594d9e8aae6b4eacc5adce35e49eee622addbe15679ef04536f013",
+    "storage/__init__.py": "65bc60213c57027bf5a91a5b4e3546490c2b14c578b3d23d8f51e537b0c5f3e7",
+    "ingestion/__init__.py": "d14ba23ff966b5f3cc56135fed723d33005a22513af3e20993e0d937c81dc51b",
+    "config/settings.py": "966161c317232b7516ff51ef670aba8b87625c78118d597e53abbc3996d2dbce",
+    "config/__init__.py": "10cba09fc47b94b81b4ea7ef8cdf85a337292cd2e90d8dddfa97363eff644152",
+    "requirements/build.in": "ea5a09ccd0a31cf8cf7892060417b3bf404d91c54af5836ed64e8d8866c7980e",
+    "requirements/core-win-py314.lock": "a7c31c1cc7b4fb3155ef1d0348f8b3ec4b6b113855775065be0f881445ad9f63",
+    "requirements/core.in": "2c60a40dc84b53f3286a5e9de742a65851240171b3ddda217d3b023886f2c19a",
+    "requirements/full-win-py314.lock": "bedeb8bf284e12acb8824086bd2fc4dd98411a44564e6794ce7b93413a3d8c51",
+    "requirements/full.in": "773304fdd8abcef2b704d91cf04cd672e08250e62cd5e382f4625f01b1282192",
+    "requirements/optional.in": "150473330118bc6dd729bacbbf4a7932c0f9a280b307650ad76f622f2876a4f5",
+    "requirements/test-win-py314.lock": "6bde32b336530c2ce82ce8986b154aaf62182b1c59c15c87c4e381f000d18264",
+    "requirements/test.in": "c6ae8f913f603d5784ba7d92da0933590a64a221b2a2a5ba98fd75a333b81a48",
+    "scripts/run_stage2_baseline.py": "13065a3276c09d619cd5e2280886515d6e874125459c8dd7078c462140b78510",
+    "scripts/benchmark_stage2_baseline.py": "030acc6665828cc910994272a40d698a181608e97e23fff1c1bdea8ed215216c",
+    "requirements/README.md": "41173a4800bffd843b7be931dd04ba8edd9cbb1128520ea503af783728091e11"
+  },
+  "fixture_sha256": {
+    "tests/golden/approvals.json": "ca8e8685fe82743b453cfb2d6a8144e8ebbb054f018117724e9e023352228bb0",
+    "tests/golden/attendance.json": "5f252c3e8f86c743d1f3c8c9d69dd32f92f34a7ae9ebf433833a8bfe799752ce",
+    "tests/golden/future_expectations.json": "50f390744a3df7bc9dcafac3abf84f762aa18c41354928af20ff26da856210f6",
+    "tests/golden/metric_contracts.json": "5158860533925acf7e45acde7caf27e6ec663305e4c9c84a4e62a4306ffaed98",
+    "tests/golden/policy.json": "ae1e1389094e8221eb17287b93b2786afa22faa8caf4916fc018fd58f3ff2e22",
+    "tests/golden/timing.json": "bfbf3e2f5bd7f80a0ed8b75e255318d9f68031916641ba55ae0b0acdd1162dbe",
+    "tests/golden/wfh.json": "f11c18a57bdf9a0d7179f7fd9d70b9b4b22b1262901b9c0a1f965c1fedb0538e",
+    "tests/golden/working_time.json": "c4b53ecf5c98494ec939a7c72147cc955207c8c3af2c46cb0df78c822063f1de"
+  },
+  "preservation": "All original safe source/config/document hashes match starting_worktree.json",
+  "security_review": "New fixtures/code/docs checked for real employee identifiers, emails, token patterns and forbidden source-data copies; no dotenv/production workbook read or copied into new artifacts."
+}

@@ -181,25 +181,15 @@ def replacement_excel(tmp_path_factory):
     return p
 
 
-@pytest.fixture(scope="module")
-def desktop_app(synthetic_excel):
-    """Headless Desktop App instance reused across integration tests to protect Tcl interpreter."""
-    snapshot_service.clear()
-    app = App()
-    app.withdraw()  # Headless mode
-
-    # Initial load of synthetic dataset
+@pytest.fixture
+def desktop_app(fresh_desktop_app, synthetic_excel, pump_ui):
+    app = fresh_desktop_app
     snap = snapshot_service.prepare_dataset(str(synthetic_excel))
+    app.ts_file_path.set(str(synthetic_excel))
+    app._latest_ts_job_id = 1
     app._ts_load_success(snap, str(synthetic_excel), job_id=1)
-    app.update()
-
-    yield app
-
-    try:
-        app.destroy()
-    except Exception:
-        pass
-    snapshot_service.clear()
+    pump_ui(app)
+    return app
 
 
 # =========================================================================
@@ -217,7 +207,7 @@ def test_successful_upload_and_snapshot_activation(desktop_app, synthetic_excel)
     assert "Active: 9 records • 3 employees" in app.ts_lbl.cget("text")
 
     # Check filter dropdown values populated
-    bu_vals = app.ts_bu_combo.cget("values")
+    bu_vals = app.workforce_dashboard_view.combo_bu.cget("values")
     assert "All Business Units" in bu_vals
     assert "Engineering" in bu_vals
     assert "Sales" in bu_vals
@@ -227,159 +217,132 @@ def test_successful_upload_and_snapshot_activation(desktop_app, synthetic_excel)
 # =========================================================================
 # 2. Dashboard metrics matching the existing analytical engine
 # =========================================================================
-def test_dashboard_metrics_matching_existing_analytical_engine(desktop_app):
-    """Verify all KPI cards display values matching the ground-truth calculation engine."""
+def test_dashboard_metrics_matching_existing_analytical_engine(desktop_app, pump_ui):
+    from workforce_intelligence.kpi_engine import compute_workforce_intelligence_bundle
+    from workforce_intelligence.dashboard_shell import _fmt_days
     app = desktop_app
-    app._reset_ts_filters()
-    app.update()
+    view = app.workforce_dashboard_view
+    snapshot = snapshot_service.get_active_snapshot()
+    expected = compute_workforce_intelligence_bundle(app.ts_dataset, canonical_data=snapshot.workforce_foundation)
+    assert view._last_metrics_bundle == expected
+    # Legacy timing/repeat/excess semantics still belong to snapshot/export.
+    assert snapshot_service.get_dashboard_metrics() == tsa.compute_time_series_metrics(app.ts_dataset)
+    assert view.kpi_cards["kpi_1_emp_hc"].lbl_val.cget("text") == "3"
+    assert view.kpi_cards["kpi_2_attendance_days"].lbl_val.cget("text") == f"{expected['kpi_2_attendance_days']:,} days"
+    for card, key in [("kpi_3_present", "kpi_3_present_days"),
+                      ("kpi_4_od", "kpi_4_od_days"),
+                      ("kpi_5_leave", "kpi_5_leave_days"),
+                      ("kpi_6_wfh", "kpi_6_wfh_days"),
+                      ("kpi_7_holiday", "kpi_7_holiday_days"),
+                      ("kpi_8_week_off", "kpi_8_week_off_days"),
+                      ("kpi_absent", "kpi_absent_days")]:
+        assert view.kpi_cards[card].lbl_val.cget("text") == _fmt_days(expected[key])
+    for card, key in [("kpi_leave_compliance", "leave_avg_lead_time_days"),
+                      ("kpi_approval_compliance", "leave_avg_approval_turnaround_days")]:
+        value = expected[key]
+        unit = "day" if abs(value) == 1 else "days"
+        assert view.kpi_cards[card].lbl_val.cget("text") == f"{value:.1f} {unit}"
+    for card, key in [("kpi_avg_in_time", "avg_in_time"),
+                      ("kpi_avg_out_time", "avg_out_time"),
+                      ("kpi_avg_working_hours", "avg_working_hours")]:
+        assert view.kpi_cards[card].lbl_val.cget("text") == expected[key]
+    with patch.object(view, "_load_overview_metrics", wraps=view._load_overview_metrics) as load:
+        view.select_view("overview")
+        pump_ui(app)
+        load.assert_not_called()
 
-    # Ground truth
-    gt = tsa.compute_time_series_metrics(app.ts_dataset)
-
-    # Check KPI labels in UI
-    leave_days = gt['avg_leave_apply_days']
-    if leave_days >= 0:
-        assert app.lbl_kpi_leave_val.cget("text") == f"{leave_days:.1f} days"
-    else:
-        assert app.lbl_kpi_leave_val.cget("text") == f"{abs(leave_days):.1f} days late"
-
-    assert app.lbl_kpi_appr_val.cget("text") == f"{gt['avg_approval_days']:.1f} days"
-    assert app.lbl_kpi_wfh_val.cget("text") == f"{gt['wfh_excess_days']:,} days"
-    assert app.lbl_kpi_rep_val.cget("text") == f"{gt['repeat_emp_count']:,} Emps ({gt['repeat_emp_pct']}%)"
-    assert app.lbl_kpi_in_val.cget("text") == gt["avg_in_time"]
-    assert app.lbl_kpi_out_val.cget("text") == gt["avg_out_time"]
-    assert app.lbl_kpi_hrs_val.cget("text") == gt["avg_working_hours"]
-
-    # Verify that refreshing unfiltered dashboard does NOT recompute compute_time_series_metrics
-    with patch("time_series_analysis.compute_time_series_metrics") as mock_calc:
-        app._refresh_ts_dashboard()
-        assert mock_calc.call_count == 0
 
 
 # =========================================================================
 # 3. Correct Business Unit, Department, Manager and Employee breakdowns
 # =========================================================================
-def test_breakdowns_matching_existing_analytical_engine(desktop_app):
-    """Verify all 4 reporting levels match ground truth compute_level_breakdown results."""
+def test_breakdowns_matching_existing_analytical_engine(desktop_app, pump_ui):
+    from workforce_intelligence.kpi_engine import compute_workforce_intelligence_bundle
     app = desktop_app
-    app._reset_ts_filters()
-    app.update()
-
+    view = app.workforce_dashboard_view
+    # The live UI exposes cascading scopes; the legacy export still owns four
+    # hierarchy breakdowns. Verify both contracts, without inventing a tree UI.
     for level in ("Business Unit", "Department", "Reporting Manager", "Employee"):
-        app._on_ts_level_changed(level)
-        app.update()
+        assert snapshot_service.get_breakdown(level=level) == tsa.compute_level_breakdown(app.ts_dataset, level=level)
+    for field, value, action in [
+        ("business_unit", "Engineering", view._on_bu_selected),
+        ("department", "Backend", view._on_dept_selected),
+        ("manager", "Bob Manager", view._on_manager_selected),
+        ("employee", "E001", view._on_employee_selected),
+    ]:
+        view._on_reset_filters_clicked()
+        pump_ui(app)
+        action(view._emp_disp_map[value] if field == "employee" else value)
+        pump_ui(app)
+        expected = compute_workforce_intelligence_bundle(app.ts_dataset, canonical_data=snapshot_service.get_active_snapshot().workforce_foundation, **{field: value})
+        assert view._last_metrics_bundle == expected
+        assert view.bu_table_widget._bu_total["observed_headcount"] == 1
 
-        gt_breakdown = tsa.compute_level_breakdown(app.ts_dataset, level=level)
-        rows = app._current_ts_breakdown_rows
-
-        assert len(rows) == len(gt_breakdown)
-        assert rows == gt_breakdown
-
-        # Treeview rows count matches
-        children = app.ts_tree.get_children()
-        assert len(children) == len(gt_breakdown)
 
 
 # =========================================================================
 # 4. Search filtering prepared rows without recalculation
 # =========================================================================
 def test_search_filtering_without_recalculation(desktop_app):
-    """Verify typing in search filters prepared rows in memory with 0 analytical recalculation."""
-    app = desktop_app
-    app._reset_ts_filters()
-    app._on_ts_level_changed("Employee")
-    app.update()
-    assert len(app.ts_tree.get_children()) == 3
+    from workforce_intelligence.snapshot_bridge import workforce_bridge
+    view = desktop_app.workforce_dashboard_view
+    dropdown = view.combo_employee
+    before = view._last_metrics_bundle
+    scope = dict(view._filter_state)
+    dropdown.open_dropdown()
+    try:
+        with patch.object(workforce_bridge, "get_workforce_metrics", wraps=workforce_bridge.get_workforce_metrics) as calc, \
+             patch.object(snapshot_service, "prepare_dataset", wraps=snapshot_service.prepare_dataset) as ingest:
+            for query, employee in [("alice", "E001"), ("E002", "E002")]:
+                dropdown._search_var.set(query)
+                desktop_app.update()
+                assert dropdown._filtered_values == [view._emp_disp_map[employee]]
+            dropdown._search_var.set("")
+            desktop_app.update()
+            assert dropdown._filtered_values == ["All Employees"] + list(view._emp_key_map)
+            calc.assert_not_called()
+            ingest.assert_not_called()
+            assert view._last_metrics_bundle is before
+            assert view._filter_state == scope
+    finally:
+        dropdown.close_dropdown()
 
-    # Patch analytical calculation methods
-    with patch("time_series_analysis.compute_level_breakdown") as mock_bk, \
-         patch("time_series_analysis.compute_time_series_metrics") as mock_m, \
-         patch.object(snapshot_service, "get_breakdown") as mock_get_bk:
-
-        # Search for "Alice"
-        app.ts_search_var.set("Alice")
-        app._render_ts_table_rows()  # direct render of debounced target
-        app.update()
-
-        children = app.ts_tree.get_children()
-        assert len(children) == 1
-        item_vals = app.ts_tree.item(children[0])["values"]
-        assert "Alice" in str(item_vals[0])
-
-        # Search for "E002" (Charlie's ID)
-        app.ts_search_var.set("E002")
-        app._render_ts_table_rows()
-        app.update()
-
-        children = app.ts_tree.get_children()
-        assert len(children) == 1
-        item_vals = app.ts_tree.item(children[0])["values"]
-        assert "Charlie" in str(item_vals[0])
-
-        # Clear search
-        app.ts_search_var.set("")
-        app._render_ts_table_rows()
-        app.update()
-        assert len(app.ts_tree.get_children()) == 3
-
-        # Zero analytical recalculation calls occurred!
-        assert mock_bk.call_count == 0
-        assert mock_m.call_count == 0
-        assert mock_get_bk.call_count == 0
 
 
 # =========================================================================
 # 5. Repeated reporting-level selection reusing prepared results
 # =========================================================================
 def test_repeated_reporting_level_selection_reusing_prepared_results(desktop_app):
-    """Verify switching between reporting levels reuses prepared snapshot results."""
-    app = desktop_app
-    app._reset_ts_filters()
-    app.update()
+    # Four-level reporting remains supported by the snapshot/export service.
+    expected = {level: snapshot_service.get_breakdown(level=level) for level in
+                ("Business Unit", "Department", "Reporting Manager", "Employee")}
+    with patch("time_series_analysis.compute_level_breakdown", wraps=tsa.compute_level_breakdown) as calc:
+        for level in list(expected) * 2:
+            assert snapshot_service.get_breakdown(level=level) == expected[level]
+        calc.assert_not_called()
 
-    with patch("time_series_analysis.compute_level_breakdown") as mock_calc:
-        # Switch repeatedly between levels
-        app._on_ts_level_changed("Business Unit")
-        app.update()
-        app._on_ts_level_changed("Department")
-        app.update()
-        app._on_ts_level_changed("Reporting Manager")
-        app.update()
-        app._on_ts_level_changed("Employee")
-        app.update()
-        app._on_ts_level_changed("Business Unit")
-        app.update()
-
-        # All 4 levels are precomputed at ingest; compute_level_breakdown must not be called
-        assert mock_calc.call_count == 0
 
 
 # =========================================================================
 # 6. Correct dataset replacement
 # =========================================================================
-def test_correct_dataset_replacement(desktop_app, synthetic_excel, replacement_excel):
-    """Verify loading a second dataset replaces the active snapshot and clears older results."""
+def test_correct_dataset_replacement(desktop_app, replacement_excel, pump_ui):
     app = desktop_app
-
-    # Load Dataset B (Replacement)
-    snap2 = snapshot_service.prepare_dataset(str(replacement_excel))
-    app._ts_load_success(snap2, str(replacement_excel), job_id=2)
-    app.update()
-
+    old = snapshot_service.get_active_snapshot()
+    snap = snapshot_service.prepare_dataset(str(replacement_excel))
+    app._latest_ts_job_id = 2
+    app.ts_file_path.set(str(replacement_excel))
+    app._ts_load_success(snap, str(replacement_excel), job_id=2)
+    pump_ui(app)
+    view = app.workforce_dashboard_view
+    assert snapshot_service.get_active_snapshot() is snap
+    assert snap is not old and app.ts_dataset is snap.fact_df
     assert "Active: 1 records • 1 employees" in app.ts_lbl.cget("text")
-    bu_vals = app.ts_bu_combo.cget("values")
-    assert "Executive" in bu_vals
-    assert "Engineering" not in bu_vals  # Old dataset options purged
+    assert view.combo_bu.cget("values") == ["All Business Units", "Executive"]
+    assert view._current_dataset_id == snap.dataset_id
+    assert view.kpi_cards["kpi_1_emp_hc"].lbl_val.cget("text") == "1"
+    assert list(view._emp_disp_map) == ["E999"]
 
-    # Treeview and metrics update to new dataset
-    assert len(app._current_ts_breakdown_rows) == 1
-    assert app._current_ts_breakdown_rows[0]["Entity Name"] == "Executive"
-
-    # Restore Dataset A for subsequent tests
-    snap1 = snapshot_service.prepare_dataset(str(synthetic_excel))
-    app._ts_load_success(snap1, str(synthetic_excel), job_id=3)
-    app.update()
-    assert "Active: 9 records • 3 employees" in app.ts_lbl.cget("text")
 
 
 # =========================================================================
@@ -390,35 +353,45 @@ def test_failed_upload_preserving_existing_dataset_and_ui_state(desktop_app, syn
     app = desktop_app
 
     initial_lbl_text = app.ts_lbl.cget("text")
-    initial_rows = len(app._current_ts_breakdown_rows)
+    initial_bundle = app.workforce_dashboard_view._last_metrics_bundle
+    initial_scope = dict(app.workforce_dashboard_view._filter_state)
     initial_df = app.ts_dataset
-    active_key = snapshot_service.get_active_snapshot().key
+    active_snapshot = snapshot_service.get_active_snapshot()
+    active_key = active_snapshot.key
 
     # Attempt to upload a corrupt / invalid file
     bad_file = tmp_path / "corrupt_data.xlsx"
     bad_file.write_bytes(b"not an excel file")
+    app.ts_file_path.set(str(bad_file))
+    app._latest_ts_job_id = 2
+    app.is_ts_loading = True
+    app.btn_ts_load.configure(state="disabled")
 
     with patch("tkinter.messagebox.showerror") as mock_err:
         try:
             snapshot_service.prepare_dataset(str(bad_file))
         except Exception as e:
-            app._ts_load_error(str(e), job_id=99)
+            app._ts_load_error(str(e), job_id=2)
         app.update()
 
         assert mock_err.called
         # Previous active snapshot must remain intact
         assert snapshot_service.has_active_snapshot()
+        assert snapshot_service.get_active_snapshot() is active_snapshot
         assert snapshot_service.get_active_snapshot().key == active_key
+        assert app.is_ts_loading is False
+        assert app.btn_ts_load.cget("state") == "normal"
         assert app.ts_lbl.cget("text") == initial_lbl_text
         assert app.ts_dataset is initial_df
-        assert len(app._current_ts_breakdown_rows) == initial_rows
+        assert app.workforce_dashboard_view._last_metrics_bundle is initial_bundle
+        assert app.workforce_dashboard_view._filter_state == initial_scope
         assert app.ts_file_path.get() == str(synthetic_excel)
 
 
 # =========================================================================
 # 8. Older processing jobs not overwriting newer results
 # =========================================================================
-def test_older_processing_jobs_not_overwriting_newer_results(desktop_app, synthetic_excel, replacement_excel):
+def test_older_processing_jobs_not_overwriting_newer_results(desktop_app, synthetic_excel, replacement_excel, pump_ui):
     """Verify stale job fencing: Job 1 finishing after Job 2 does not overwrite Job 2."""
     app = desktop_app
 
@@ -433,24 +406,25 @@ def test_older_processing_jobs_not_overwriting_newer_results(desktop_app, synthe
     app.update()
     assert "Active: 1 records • 1 employees" in app.ts_lbl.cget("text")
 
+    pump_ui(app)
+    latest_bundle = app.workforce_dashboard_view._last_metrics_bundle
+
     # Job 1 completes later (stale callback with job_id=49)
     app._ts_load_success(snap1, str(synthetic_excel), job_id=49)
     app.update()
 
     # Job 1 completion must be rejected
     assert "Active: 1 records • 1 employees" in app.ts_lbl.cget("text")
-    assert "Executive" in app.ts_bu_combo.cget("values")
+    assert "Executive" in app.workforce_dashboard_view.combo_bu.cget("values")
+
+    assert snapshot_service.get_active_snapshot() is snap2
+    assert app.ts_dataset is snap2.fact_df
+    assert app.workforce_dashboard_view._last_metrics_bundle is latest_bundle
 
     # Stale error callback must also be ignored
     with patch("tkinter.messagebox.showerror") as mock_err:
         app._ts_load_error("Some error from job 49", job_id=49)
         assert not mock_err.called
-
-    # Restore Dataset A
-    app._latest_ts_job_id = 51
-    app._ts_load_success(snap1, str(synthetic_excel), job_id=51)
-    app.update()
-
 
 # =========================================================================
 # 9. No Tkinter widget updates from background worker threads

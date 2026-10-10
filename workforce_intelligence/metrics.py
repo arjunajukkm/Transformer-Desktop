@@ -78,14 +78,21 @@ def build_employee_day_facts(df: pd.DataFrame) -> pd.DataFrame:
     has_dups = work_df.duplicated(subset=["Employee Number", "Date"]).any()
     if not has_dups:
         cats = work_df["_cat"]
-        status_vals = work_df["Status"].dropna().astype(str).str.upper() if "Status" in work_df.columns else pd.Series("", index=work_df.index)
+        status_vals = work_df["Status"].astype(str).str.strip() if "Status" in work_df.columns else pd.Series("", index=work_df.index)
 
+        att_type_col = "Attendance Type" if "Attendance Type" in work_df.columns else ("_att_type" if "_att_type" in work_df.columns else None)
+        if att_type_col:
+            att_types = work_df[att_type_col].astype(str).str.strip().str.lower()
+            is_reg_type = (att_types == "regularized")
+        else:
+            is_reg_type = pd.Series(False, index=work_df.index)
+
+        has_reg = is_reg_type | (cats == "Attendance Regularized") | status_vals.str.contains(r"\(R\)|AR|PR", regex=True, na=False)
         has_pres = (cats == "Present") | status_vals.isin(["P", "WOW", "WOH"])
         has_lv = (cats == "Leave") | status_vals.isin(["CL", "SL", "PL", "EL", "ML", "CLSL", "L"])
         has_wfh = (cats == "Work From Home") | (status_vals == "WFH")
         has_abs = (cats == "Absent") | status_vals.isin(["A", "AB"])
-        has_ms = (cats == "Missing Swipes") | status_vals.str.contains("MS", na=False)
-        has_reg = (cats == "Attendance Regularized") | status_vals.str.contains(r"\(R\)|AR|PR", regex=True, na=False)
+        has_ms = (cats == "Missing Swipes") | status_vals.str.contains("MS", na=False) | status_vals.isin(["P(MS)", "P (MS)"])
         has_wo = (cats == "Week Off") | status_vals.isin(["WO", "W/O"])
         has_hol = (cats == "Holiday") | status_vals.isin(["H", "PH"])
         has_od = (cats == "On Duty") | (status_vals == "OD")
@@ -196,13 +203,15 @@ def build_employee_day_facts(df: pd.DataFrame) -> pd.DataFrame:
 
         cats = set(eval_group["_cat"])
         status_vals = set(eval_group["Status"].dropna().astype(str).str.upper()) if "Status" in eval_group.columns else set()
+        att_type_col = "Attendance Type" if "Attendance Type" in eval_group.columns else ("_att_type" if "_att_type" in eval_group.columns else None)
+        att_type_vals = set(eval_group[att_type_col].dropna().astype(str).str.strip().str.lower()) if att_type_col else set()
 
+        has_reg = ("regularized" in att_type_vals) or ("Attendance Regularized" in cats) or any("(R)" in s or s in ("AR", "PR") for s in status_vals)
         has_pres = "Present" in cats or "P" in status_vals or "WOW" in status_vals or "WOH" in status_vals
         has_lv = "Leave" in cats or any(s in ("CL", "SL", "PL", "EL", "ML", "CLSL", "L") for s in status_vals)
         has_wfh = "Work From Home" in cats or "WFH" in status_vals
         has_abs = "Absent" in cats or "A" in status_vals or "AB" in status_vals
-        has_ms = "Missing Swipes" in cats or any("MS" in s for s in status_vals)
-        has_reg = "Attendance Regularized" in cats or any("(R)" in s or s in ("AR", "PR") for s in status_vals)
+        has_ms = "Missing Swipes" in cats or any("MS" in s or s in ("P(MS)", "P (MS)") for s in status_vals)
         has_wo = "Week Off" in cats or "WO" in status_vals or "W/O" in status_vals
         has_hol = "Holiday" in cats or "H" in status_vals or "PH" in status_vals
         has_od = "On Duty" in cats or "OD" in status_vals

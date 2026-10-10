@@ -32,23 +32,6 @@ from workforce_intelligence.kpi_engine import compute_workforce_intelligence_bun
 # Fixtures
 # ─────────────────────────────────────────────────────────────────────────────
 
-@pytest.fixture(scope="module")
-def desktop_app():
-    """Headless Desktop App instance reused across tests in this module."""
-    snapshot_service.clear()
-    app = App()
-    app.withdraw()
-    app.update()
-
-    yield app
-
-    try:
-        app.destroy()
-    except Exception:
-        pass
-    snapshot_service.clear()
-
-
 @pytest.fixture
 def synthetic_step29b_snapshot() -> AnalyticalSnapshot:
     """Synthetic dataset with 26 Business Units and 400 employees."""
@@ -116,7 +99,11 @@ def test_01_02_sidebar_starts_compact_and_no_fullwidth(desktop_app):
 
     # Verify compact logo mark is gridded
     assert bool(app.lbl_logo_compact.grid_info()), "Compact brand mark must be gridded in sidebar header"
-    assert app.lbl_logo_compact.cget("text") == "⚡"
+    assert app.lbl_logo_compact.cget("image") is not None
+    app.deiconify()
+    app.update()
+    assert app.lbl_logo_compact.winfo_viewable()
+    app.withdraw()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -590,3 +577,37 @@ def test_23_24_bu_table_and_export_structure_unchanged(desktop_app, synthetic_st
     assert hasattr(wf_view, "bu_table_widget")
     assert bool(wf_view.bu_table_widget.grid_info())
 
+
+
+@pytest.mark.parametrize("text", ["", "Synthetic parent"])
+def test_escape_restores_focus_to_image_or_text_button(desktop_app, text):
+    app = desktop_app
+    app.deiconify()
+    app.update()
+    app.nav_parent_btn.configure(text=text)
+    app._show_floating_nav("transform")
+    app.update()
+    app.floating_nav_popup.focus_force()
+    app.update()
+    app.floating_nav_popup.event_generate("<Escape>")
+    app.update()
+    assert app.floating_nav_popup is None
+    # Tk remembers the focus target even when Windows does not grant this
+    # automated test window foreground activation after destroying the popup.
+    assert str(app.tk.call("focus", "-lastfor", app._w)) == str(app.nav_parent_btn)
+
+
+@pytest.mark.parametrize("state", ["unmapped", "destroyed"])
+def test_escape_handles_unavailable_parent(desktop_app, state):
+    app = desktop_app
+    app.deiconify()
+    app.update()
+    app._show_floating_nav("transform")
+    app.update()
+    if state == "destroyed":
+        app.nav_parent_btn.destroy()
+    else:
+        app.nav_parent_btn.grid_remove()
+    assert app._on_flyout_escape() == "break"
+    app.update()
+    assert app.floating_nav_popup is None

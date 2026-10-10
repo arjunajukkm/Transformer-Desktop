@@ -62,26 +62,6 @@ from workforce_intelligence.dashboard_shell import (
 # Fixtures
 # ─────────────────────────────────────────────────────────────────────────────
 
-@pytest.fixture(scope="module")
-def desktop_app():
-    """Headless Desktop App instance reused across tests in this module."""
-    snapshot_service.clear()
-    try:
-        app = App()
-        app.withdraw()
-        app.update()
-    except Exception as e:
-        pytest.skip(f"Tkinter / GUI environment not available: {e}")
-
-    yield app
-
-    try:
-        app.destroy()
-    except Exception:
-        pass
-    snapshot_service.clear()
-
-
 @pytest.fixture
 def synthetic_attendance_dataset() -> pd.DataFrame:
     """
@@ -518,89 +498,44 @@ def test_10_bu_denominators_and_deduplicated_headcount(synthetic_attendance_snap
 # 11–14. Global Filter Integration (Date, BU, Employee, Reset) in Desktop Shell
 # ─────────────────────────────────────────────────────────────────────────────
 
-def test_11_to_14_global_filters_and_attendance_view(desktop_app, synthetic_attendance_snapshot):
-    """
-    Test desktop shell Attendance tab:
-    - Renders Attendance tab widgets
-    - Updates with BU filter
-    - Updates with Date filter
-    - Updates with Employee filter
-    - Resets restores complete dataset scope
-    """
+def test_11_to_14_global_filters_and_attendance_view(desktop_app, synthetic_attendance_snapshot, pump_ui):
+    """Attendance is presented on Overview; exercise live scope/reset callbacks."""
     app = desktop_app
     snapshot_service.cache_manager.set_active_snapshot("snap_attendance_synth_test", synthetic_attendance_snapshot)
-    app.update()
-
-    view: WorkforceDashboardView = app.workforce_dashboard_view
+    view = app.workforce_dashboard_view
     view.sync_snapshot_state(synthetic_attendance_snapshot)
-    app.update()
+    view.select_view("overview")
+    pump_ui(app)
+    assert set(view.tab_buttons) == {"overview", "trends"}
+    assert view.active_view == "overview"
+    assert view.view_containers["overview"].grid_info()
+    assert view.kpi_cards["kpi_1_emp_hc"].lbl_val.cget("text") == "7"
+    assert view._last_metrics_bundle["recorded_employee_days"] == 8
 
-    # Switch to Attendance view
-    view.select_view("attendance")
-    app.update()
-
-    # Check that Attendance container is gridded
-    assert view.active_view == "attendance"
-    assert view.view_containers["attendance"].grid_info() != {}
-
-    # Check Attendance KPI cards exist and are populated
-    assert "att_kpi_emp_hc" in view.att_kpi_cards
-    assert "att_kpi_rec_days" in view.att_kpi_cards
-    assert "att_kpi_present" in view.att_kpi_cards
-    assert "att_kpi_absent" in view.att_kpi_cards
-    assert "att_kpi_missing_swipes" in view.att_kpi_cards
-    assert "att_kpi_regularized" in view.att_kpi_cards
-
-    # In full scope: 7 employees, 8 days, 6.5 present, 1.0 absent
-    lbl_hc = view.att_kpi_cards["att_kpi_emp_hc"].lbl_val.cget("text")
-    assert "7" in lbl_hc
-
-    lbl_days = view.att_kpi_cards["att_kpi_rec_days"].lbl_val.cget("text")
-    assert "8" in lbl_days
-
-    # 11. BU Filter Integration: Filter to BU_Alpha
     view._on_bu_selected("BU_Alpha")
-    # Process load synchronously for test
-    bundle_alpha = workforce_bridge.get_workforce_metrics(business_unit="BU_Alpha")
-    view._on_metrics_calc_success(bundle_alpha, view._latest_job_id, "SYNTH_ATTENDANCE_STEP31")
-    app.update()
+    pump_ui(app)
+    assert view.kpi_cards["kpi_1_emp_hc"].lbl_val.cget("text") == "4"
+    assert view._last_metrics_bundle["recorded_employee_days"] == 4
+    assert view._last_metrics_bundle["kpi_3_present_days"] == 2.5
+    assert view._last_metrics_bundle["kpi_absent_days"] == 1
 
-    assert view.att_kpi_cards["att_kpi_emp_hc"].lbl_val.cget("text") == "4"
-    assert "4" in view.att_kpi_cards["att_kpi_rec_days"].lbl_val.cget("text")
-    assert "2.5" in view.att_kpi_cards["att_kpi_present"].lbl_val.cget("text")
-    assert "1" in view.att_kpi_cards["att_kpi_absent"].lbl_val.cget("text")
-
-    # 12. Combined BU + Date Filter: Filter to BU_Alpha on 2026-09-01
     view._filter_state["date_range"] = (date(2026, 9, 1), date(2026, 9, 1))
-    bundle_alpha_date = workforce_bridge.get_workforce_metrics(
-        business_unit="BU_Alpha",
-        date_range=(date(2026, 9, 1), date(2026, 9, 1)),
-    )
-    view._on_metrics_calc_success(bundle_alpha_date, view._latest_job_id, "SYNTH_ATTENDANCE_STEP31")
-    app.update()
+    view._load_overview_metrics()
+    pump_ui(app)
+    assert view._last_metrics_bundle["recorded_employee_days"] == 4
+    assert view.kpi_cards["kpi_1_emp_hc"].lbl_val.cget("text") == "4"
 
-    assert view.att_kpi_cards["att_kpi_emp_hc"].lbl_val.cget("text") == "4"
-    assert "4" in view.att_kpi_cards["att_kpi_rec_days"].lbl_val.cget("text")
-
-    # 13. Employee Filter Integration: Filter to SYNTH_003 (in BU_Beta)
-    view._filter_state["business_unit"] = None
-    view._filter_state["date_range"] = None
-    view._filter_state["employee"] = "SYNTH_003"
-    bundle_emp3 = workforce_bridge.get_workforce_metrics(employee="SYNTH_003")
-    view._on_metrics_calc_success(bundle_emp3, view._latest_job_id, "SYNTH_ATTENDANCE_STEP31")
-    app.update()
-
-    assert view.att_kpi_cards["att_kpi_emp_hc"].lbl_val.cget("text") == "1"
-    assert "1" in view.att_kpi_cards["att_kpi_missing_swipes"].lbl_val.cget("text")
-
-    # 14. Reset Behavior: Reset filters
     view._on_reset_filters_clicked()
-    bundle_reset = workforce_bridge.get_workforce_metrics()
-    view._on_metrics_calc_success(bundle_reset, view._latest_job_id, "SYNTH_ATTENDANCE_STEP31")
-    app.update()
+    pump_ui(app)
+    view._on_employee_selected(view._emp_disp_map["SYNTH_003"])
+    pump_ui(app)
+    assert view.kpi_cards["kpi_1_emp_hc"].lbl_val.cget("text") == "1"
+    assert view._last_metrics_bundle["att_kpi_missing_swipe_days"] == 1
 
-    assert view.att_kpi_cards["att_kpi_emp_hc"].lbl_val.cget("text") == "7"
-    assert "8" in view.att_kpi_cards["att_kpi_rec_days"].lbl_val.cget("text")
+    view._on_reset_filters_clicked()
+    pump_ui(app)
+    assert view.kpi_cards["kpi_1_emp_hc"].lbl_val.cget("text") == "7"
+    assert view._last_metrics_bundle["recorded_employee_days"] == 8
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -616,51 +551,39 @@ def test_15_dataset_replacement_and_stale_job_safeguard(desktop_app):
     view: WorkforceDashboardView = app.workforce_dashboard_view
 
     # Establish initial dataset
-    initial_bundle = {"att_kpi_observed_employees": 100}
+    initial_bundle = {"kpi_1_emp_hc": 100}
     view._latest_job_id = 5
     view._on_metrics_calc_success(initial_bundle, job_id=5, dataset_id="DS_INITIAL")
-    assert view.att_kpi_cards["att_kpi_emp_hc"].lbl_val.cget("text") == "100"
+    assert view.kpi_cards["kpi_1_emp_hc"].lbl_val.cget("text") == "100"
 
     # Simulate stale completion from old job_id = 4
-    stale_bundle = {"att_kpi_observed_employees": 42}
+    stale_bundle = {"kpi_1_emp_hc": 42}
     view._on_metrics_calc_success(stale_bundle, job_id=4, dataset_id="DS_OLD")
     # Must NOT have changed to 42!
-    assert view.att_kpi_cards["att_kpi_emp_hc"].lbl_val.cget("text") == "100"
+    assert view.kpi_cards["kpi_1_emp_hc"].lbl_val.cget("text") == "100"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 16. No Workbook Rereads When Switching Tabs
 # ─────────────────────────────────────────────────────────────────────────────
 
-def test_16_zero_workbook_rereads_on_tab_switch(desktop_app, synthetic_attendance_snapshot):
-    """
-    Switching between Overview and Attendance tabs must not trigger file I/O
-    or recalculation when snapshot and filters are unchanged.
-    """
-    app = desktop_app
-    view: WorkforceDashboardView = app.workforce_dashboard_view
-
+def test_16_zero_workbook_rereads_on_tab_switch(desktop_app, synthetic_attendance_snapshot, pump_ui):
+    view = desktop_app.workforce_dashboard_view
     snapshot_service.cache_manager.set_active_snapshot("snap_attendance_synth_test", synthetic_attendance_snapshot)
-    valid_bundle = workforce_bridge.get_workforce_metrics()
-    view._last_metrics_bundle = valid_bundle
-    view._current_dataset_id = getattr(synthetic_attendance_snapshot, "dataset_id", synthetic_attendance_snapshot.key)
-    view._is_loading_metrics = False
-
-    with patch("workforce_intelligence.snapshot_bridge.workforce_bridge.get_workforce_metrics") as mock_calc:
-        # Switch to Overview
-        view.select_view("overview")
-        app.update()
-
-        # Switch to Attendance
-        view.select_view("attendance")
-        app.update()
-
-        # Switch back to Overview
-        view.select_view("overview")
-        app.update()
-
-        # Calculation bridge should NOT have been called during simple tab switches
-        assert mock_calc.call_count == 0
+    view.sync_snapshot_state(synthetic_attendance_snapshot)
+    pump_ui(desktop_app)
+    view.select_view("trends")
+    pump_ui(desktop_app)
+    with patch.object(workforce_bridge, "get_workforce_metrics", wraps=workforce_bridge.get_workforce_metrics) as overview, \
+         patch.object(view, "_load_trend_metrics", wraps=view._load_trend_metrics) as trends, \
+         patch("pandas.read_excel", wraps=pd.read_excel) as read:
+        for tab in ("overview", "trends", "overview"):
+            view.select_view(tab)
+            desktop_app.update()
+            assert view.active_view == tab
+        overview.assert_not_called()
+        trends.assert_not_called()
+        read.assert_not_called()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

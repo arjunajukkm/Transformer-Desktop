@@ -1,0 +1,37 @@
+{
+  "build": "PASS",
+  "spec": "Transformers.spec",
+  "spec_sha256": "0656202549037ac12ef4ccb5b79a6af44d166e119bd4edbbd93d697a1153664c",
+  "exe_sha256": "1bb6e457576be08c2e719fb4dc1707e89f311019dfa6941202f5e919e2b63a7c",
+  "exe_bytes": 237954258,
+  "build_seconds": 206.98911480000243,
+  "launch": "FAIL",
+  "blocker": "ModuleNotFoundError: reportlab.graphics.barcode.code128",
+  "traceback": [
+    "Failed to execute script 'app' due to unhandled exception: No module named 'reportlab.graphics.barcode.code128'",
+    "Traceback (most recent call last):\r\n  File \"app.py\", line 24, in <module>\r\n  File \"pyimod02_importers.py\", line 457, in exec_module\r\n  File \"id_card_module.py\", line 19, in <module>\r\n  File \"pyimod02_importers.py\", line 457, in exec_module\r\n  File \"generate_id_cards.py\", line 57, in <module>\r\n  File \"pyimod02_importers.py\", line 457, in exec_module\r\n  File \"reportlab\\graphics\\barcode\\__init__.py\", line 76, in <module>\r\n  File \"reportlab\\graphics\\barcode\\__init__.py\", line 42, in _reset\r\n  File \"pyimod02_importers.py\", line 457, in exec_module\r\n  File \"reportlab\\graphics\\barcode\\widgets.py\", line 173, in <module>\r\n  File \"reportlab\\graphics\\barcode\\widgets.py\", line 100, in _BCW\r\n  File \"<string>\", line 1, in <module>\r\nModuleNotFoundError: No module named 'reportlab.graphics.barcode.code128'\r\n"
+  ],
+  "exit_code": 1,
+  "interactive_acceptance": false,
+  "production_packaging_changed": false,
+  "build_command": [
+    "C:\\Users\\ArjunS\\Documents\\Codex\\2026-10-04\\c-users-arjuns-onedrive-moshpit-technologies\\work\\stage2\\verify-venv\\Scripts\\python.exe",
+    "-m",
+    "PyInstaller",
+    "--noconfirm",
+    "--distpath",
+    "C:\\Users\\ArjunS\\Documents\\Codex\\2026-10-04\\c-users-arjuns-onedrive-moshpit-technologies\\work\\stage2b0\\packaging\\dist",
+    "--workpath",
+    "C:\\Users\\ArjunS\\Documents\\Codex\\2026-10-04\\c-users-arjuns-onedrive-moshpit-technologies\\work\\stage2b0\\packaging\\build",
+    "Transformers.spec"
+  ],
+  "build_cwd": "C:\\Users\\ArjunS\\Documents\\Codex\\2026-10-04\\c-users-arjuns-onedrive-moshpit-technologies\\work\\stage2b0\\packaging\\source",
+  "build_log_sha256": "de5cd510026cef50eb1dc6fd4510f0a2cec61ff405f488bfcfa6e32dbd8a48c2",
+  "launch_evidence_sha256": "9de08cc9d6d75d96f4906dbbe48c6bd8110d8db4ee34f184e8ee6dfc26f7a748",
+  "build_environment": {
+    "python": "3.14.2",
+    "PyInstaller": "6.19.0",
+    "pyinstaller_hooks_contrib": "2026.4",
+    "lock_sha256": "bedeb8bf284e12acb8824086bd2fc4dd98411a44564e6794ce7b93413a3d8c51"
+  }
+}

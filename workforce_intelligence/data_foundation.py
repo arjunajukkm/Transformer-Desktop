@@ -500,10 +500,10 @@ class CanonicalWorkforceData:
                 out_str = normalize_text(raw_out)
                 out_mins = parse_time_to_minutes(out_str)
 
-            # Working hours calculation: only for Present and Missing Swipes with both valid punches
+            # Working hours calculation: for Present, Missing Swipes, and Attendance Regularized with both valid punches
             work_hrs = None
             if in_mins is not None and out_mins is not None:
-                is_eligible_swipe = cat in ("Present", "Missing Swipes")
+                is_eligible_swipe = cat in ("Present", "Missing Swipes", "Attendance Regularized")
                 if is_eligible_swipe:
                     diff_m = out_mins - in_mins
                     if diff_m < 0:

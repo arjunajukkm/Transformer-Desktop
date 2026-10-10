@@ -89,6 +89,7 @@ def multi_month_snapshot():
                 "Department": f"{bu} Core",
                 "Reporting Manager": f"Manager {bu}",
                 "Attendance Type": att_type,
+                "Status": "P(MS)" if (bu == "Lending" and d.month == 7) else "P",
                 "First In": in_t,
                 "Last Out": out_t,
                 "Total Duration": "09:00" if out_t else "04:00",
@@ -126,11 +127,11 @@ def test_trends_tab_navigation_structure():
 def test_get_trend_intelligence_multi_month(multi_month_snapshot):
     """Verify get_trend_intelligence returns complete bundle with all required sections."""
     bundle = workforce_bridge.get_trend_intelligence(
-        metric_id="attendance_exception_rate",
+        metric_id="missing_swipe_rate",
         benchmark_type="ORGANIZATION",
     )
 
-    assert bundle["metric_id"] == "attendance_exception_rate"
+    assert bundle["metric_id"] == "missing_swipe_rate"
     assert bundle["benchmark_type"] == "ORGANIZATION"
     assert "trend_pulse" in bundle
     assert len(bundle["trend_pulse"]) == 5
@@ -173,7 +174,7 @@ def test_benchmark_modes(multi_month_snapshot):
     """Verify Organisation, Historical Baseline, and Peer benchmarks compute properly."""
     # 1. Organisation
     b_org = workforce_bridge.get_trend_intelligence(
-        metric_id="attendance_exception_rate",
+        metric_id="missing_swipe_rate",
         benchmark_type="ORGANIZATION",
         business_unit="Lending",
     )
@@ -182,7 +183,7 @@ def test_benchmark_modes(multi_month_snapshot):
 
     # 2. Historical Baseline
     b_hist = workforce_bridge.get_trend_intelligence(
-        metric_id="attendance_exception_rate",
+        metric_id="missing_swipe_rate",
         benchmark_type="HISTORICAL",
         business_unit="Lending",
     )
@@ -191,7 +192,7 @@ def test_benchmark_modes(multi_month_snapshot):
 
     # 3. Peer Benchmark
     b_peer = workforce_bridge.get_trend_intelligence(
-        metric_id="attendance_exception_rate",
+        metric_id="missing_swipe_rate",
         benchmark_type="PEER",
         business_unit="Lending",
     )
@@ -206,14 +207,14 @@ def test_global_filters_in_trends(multi_month_snapshot):
     """Verify filters (BU, Dept, Date Range) restrict scope properly."""
     # Filter to Lending
     bundle_lending = workforce_bridge.get_trend_intelligence(
-        metric_id="attendance_exception_rate",
+        metric_id="missing_swipe_rate",
         business_unit="Lending",
     )
     assert "Lending" in bundle_lending["scope_description"]
 
     # Filter to specific date range
     bundle_dr = workforce_bridge.get_trend_intelligence(
-        metric_id="attendance_exception_rate",
+        metric_id="missing_swipe_rate",
         date_range=(date(2026, 6, 1), date(2026, 7, 31)),
     )
     assert len(bundle_dr["chart"]["points"]) >= 1
@@ -225,8 +226,8 @@ def test_global_filters_in_trends(multi_month_snapshot):
 def test_empty_dataset_handling():
     """Verify empty dataset returns clean default structure without exceptions."""
     snapshot_service.clear()
-    bundle = workforce_bridge.get_trend_intelligence(metric_id="attendance_exception_rate")
-    assert bundle["metric_id"] == "attendance_exception_rate"
+    bundle = workforce_bridge.get_trend_intelligence(metric_id="missing_swipe_rate")
+    assert bundle["metric_id"] == "missing_swipe_rate"
     assert len(bundle["trend_pulse"]) == 5
     assert bundle["trend_pulse"][0]["value"] == "—"
     assert bundle["chart"]["points"] == []
@@ -246,6 +247,7 @@ def test_single_month_dataset_handling():
         "Department": "Core",
         "Reporting Manager": "Bob",
         "Attendance Type": "Present",
+        "Status": "P",
         "First In": "09:00",
         "Last Out": "18:00",
         "Total Duration": "09:00",
@@ -262,7 +264,7 @@ def test_single_month_dataset_handling():
     )
     snapshot_cache.set_active_snapshot(snap)
 
-    bundle = workforce_bridge.get_trend_intelligence(metric_id="attendance_exception_rate")
+    bundle = workforce_bridge.get_trend_intelligence(metric_id="missing_swipe_rate")
     assert len(bundle["chart"]["points"]) == 1
     assert bundle["trend_pulse"][1]["value"] == "Baseline (First Month)"
     assert bundle["what_changed"]["has_movement"] is False
@@ -274,7 +276,7 @@ def test_single_month_dataset_handling():
 def test_low_volume_data_flagging(multi_month_snapshot):
     """Verify low-volume records are marked with Low confidence flag."""
     bundle = workforce_bridge.get_trend_intelligence(
-        metric_id="attendance_exception_rate",
+        metric_id="missing_swipe_rate",
         employee="101",  # Single employee = low volume
     )
     assert "confidence" in bundle["trend_pulse"][4]["title"].lower() or "confidence" in bundle["trend_pulse"][4]["value"].lower()
@@ -286,7 +288,7 @@ def test_low_volume_data_flagging(multi_month_snapshot):
 def test_what_changed_driver_attribution(multi_month_snapshot):
     """Verify driver attribution identifies contributing BUs deterministically."""
     bundle = workforce_bridge.get_trend_intelligence(
-        metric_id="attendance_exception_rate",
+        metric_id="missing_swipe_rate",
     )
     what_changed = bundle["what_changed"]
     assert "drivers" in what_changed
@@ -302,7 +304,7 @@ def test_what_changed_driver_attribution(multi_month_snapshot):
 def test_emerging_patterns_integration(multi_month_snapshot):
     """Verify patterns list contains top patterns with required fields."""
     bundle = workforce_bridge.get_trend_intelligence(
-        metric_id="attendance_exception_rate",
+        metric_id="missing_swipe_rate",
     )
     patterns = bundle["patterns"]
     assert isinstance(patterns, list)
@@ -320,7 +322,7 @@ def test_emerging_patterns_integration(multi_month_snapshot):
 def test_benchmark_table_structure(multi_month_snapshot):
     """Verify benchmark comparison table contains all 8 required columns and total."""
     bundle = workforce_bridge.get_trend_intelligence(
-        metric_id="attendance_exception_rate",
+        metric_id="missing_swipe_rate",
     )
     table = bundle["benchmark_table"]
     assert "columns" in table
@@ -345,11 +347,11 @@ def test_benchmark_table_structure(multi_month_snapshot):
 def test_trends_caching_and_zero_io(multi_month_snapshot):
     """Verify repeated trend queries hit cache with zero file I/O."""
     # First call primes cache
-    bundle1 = workforce_bridge.get_trend_intelligence(metric_id="attendance_exception_rate")
+    bundle1 = workforce_bridge.get_trend_intelligence(metric_id="missing_swipe_rate")
 
     with patch("openpyxl.load_workbook") as mock_wb, \
          patch("pandas.read_excel") as mock_excel:
-        bundle2 = workforce_bridge.get_trend_intelligence(metric_id="attendance_exception_rate")
+        bundle2 = workforce_bridge.get_trend_intelligence(metric_id="missing_swipe_rate")
         assert mock_wb.call_count == 0
         assert mock_excel.call_count == 0
         assert bundle1["metric_id"] == bundle2["metric_id"]
@@ -379,7 +381,7 @@ def test_trends_ui_view_activation(desktop_app, multi_month_snapshot):
     assert hasattr(wf_view, "emerging_patterns_widget")
     assert hasattr(wf_view, "trend_benchmark_table")
 
-    bundle = workforce_bridge.get_trend_intelligence(metric_id="attendance_exception_rate")
+    bundle = workforce_bridge.get_trend_intelligence(metric_id="missing_swipe_rate")
     wf_view._render_trend_intelligence(bundle)
     wf_view._set_trends_state("ready")
     desktop_app.update()
@@ -466,7 +468,7 @@ def test_trends_with_dirty_unparseable_datetime_strings(desktop_app):
     workforce_bridge.clear_cache()
 
     # Should run smoothly without raising ValueError
-    bundle = workforce_bridge.get_trend_intelligence(metric_id="attendance_exception_rate")
+    bundle = workforce_bridge.get_trend_intelligence(metric_id="missing_swipe_rate")
     assert bundle is not None
     assert "chart" in bundle
     assert "trend_pulse" in bundle

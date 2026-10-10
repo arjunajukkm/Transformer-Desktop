@@ -1,0 +1,159 @@
+{
+  "version": "1",
+  "synthetic": true,
+  "rows": [
+    {
+      "observation_id": "A1",
+      "record_id": "A1",
+      "Employee Number": "SYN001",
+      "Employee Name": "Synthetic SYN001",
+      "Date": "2026-10-01",
+      "Status": "P",
+      "Attendance Type": "Present",
+      "attendance_category": "Present",
+      "Quantity": 0.5,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A"
+    },
+    {
+      "observation_id": "A2",
+      "record_id": "A2",
+      "Employee Number": "SYN001",
+      "Employee Name": "Synthetic SYN001",
+      "Date": "2026-10-01",
+      "Status": "CL",
+      "Attendance Type": "Leave",
+      "attendance_category": "Leave",
+      "Quantity": 0.5,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A"
+    },
+    {
+      "observation_id": "A3",
+      "record_id": "A3",
+      "Employee Number": "SYN002",
+      "Employee Name": "Synthetic SYN002",
+      "Date": "2026-10-01",
+      "Status": "P(MS)",
+      "Attendance Type": "Missing Swipes",
+      "attendance_category": "Missing Swipes",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A"
+    },
+    {
+      "observation_id": "A4",
+      "record_id": "A4",
+      "Employee Number": "SYN003",
+      "Employee Name": "Synthetic SYN003",
+      "Date": "2026-10-01",
+      "Status": "A",
+      "Attendance Type": "Absent",
+      "attendance_category": "Absent",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A"
+    },
+    {
+      "observation_id": "A5",
+      "record_id": "A5",
+      "Employee Number": "SYN004",
+      "Employee Name": "Synthetic SYN004",
+      "Date": "2026-10-01",
+      "Status": "AR",
+      "Attendance Type": "Regularized",
+      "attendance_category": "Regularized",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A"
+    },
+    {
+      "observation_id": "A6",
+      "record_id": "A6",
+      "Employee Number": "SYN005",
+      "Employee Name": "Synthetic SYN005",
+      "Date": "2026-10-01",
+      "Status": "P",
+      "Attendance Type": "Present",
+      "attendance_category": "Present",
+      "Quantity": 2,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A"
+    },
+    {
+      "observation_id": "A7",
+      "record_id": "A7",
+      "Employee Number": "SYN006",
+      "Employee Name": "Synthetic SYN006",
+      "Date": "2026-10-01",
+      "Status": "WO",
+      "Attendance Type": "Week Off",
+      "attendance_category": "Week Off",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A"
+    },
+    {
+      "observation_id": "A8",
+      "record_id": "A8",
+      "Employee Number": "SYN007",
+      "Employee Name": "Synthetic SYN007",
+      "Date": "2026-10-01",
+      "Status": "P",
+      "Attendance Type": "Present",
+      "attendance_category": "Present",
+      "Quantity": null,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A"
+    }
+  ],
+  "expected": {
+    "included_observation_ids": [
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "A5",
+      "A6",
+      "A7",
+      "A8"
+    ],
+    "eligible_day_ids": [
+      "SYN001|2026-10-01",
+      "SYN002|2026-10-01",
+      "SYN003|2026-10-01",
+      "SYN004|2026-10-01",
+      "SYN005|2026-10-01",
+      "SYN007|2026-10-01"
+    ],
+    "evaluable_day_ids": [
+      "SYN001|2026-10-01",
+      "SYN002|2026-10-01",
+      "SYN003|2026-10-01",
+      "SYN004|2026-10-01",
+      "SYN007|2026-10-01"
+    ],
+    "numerators": {
+      "missing_swipe_rate": 1,
+      "absence_rate": 1,
+      "regularization_rate": 1
+    },
+    "denominator": 5,
+    "excluded_dq": 1,
+    "unknown_quantity_observations": [
+      "A8"
+    ],
+    "displayed_rate": 20.0,
+    "period": "2026-10-01",
+    "split_raw_quantity": 1.0,
+    "split_analytical_quantity": 1.0
+  }
+}

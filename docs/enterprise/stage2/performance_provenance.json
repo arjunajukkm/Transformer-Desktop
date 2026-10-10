@@ -1,0 +1,53 @@
+{
+  "stage0_source": "docs/ENTERPRISE_AUDIT.md section 6",
+  "stage0_runs": "single samples; original raw runs not re-executed in Stage2A",
+  "cpu": "13th Gen Intel Core i5-1335U",
+  "physical_cores": 10,
+  "logical_processors": 12,
+  "ram_bytes": 16845533184,
+  "stage2_python": "3.14.2 (tags/v3.14.2:df79316, Dec  5 2025, 17:18:21) [MSC v.1944 64 bit (AMD64)]",
+  "dependency_lock": "requirements/full-win-py314.lock",
+  "seed": 42,
+  "generator": "scripts/benchmark_snapshot_engine.py:generate_synthetic_dataset",
+  "generator_sha256": "fe87769d5c8b1fcca42faa8b36ef2608c60173da511a685589162e80332c72e3",
+  "shape": {
+    "days": 20,
+    "employees": [
+      500,
+      5000
+    ],
+    "rows": [
+      10000,
+      100000
+    ],
+    "bus": 5,
+    "departments": 5,
+    "managers": 9
+  },
+  "cold": "Fresh bridge/process; OS cache not flushed",
+  "warm": "Immediate identical repeat",
+  "timing": "time.perf_counter; snapshot then overview cold/warm, BU cold/warm, trend cold/warm",
+  "memory": "Windows sampled process WorkingSetSize and pandas deep size, NOT peak",
+  "results": {
+    "10000": {
+      "snapshot_s": 3.959,
+      "overview_cold_s": 0.462,
+      "trend_cold_s": 4.678,
+      "rss_final_MiB": 230.53
+    },
+    "100000": {
+      "snapshot_s": 36.229,
+      "overview_cold_s": 5.468,
+      "trend_cold_s": 43.651,
+      "rss_final_MiB": 906.22
+    }
+  },
+  "limitations": [
+    "10K overlapped tests",
+    "no UI/network/workbook/export",
+    "not percentile/load/SLO evidence",
+    "host record captured Stage2A; audit interpreter Python3.14.2 and dependency versions in Stage0 audit"
+  ],
+  "rerun": "Not performed while tests/install competed for resources; checked-in small harness allows separate future comparison",
+  "G08_G11": "NOT_EVALUATED"
+}

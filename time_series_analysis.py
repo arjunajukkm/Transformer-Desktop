@@ -20,7 +20,7 @@ from openpyxl.styles import Font, PatternFill, Border
 # ════════════════════════════════════════════════════════════════
 
 ALIASES = {
-    "employee_number": ["employee number", "emp no", "emp number", "employee id", "emp id", "staff id"],
+    "employee_number": ["employee number", "employee no", "emp no", "emp number", "employee id", "emp id", "staff id"],
     "employee_name": ["employee name", "emp name", "name", "employee"],
     "business_unit": ["business unit", "bu", "division"],
     "department": ["department", "dept"],

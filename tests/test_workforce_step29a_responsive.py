@@ -14,7 +14,8 @@ Dedicated verification test suite for Transformers 2.0 Step 29A:
 
 from datetime import date, datetime
 import time
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+import tkinter as tk
 import pandas as pd
 import pytest
 
@@ -37,23 +38,6 @@ from workforce_intelligence.kpi_engine import (
 # ─────────────────────────────────────────────────────────────────────────────
 # Fixtures
 # ─────────────────────────────────────────────────────────────────────────────
-
-@pytest.fixture(scope="module")
-def desktop_app():
-    """Headless Desktop App instance reused across tests in this module."""
-    snapshot_service.clear()
-    app = App()
-    app.withdraw()
-    app.update()
-
-    yield app
-
-    try:
-        app.destroy()
-    except Exception:
-        pass
-    snapshot_service.clear()
-
 
 @pytest.fixture
 def sample_audit_snapshot() -> AnalyticalSnapshot:
@@ -189,32 +173,27 @@ def test_kpi_card_responsive_wrapping_at_narrow_width(desktop_app):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_header_dq_badge_accessible_in_both_sidebar_states(desktop_app):
-    """Verify Data Quality badge remains in Column 2 and accessible in both sidebar states."""
-    wf_view = desktop_app.workforce_dashboard_view
-
-    # Check f_dq is mapped and in grid
-    info = wf_view.f_dq.grid_info()
-    assert info["column"] == 2
-    assert info["row"] == 0
-
-    # Upload button is in Column 3
-    btn_info = wf_view.btn_go_upload.grid_info()
-    assert btn_info["column"] == 3
-    assert btn_info["row"] == 0
-
-    # Metadata strip is in Column 1
-    meta_info = wf_view.header_card.winfo_children()[0].winfo_children()[1].grid_info()
-    assert meta_info["column"] == 1
-
-    # Check collapsed sidebar
-    desktop_app.sidebar_collapsed = True
-    desktop_app.update()
-    assert wf_view.f_dq.winfo_ismapped() or wf_view.f_dq.grid_info() != {}
-
-    # Check expanded sidebar
-    desktop_app.sidebar_collapsed = False
-    desktop_app.update()
-    assert wf_view.f_dq.winfo_ismapped() or wf_view.f_dq.grid_info() != {}
+    """Visible DQ text/action and upload control survive both sidebar states."""
+    app = desktop_app
+    app.deiconify()
+    app.select_frame_by_name("workforce_intelligence")
+    view = app.workforce_dashboard_view
+    for collapsed in (True, False):
+        app.toggle_sidebar(force_state=collapsed)
+        app.update()
+        assert app.sidebar_collapsed is collapsed
+        assert view.f_dq.winfo_viewable()
+        assert view.lbl_dq_info.winfo_viewable()
+        assert view.lbl_dq_info.cget("text").startswith("DQ:")
+        label = next(child for child in view.lbl_dq_info.winfo_children() if isinstance(child, tk.Label))
+        with patch.object(view, "_show_dq_details_dialog") as details:
+            label.event_generate("<Button-1>")
+            app.update()
+            details.assert_called_once_with()
+        assert view.btn_go_upload.winfo_viewable()
+        assert view.btn_go_upload.cget("state") == "normal"
+        assert view.btn_go_upload.cget("text")
+    app.withdraw()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

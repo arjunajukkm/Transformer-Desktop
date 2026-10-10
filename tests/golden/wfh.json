@@ -1,0 +1,116 @@
+{
+  "version": "1",
+  "synthetic": true,
+  "rows": [
+    {
+      "observation_id": "W1",
+      "record_id": "W1",
+      "Employee Number": "SYN001",
+      "Employee Name": "Synthetic SYN001",
+      "Date": "2026-10-01",
+      "Status": "WFH",
+      "Attendance Type": "Work From Home",
+      "attendance_category": "Work From Home",
+      "Quantity": 0.5,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A"
+    },
+    {
+      "observation_id": "W2",
+      "record_id": "W2",
+      "Employee Number": "SYN001",
+      "Employee Name": "Synthetic SYN001",
+      "Date": "2026-10-10",
+      "Status": "WFH",
+      "Attendance Type": "Work From Home",
+      "attendance_category": "Work From Home",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A"
+    },
+    {
+      "observation_id": "W3",
+      "record_id": "W3",
+      "Employee Number": "SYN001",
+      "Employee Name": "Synthetic SYN001",
+      "Date": "2026-10-20",
+      "Status": "WFH",
+      "Attendance Type": "Work From Home",
+      "attendance_category": "Work From Home",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_B",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A"
+    },
+    {
+      "observation_id": "W4",
+      "record_id": "W4",
+      "Employee Number": "SYN001",
+      "Employee Name": "Synthetic SYN001",
+      "Date": "2026-10-25",
+      "Status": "WFH",
+      "Attendance Type": "Work From Home",
+      "attendance_category": "Work From Home",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_B",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A"
+    },
+    {
+      "observation_id": "W5",
+      "record_id": "W5",
+      "Employee Number": "SYN001",
+      "Employee Name": "Synthetic SYN001",
+      "Date": "2026-11-01",
+      "Status": "WFH",
+      "Attendance Type": "Work From Home",
+      "attendance_category": "Work From Home",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_B",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A"
+    },
+    {
+      "observation_id": "W6",
+      "record_id": "W6",
+      "Employee Number": "SYN001",
+      "Employee Name": "Synthetic SYN001",
+      "Date": "2026-11-02",
+      "Status": "WFH",
+      "Attendance Type": "Work From Home",
+      "attendance_category": "Work From Home",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_B",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A"
+    }
+  ],
+  "expected": {
+    "monthly_quantities": {
+      "2026-10": 3.5,
+      "2026-11": 2.0
+    },
+    "monthly_excess": {
+      "2026-10": 0.5,
+      "2026-11": 0.0
+    },
+    "total_quantity": 5.5,
+    "additional_days": 0.5,
+    "legacy_rows": 6,
+    "legacy_additional_days": 3,
+    "partial_scope": [
+      "2026-10-10",
+      "2026-10-10"
+    ],
+    "partial_scope_ids": [
+      "W2"
+    ],
+    "partial_quantity": 1.0,
+    "partial_additional": 0.5,
+    "october_bu": "SYN_BU_B",
+    "reversed_october_bu": "SYN_BU_A",
+    "coverage": "PARTIAL"
+  }
+}

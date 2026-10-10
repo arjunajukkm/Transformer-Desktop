@@ -1,0 +1,75 @@
+{
+  "stage": "2B.1",
+  "timestamp": "2026-10-10T13:42:20.770572+00:00",
+  "branch": "feature/workforce-intelligence",
+  "commit": "fcb0ecc9f80e9eff6fa8a9cdeea5afc90252c3fe",
+  "production_files": [
+    "workforce_intelligence/kpi_engine.py"
+  ],
+  "production_functions": [
+    "compute_workforce_intelligence_bundle"
+  ],
+  "modified_tests": [
+    "tests/characterization/test_legacy_conflicts.py"
+  ],
+  "added_test_artifacts": [
+    "tests/test_mc14_quantity_correction.py",
+    "tests/golden/mc14_correction.json"
+  ],
+  "changes": [
+    {
+      "path": "workforce_intelligence/kpi_engine.py",
+      "before_sha256": "a98bee61592e464b5a5968a1d7dfeed6ac6d378e4d24b5e6d50f97b52cc66a9c",
+      "after_sha256": "ddaa3958bf425bf10ba09d2183a3ea2123f20d6412547202ad9ef8f6a93b37c3"
+    },
+    {
+      "path": "tests/characterization/test_legacy_conflicts.py",
+      "before_sha256": "3b9fb2a12b5166b28485ae87b4b6abad660640e629ac4a2bbdcef9d206346d66",
+      "after_sha256": "e3dfcc0dbe74a237452424ea02781fa86302cdda228cff5bc85141b7c7e36a8c"
+    },
+    {
+      "path": "tests/test_mc14_quantity_correction.py",
+      "before_sha256": null,
+      "after_sha256": "442e65b472b85036a3ea88fde96776c75fb334f26836a00e5bfb9767702c6c8b"
+    },
+    {
+      "path": "tests/golden/mc14_correction.json",
+      "before_sha256": null,
+      "after_sha256": "b7f8badfdac450e2aea84cdc8cb6345c3fd10aaa1445e091e9c5e6d3c7101648"
+    }
+  ],
+  "preserved_evidence_sha256": {
+    "docs/enterprise/stage2/01_BASELINE_REPORT.md": "0c6f115ba0039667b638420a1e6ef1bbbada0a09e349db6cd5b217952f806610",
+    "docs/enterprise/stage2/02_TEST_INVENTORY.md": "3f0b0876319b92d0bcdcbbe861ee9e5372f9a14aeae6231038c87b4a24934cdd",
+    "docs/enterprise/stage2/03_METRIC_DECISION_REGISTER.md": "898800230b459def4411056a1a351b0807a3a9035106d641c61408dea3fbe2b2",
+    "docs/enterprise/stage2/04_GOLDEN_DATASET_CATALOGUE.md": "ebd8f5e6627a3755d5203bf6abc839dafe122d0225c5c16e821adce304d42765",
+    "docs/enterprise/stage2/05_GATE_EVIDENCE.md": "3194cdcefe0c4905401d6ef9efc828a1433e9a3763f2891fc925ed2e3439081a",
+    "docs/enterprise/stage2/06_STAGE2A_CHANGELOG.md": "cb5535599eb6e1390bc8f6d24692b8119b11ff4bbbd0318774b468d72f7ed5f1",
+    "docs/enterprise/stage2/07_STAGE2B0_BASELINE_STABILIZATION.md": "cf9d7ae31a0ad805c52a8dc5b59749d41de3baeb3d739543e34c30f53740806e",
+    "docs/enterprise/stage2/08_STAGE2B0_GATE_UPDATE.md": "49f1629a321ef0c03ce2532a2447fdf3f47dbff99a4009884270678e2c78320b",
+    "docs/enterprise/stage2/README.md": "99c636376776f2d108eb03530d6f8ebb724b45717e7054b801253a7a6aa6abea",
+    "docs/enterprise/stage2/baseline_manifest.json": "9c93f9f3c37f24ee25c0cfd24a286e5db00f5d069f49b8f0f8452df368e18d49",
+    "docs/enterprise/stage2/dependency_evidence.json": "8ace5222c9d4b4d8b76f9d926ea4842b4de5e49fa5a2b5b67293db7f908d75f2",
+    "docs/enterprise/stage2/dependency_import_inventory.json": "c782c3ced3a46c2466964f74dd60ff349fdb06e038da002c456f5672686da026",
+    "docs/enterprise/stage2/failure_classifications.json": "3c11bc57e2fa11811c22d7390b21994a17228ddce73b55d2365fd6868015d678",
+    "docs/enterprise/stage2/full_suite_result.json": "1240febdaf4278a47c030f10e71a611923b45ab71a1a48f3123d88d0987ebb9c",
+    "docs/enterprise/stage2/golden_scenarios.json": "6d1af1ca2542d59e9e5522ec2bb2a120b3b03dd53a62112dbf098440843bc129",
+    "docs/enterprise/stage2/initial_suite_result.json": "26bc73306b97b373e00894f3827bd2e9adfc3af258a44024e32e18ea3f831c37",
+    "docs/enterprise/stage2/metric_decisions.json": "4b26f4fb6c26b2836fe7a97859e038c0f15d63f9420dcbb5f0c536841a093e57",
+    "docs/enterprise/stage2/performance_provenance.json": "ca13a4b5cf53cb5adea1d6203a2f24ff8b7175ca9e1567e5a91ebd72cf26b9b8",
+    "docs/enterprise/stage2/stage2b0_change_manifest.json": "8c10ff03d8c6922b55ca91c6dae692d59d0be7116dd2b150b7df59c19c177ed2",
+    "docs/enterprise/stage2/stage2b0_packaging_result.json": "2cf9d3cae9c01cda8d160890f1483e02f212699bcb08b36adea58374a7f36925",
+    "docs/enterprise/stage2/stage2b0_starting_state.json": "faa765db339cdcb6041d10f2e763d79c7f89f2388193eddaa89d7de2de62f59e",
+    "docs/enterprise/stage2/stage2b0_test_result.json": "f17d2508a0fac8ac2d1e07bc5e8782fc279a97ac2a64fb400a56e4c7ee9ffbaa",
+    "docs/enterprise/stage2/starting_worktree.json": "368940e48ed69e00dfcac2d1a9fe5eebecd994015d48857bed10486acf2dc848",
+    "docs/enterprise/stage2/test_inventory.json": "e8f1e9ef22e91cace2fbf5efe260023eb77c71682f79e15f9a9c46ef3cd9d5db"
+  },
+  "original_desired_test_files_unchanged": true,
+  "unrelated_starting_files_unchanged": true,
+  "packaging_spec_unchanged": true,
+  "runtime_delta": {
+    "added_lines": 5,
+    "removed_lines": 2
+  },
+  "rollback": "Reverse only the Stage 2B.1 patch hunks; do not reset pre-existing user work. This restores the known MC14 defect and requires the matching legacy oracle; historical evidence remains untouched."
+}

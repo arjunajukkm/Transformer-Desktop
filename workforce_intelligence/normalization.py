@@ -256,17 +256,22 @@ def normalize_attendance_category(
 ) -> str:
     """
     Map source Status and Attendance Type into a canonical attendance category.
+    Regularization (A(R), P(R), Regularized) takes precedence over any raw 'Absent' designation.
     """
     st_clean = (str(status).strip().lower()) if status is not None and not pd.isna(status) else ""
     at_clean = (str(attendance_type).strip().lower()) if attendance_type is not None and not pd.isna(attendance_type) else ""
+
+    # Priority 1: Check for Regularization in either Status or Attendance Type FIRST!
+    # Statuses like A(R), P(R), AR, PR or attendance types containing "regulariz"
+    # represent attendance regularized by admin based on employee request (Keka standard).
+    if "(r)" in st_clean or st_clean in ("a(r)", "p(r)", "ar", "pr") or "regulariz" in at_clean:
+        return "Attendance Regularized"
 
     if at_clean in ATTENDANCE_TYPE_MAP:
         return ATTENDANCE_TYPE_MAP[at_clean]
 
     if "missing swipe" in at_clean:
         return "Missing Swipes"
-    if "regulariz" in at_clean:
-        return "Attendance Regularized"
     if "work from home" in at_clean or at_clean == "wfh":
         return "Work From Home"
     if "on duty" in at_clean or "onduty" in at_clean:

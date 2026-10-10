@@ -1,0 +1,94 @@
+{
+  "stage": "2B.0",
+  "status": "COMPLETE_WITH_OPEN_GATES",
+  "timestamp": "2026-10-06T12:09:36.996889+00:00",
+  "branch": "feature/workforce-intelligence",
+  "commit": "fcb0ecc9f80e9eff6fa8a9cdeea5afc90252c3fe",
+  "production_files": [
+    "app.py"
+  ],
+  "test_files": [
+    "conftest.py",
+    "pytest.ini",
+    "tests/test_desktop_integration.py",
+    "tests/test_workforce_attendance_intelligence.py",
+    "tests/test_workforce_overview_kpis.py",
+    "tests/test_workforce_step29a_responsive.py",
+    "tests/test_workforce_step29b_sidebar_filters.py"
+  ],
+  "changes": [
+    {
+      "path": "app.py",
+      "before_sha256": "9f533da0028c1fcdf19bb90554c25bdc56f2112bc17099dff6b12f538b29d869",
+      "after_sha256": "e515c03eb0db01adcea091fcd287bb1fbfa1322cea89cc81a6ddb79d0dd66e12"
+    },
+    {
+      "path": "conftest.py",
+      "before_sha256": "66e112fbaa7d386fd3cab4d75d16b752af410ae65f5b5789c569abc28c87908a",
+      "after_sha256": "7f3c0c4979fb038fbe1394dcd4c928ea3805d1840d4aa4d42ec624140bc472bb"
+    },
+    {
+      "path": "pytest.ini",
+      "before_sha256": "63dbaf767ca56e53ebedd31f838a526b96993b651dc3d4dc10254f751b23088b",
+      "after_sha256": "e5cf39ffcbcdc35ec4d4c956340fc08d1ba9582cd8f4952dc97e5e20764b3575"
+    },
+    {
+      "path": "tests/test_desktop_integration.py",
+      "before_sha256": "7877355f52aa592ce181ef9d8f97fa9c68589d7dd2ac09d53b93f8f1e1ce6dcb",
+      "after_sha256": "73a687ce9a6c409c283e7e64daaee614f168b960cc8c2fe1f1637ed330a1ad3c"
+    },
+    {
+      "path": "tests/test_workforce_attendance_intelligence.py",
+      "before_sha256": "f57ef81b1a0ec7de28ac05073eb42c20d18414e6d59517c76d90c3a1bdbb84ab",
+      "after_sha256": "2d197e8dc003a9c13fc6c6f31a04788fcf14d46ac72b62c630651e1a0d7c7572"
+    },
+    {
+      "path": "tests/test_workforce_overview_kpis.py",
+      "before_sha256": "b60bb7bbd1e5c43593291dde780ba9548b1d7fdb8114016ac25a6463996fff9f",
+      "after_sha256": "9d992b1e646ea54b1b4d54fa1fb58c945745a409c54625dde9afbdc5389e6b4b"
+    },
+    {
+      "path": "tests/test_workforce_step29a_responsive.py",
+      "before_sha256": "5719f2eef966efcd602b8b402081c5143e0e50315afed28eebcf8acf8c38957d",
+      "after_sha256": "b2fd875827aba76e5e9ad40ad26537dba516fc2e3cf5246514b6090e132a5483"
+    },
+    {
+      "path": "tests/test_workforce_step29b_sidebar_filters.py",
+      "before_sha256": "77bb3be985ef1ce1f4f81827eb93ea34103cc8fad930c5ab08a4d985e8828088",
+      "after_sha256": "a9f518b46aa68200bfd4ec4600bba52902d8238aa41967e903154a8c096a1bce"
+    }
+  ],
+  "baseline_evidence_preserved": {
+    "docs/enterprise/stage2/baseline_manifest.json": "9c93f9f3c37f24ee25c0cfd24a286e5db00f5d069f49b8f0f8452df368e18d49",
+    "docs/enterprise/stage2/dependency_evidence.json": "8ace5222c9d4b4d8b76f9d926ea4842b4de5e49fa5a2b5b67293db7f908d75f2",
+    "docs/enterprise/stage2/dependency_import_inventory.json": "c782c3ced3a46c2466964f74dd60ff349fdb06e038da002c456f5672686da026",
+    "docs/enterprise/stage2/failure_classifications.json": "3c11bc57e2fa11811c22d7390b21994a17228ddce73b55d2365fd6868015d678",
+    "docs/enterprise/stage2/full_suite_result.json": "1240febdaf4278a47c030f10e71a611923b45ab71a1a48f3123d88d0987ebb9c",
+    "docs/enterprise/stage2/golden_scenarios.json": "6d1af1ca2542d59e9e5522ec2bb2a120b3b03dd53a62112dbf098440843bc129",
+    "docs/enterprise/stage2/initial_suite_result.json": "26bc73306b97b373e00894f3827bd2e9adfc3af258a44024e32e18ea3f831c37",
+    "docs/enterprise/stage2/metric_decisions.json": "4b26f4fb6c26b2836fe7a97859e038c0f15d63f9420dcbb5f0c536841a093e57",
+    "docs/enterprise/stage2/performance_provenance.json": "ca13a4b5cf53cb5adea1d6203a2f24ff8b7175ca9e1567e5a91ebd72cf26b9b8",
+    "docs/enterprise/stage2/starting_worktree.json": "368940e48ed69e00dfcac2d1a9fe5eebecd994015d48857bed10486acf2dc848",
+    "docs/enterprise/stage2/test_inventory.json": "e8f1e9ef22e91cace2fbf5efe260023eb77c71682f79e15f9a9c46ef3cd9d5db",
+    "tests/golden/approvals.json": "ca8e8685fe82743b453cfb2d6a8144e8ebbb054f018117724e9e023352228bb0",
+    "tests/golden/attendance.json": "5f252c3e8f86c743d1f3c8c9d69dd32f92f34a7ae9ebf433833a8bfe799752ce",
+    "tests/golden/future_expectations.json": "50f390744a3df7bc9dcafac3abf84f762aa18c41354928af20ff26da856210f6",
+    "tests/golden/metric_contracts.json": "5158860533925acf7e45acde7caf27e6ec663305e4c9c84a4e62a4306ffaed98",
+    "tests/golden/policy.json": "ae1e1389094e8221eb17287b93b2786afa22faa8caf4916fc018fd58f3ff2e22",
+    "tests/golden/timing.json": "bfbf3e2f5bd7f80a0ed8b75e255318d9f68031916641ba55ae0b0acdd1162dbe",
+    "tests/golden/wfh.json": "f11c18a57bdf9a0d7179f7fd9d70b9b4b22b1262901b9c0a1f965c1fedb0538e",
+    "tests/golden/working_time.json": "c4b53ecf5c98494ec939a7c72147cc955207c8c3af2c46cb0df78c822063f1de"
+  },
+  "MC14_test_functions_unchanged": true,
+  "overview_only_changed_function": "test_bu_table_alignments",
+  "analytics_runtime_files_unchanged": true,
+  "dependency_lock_sha256": "bedeb8bf284e12acb8824086bd2fc4dd98411a44564e6794ce7b93413a3d8c51",
+  "runtime_scope": "App._on_flyout_escape only; public Misc.focus_set target with existence/visibility checks, mapped-root fallback, event break result",
+  "new_test_cases": [
+    "tests/test_workforce_step29b_sidebar_filters.py::test_escape_handles_unavailable_parent[destroyed]",
+    "tests/test_workforce_step29b_sidebar_filters.py::test_escape_handles_unavailable_parent[unmapped]",
+    "tests/test_workforce_step29b_sidebar_filters.py::test_escape_restores_focus_to_image_or_text_button[Synthetic parent]",
+    "tests/test_workforce_step29b_sidebar_filters.py::test_escape_restores_focus_to_image_or_text_button[]"
+  ],
+  "removed_experiments": "No subprocess UI worker, private Tcl copy or session-root workaround retained."
+}

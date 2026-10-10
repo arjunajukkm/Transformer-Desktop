@@ -1,0 +1,183 @@
+{
+  "PIL": [
+    "generate_id_cards.py",
+    "tests/test_connectors.py",
+    "ui_components.py"
+  ],
+  "customtkinter": [
+    "app.py",
+    "tests/test_workforce_attendance_intelligence.py",
+    "tests/test_workforce_step29b_sidebar_filters.py",
+    "ui_components.py",
+    "workforce_intelligence/charts.py",
+    "workforce_intelligence/dashboard_shell.py"
+  ],
+  "ddddocr": [
+    "keka_data_fetcher.py"
+  ],
+  "dotenv": [
+    "app.py",
+    "generate_id_cards.py",
+    "id_card_module.py",
+    "keka_data_fetcher.py",
+    "tests/test_connectors.py"
+  ],
+  "matplotlib": [
+    "workforce_intelligence/charts.py"
+  ],
+  "numpy": [
+    "generate_id_cards.py",
+    "scripts/benchmark_data_foundation_memory.py",
+    "scripts/benchmark_desktop_integration.py",
+    "scripts/benchmark_snapshot_engine.py",
+    "storage/snapshot_service.py",
+    "tests/test_data_foundation.py",
+    "tests/test_duplicate_governance.py",
+    "tests/test_workforce_attendance_intelligence.py",
+    "tests/test_workforce_trends_tab.py",
+    "time_leave_master.py",
+    "time_series_analysis.py",
+    "workforce_intelligence/charts.py",
+    "workforce_intelligence/data_foundation.py",
+    "workforce_intelligence/kpi_engine.py",
+    "workforce_intelligence/metrics.py",
+    "workforce_intelligence/normalization.py",
+    "workforce_intelligence/patterns.py",
+    "workforce_intelligence/policy.py",
+    "workforce_intelligence/requests.py",
+    "workforce_intelligence/snapshot_bridge.py",
+    "workforce_intelligence/trends.py"
+  ],
+  "openpyxl": [
+    "absent_management.py",
+    "app.py",
+    "attendance_summary.py",
+    "generate_id_cards.py",
+    "generate_upload.py",
+    "keka_data_fetcher.py",
+    "scripts/build_excel_matrix.py",
+    "tests/test_attendance_regularization_ar.py",
+    "tests/test_desktop_integration.py",
+    "tests/test_keka_data_fetcher.py",
+    "tests/test_okr_upload.py",
+    "tests/test_time_leave_master.py",
+    "tests/test_unified_time_leave.py",
+    "time_leave_master.py",
+    "time_series_analysis.py"
+  ],
+  "pandas": [
+    "absent_management.py",
+    "app.py",
+    "attendance_summary.py",
+    "generate_id_cards.py",
+    "generate_upload.py",
+    "keka_data_fetcher.py",
+    "scripts/benchmark_data_foundation_memory.py",
+    "scripts/benchmark_desktop_integration.py",
+    "scripts/benchmark_snapshot_engine.py",
+    "storage/cache_manager.py",
+    "storage/snapshot_service.py",
+    "tests/test_attendance_regularization_ar.py",
+    "tests/test_data_foundation.py",
+    "tests/test_desktop_architecture.py",
+    "tests/test_desktop_integration.py",
+    "tests/test_duplicate_governance.py",
+    "tests/test_historical_sync.py",
+    "tests/test_keka_data_fetcher.py",
+    "tests/test_okr_upload.py",
+    "tests/test_snapshot_engine.py",
+    "tests/test_time_leave_master.py",
+    "tests/test_time_series_analysis.py",
+    "tests/test_unified_time_leave.py",
+    "tests/test_workforce_attendance_intelligence.py",
+    "tests/test_workforce_dashboard_shell.py",
+    "tests/test_workforce_filters.py",
+    "tests/test_workforce_ingestion.py",
+    "tests/test_workforce_kpi_engine.py",
+    "tests/test_workforce_overview_kpis.py",
+    "tests/test_workforce_patterns.py",
+    "tests/test_workforce_policy.py",
+    "tests/test_workforce_step29a_responsive.py",
+    "tests/test_workforce_step29b_sidebar_filters.py",
+    "tests/test_workforce_trends.py",
+    "tests/test_workforce_trends_tab.py",
+    "time_leave_master.py",
+    "time_series_analysis.py",
+    "workforce_intelligence/charts.py",
+    "workforce_intelligence/dashboard_shell.py",
+    "workforce_intelligence/data_foundation.py",
+    "workforce_intelligence/historical_sync.py",
+    "workforce_intelligence/ingestion.py",
+    "workforce_intelligence/kpi_engine.py",
+    "workforce_intelligence/metrics.py",
+    "workforce_intelligence/normalization.py",
+    "workforce_intelligence/patterns.py",
+    "workforce_intelligence/policy.py",
+    "workforce_intelligence/quality.py",
+    "workforce_intelligence/requests.py",
+    "workforce_intelligence/snapshot_bridge.py",
+    "workforce_intelligence/trends.py",
+    "workforce_intelligence/validation.py"
+  ],
+  "pypdf": [
+    "generate_id_cards.py"
+  ],
+  "pypdfium2": [
+    "generate_id_cards.py"
+  ],
+  "pytest": [
+    "conftest.py",
+    "tests/test_absent_ui_integration.py",
+    "tests/test_attendance_regularization_ar.py",
+    "tests/test_connectors.py",
+    "tests/test_data_foundation.py",
+    "tests/test_desktop_architecture.py",
+    "tests/test_desktop_integration.py",
+    "tests/test_duplicate_governance.py",
+    "tests/test_historical_sync.py",
+    "tests/test_id_generator_methods.py",
+    "tests/test_keka_data_fetcher.py",
+    "tests/test_okr_upload.py",
+    "tests/test_snapshot_engine.py",
+    "tests/test_time_leave_master.py",
+    "tests/test_time_series_analysis.py",
+    "tests/test_unified_time_leave.py",
+    "tests/test_workforce_attendance_intelligence.py",
+    "tests/test_workforce_dashboard_shell.py",
+    "tests/test_workforce_filters.py",
+    "tests/test_workforce_ingestion.py",
+    "tests/test_workforce_kpi_engine.py",
+    "tests/test_workforce_overview_kpis.py",
+    "tests/test_workforce_patterns.py",
+    "tests/test_workforce_policy.py",
+    "tests/test_workforce_step29a_responsive.py",
+    "tests/test_workforce_step29b_sidebar_filters.py",
+    "tests/test_workforce_trends.py",
+    "tests/test_workforce_trends_tab.py"
+  ],
+  "reportlab": [
+    "generate_id_cards.py"
+  ],
+  "requests": [
+    "generate_id_cards.py",
+    "id_card_module.py",
+    "keka_data_fetcher.py",
+    "tests/test_connectors.py"
+  ],
+  "scipy": [
+    "workforce_intelligence/charts.py"
+  ],
+  "selenium": [
+    "keka_data_fetcher.py"
+  ],
+  "slack_sdk": [
+    "generate_id_cards.py",
+    "id_card_module.py"
+  ],
+  "watchdog": [
+    "dev.py"
+  ],
+  "webdriver_manager": [
+    "keka_data_fetcher.py"
+  ]
+}

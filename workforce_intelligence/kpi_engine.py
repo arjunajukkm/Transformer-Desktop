@@ -889,13 +889,16 @@ def compute_workforce_intelligence_bundle(
     ) & (~is_wfh) & (~is_leave) & (~is_od) & (~is_hol)
     is_ms = _is_missing_swipe_series(filtered)
     is_reg_series = _is_regularized_series(filtered)
+    # MC14: A(R)/AR is already regularized attendance evidence. Classify its
+    # quantity before employee-day aggregation, without requiring approval metadata.
+    is_ar = filtered["_status"].str.strip().str.lower().isin(["a(r)", "ar"])
     is_ab = (
         filtered["_att_type"].str.contains("absent", case=False, na=False) |
         filtered["_status"].str.lower().isin(["ab", "absent", "a"])
-    ) & (~is_leave) & (~is_wfh) & (~is_od) & (~is_hol) & (~is_wo)
+    ) & (~is_leave) & (~is_wfh) & (~is_od) & (~is_hol) & (~is_wo) & (~is_ar)
     is_pres = (
         filtered["_att_type"].str.contains("present", case=False, na=False) |
-        filtered["_status"].str.lower().isin(["p", "present"])
+        filtered["_status"].str.lower().isin(["p", "present"]) | is_ar
     ) & (~is_ms) & (~is_leave) & (~is_wfh) & (~is_od) & (~is_hol) & (~is_wo) & (~is_ab)
 
     is_classified = (is_pres | is_ms | is_od | is_leave | is_wfh | is_hol | is_wo | is_ab)

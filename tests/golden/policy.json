@@ -1,0 +1,178 @@
+{
+  "version": "1",
+  "synthetic": true,
+  "policy_version": "source-policy-2026-10-01",
+  "cases": [
+    {
+      "id": "POL01",
+      "start": "2026-10-10",
+      "is_pl": true,
+      "quantity": 3,
+      "lag": -2,
+      "missing_application": false,
+      "dq": false,
+      "expected_status": "COMPLIANT",
+      "expected_rule": "PL_NOTICE_2D",
+      "expected_period": "POST_POLICY"
+    },
+    {
+      "id": "POL02",
+      "start": "2026-10-10",
+      "is_pl": true,
+      "quantity": 3,
+      "lag": -1,
+      "missing_application": false,
+      "dq": false,
+      "expected_status": "NON_COMPLIANT",
+      "expected_rule": "PL_NOTICE_2D",
+      "expected_period": "POST_POLICY"
+    },
+    {
+      "id": "POL03",
+      "start": "2026-10-10",
+      "is_pl": true,
+      "quantity": 3.5,
+      "lag": -15,
+      "missing_application": false,
+      "dq": false,
+      "expected_status": "COMPLIANT",
+      "expected_rule": "PL_NOTICE_15D",
+      "expected_period": "POST_POLICY"
+    },
+    {
+      "id": "POL04",
+      "start": "2026-10-10",
+      "is_pl": true,
+      "quantity": 7,
+      "lag": -15,
+      "missing_application": false,
+      "dq": false,
+      "expected_status": "COMPLIANT",
+      "expected_rule": "PL_NOTICE_15D",
+      "expected_period": "POST_POLICY"
+    },
+    {
+      "id": "POL05",
+      "start": "2026-10-10",
+      "is_pl": true,
+      "quantity": 7,
+      "lag": -14,
+      "missing_application": false,
+      "dq": false,
+      "expected_status": "NON_COMPLIANT",
+      "expected_rule": "PL_NOTICE_15D",
+      "expected_period": "POST_POLICY"
+    },
+    {
+      "id": "POL06",
+      "start": "2026-10-10",
+      "is_pl": true,
+      "quantity": 7.5,
+      "lag": -30,
+      "missing_application": false,
+      "dq": false,
+      "expected_status": "COMPLIANT",
+      "expected_rule": "PL_NOTICE_30D",
+      "expected_period": "POST_POLICY"
+    },
+    {
+      "id": "POL07",
+      "start": "2026-10-10",
+      "is_pl": true,
+      "quantity": 8,
+      "lag": -29,
+      "missing_application": false,
+      "dq": false,
+      "expected_status": "NON_COMPLIANT",
+      "expected_rule": "PL_NOTICE_30D",
+      "expected_period": "POST_POLICY"
+    },
+    {
+      "id": "POL08",
+      "start": "2026-10-10",
+      "is_pl": false,
+      "quantity": 1,
+      "lag": 3,
+      "missing_application": false,
+      "dq": false,
+      "expected_status": "COMPLIANT",
+      "expected_rule": "NON_PL_APPLY_WITHIN_3D",
+      "expected_period": "POST_POLICY"
+    },
+    {
+      "id": "POL09",
+      "start": "2026-10-10",
+      "is_pl": false,
+      "quantity": 1,
+      "lag": 4,
+      "missing_application": false,
+      "dq": false,
+      "expected_status": "NON_COMPLIANT",
+      "expected_rule": "NON_PL_APPLY_WITHIN_3D",
+      "expected_period": "POST_POLICY"
+    },
+    {
+      "id": "POL10",
+      "start": "2026-09-30",
+      "is_pl": false,
+      "quantity": 1,
+      "lag": 0,
+      "missing_application": false,
+      "dq": false,
+      "expected_status": "PRE_POLICY_BENCHMARK_PASS",
+      "expected_rule": "NON_PL_APPLY_WITHIN_3D",
+      "expected_period": "PRE_POLICY"
+    },
+    {
+      "id": "POL11",
+      "start": "2026-10-01",
+      "is_pl": false,
+      "quantity": 1,
+      "lag": 0,
+      "missing_application": false,
+      "dq": false,
+      "expected_status": "COMPLIANT",
+      "expected_rule": "NON_PL_APPLY_WITHIN_3D",
+      "expected_period": "POST_POLICY"
+    },
+    {
+      "id": "POL12",
+      "start": "2026-10-01",
+      "is_pl": false,
+      "quantity": 1,
+      "lag": 0,
+      "missing_application": true,
+      "dq": false,
+      "expected_status": "NON_COMPLIANT",
+      "expected_rule": "NON_PL_APPLY_WITHIN_3D",
+      "expected_period": "POST_POLICY"
+    },
+    {
+      "id": "POL13",
+      "start": "2026-10-01",
+      "is_pl": false,
+      "quantity": 1,
+      "lag": 0,
+      "missing_application": false,
+      "dq": true,
+      "expected_status": "DATA_QUALITY_UNCERTAIN",
+      "expected_rule": "NON_PL_APPLY_WITHIN_3D",
+      "expected_period": "POST_POLICY"
+    }
+  ],
+  "post_policy_aggregate_expected": {
+    "total": 12,
+    "excluded_dq": 1,
+    "denominator": 11,
+    "numerator": 6,
+    "rate": 54.55,
+    "compliant_request_ids": [
+      "POL01",
+      "POL03",
+      "POL04",
+      "POL06",
+      "POL08",
+      "POL11"
+    ]
+  }
+}

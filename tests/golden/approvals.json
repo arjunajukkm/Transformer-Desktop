@@ -1,0 +1,170 @@
+{
+  "version": "1",
+  "synthetic": true,
+  "rows": [
+    {
+      "observation_id": "B1",
+      "record_id": "B1",
+      "Employee Number": "SYN001",
+      "Employee Name": "Synthetic SYN001",
+      "Date": "2026-10-10",
+      "Status": "CL",
+      "Attendance Type": "Leave",
+      "attendance_category": "Leave",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A",
+      "request_id": "REQ_SYN_A",
+      "Applied On": "2026-10-01",
+      "approval_state": "APPROVED",
+      "approval_turnaround_days": 2
+    },
+    {
+      "observation_id": "B2",
+      "record_id": "B2",
+      "Employee Number": "SYN001",
+      "Employee Name": "Synthetic SYN001",
+      "Date": "2026-10-10",
+      "Status": "CL",
+      "Attendance Type": "Leave",
+      "attendance_category": "Leave",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A",
+      "request_id": "REQ_SYN_A",
+      "Applied On": "2026-10-01",
+      "approval_state": "APPROVED",
+      "approval_turnaround_days": 2
+    },
+    {
+      "observation_id": "B3",
+      "record_id": "B3",
+      "Employee Number": "SYN001",
+      "Employee Name": "Synthetic SYN001",
+      "Date": "2026-10-10",
+      "Status": "CL",
+      "Attendance Type": "Leave",
+      "attendance_category": "Leave",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A",
+      "request_id": "REQ_SYN_B",
+      "Applied On": "2026-10-01",
+      "approval_state": "APPROVED",
+      "approval_turnaround_days": 8
+    },
+    {
+      "observation_id": "B4",
+      "record_id": "B4",
+      "Employee Number": "SYN002",
+      "Employee Name": "Synthetic SYN002",
+      "Date": "2026-10-10",
+      "Status": "WFH",
+      "Attendance Type": "Work From Home",
+      "attendance_category": "Work From Home",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A",
+      "Applied On": "2026-10-05",
+      "approval_state": "PENDING",
+      "approval_turnaround_days": null
+    },
+    {
+      "observation_id": "B5",
+      "record_id": "B5",
+      "Employee Number": "SYN002",
+      "Employee Name": "Synthetic SYN002",
+      "Date": "2026-10-10",
+      "Status": "WFH",
+      "Attendance Type": "Work From Home",
+      "attendance_category": "Work From Home",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A",
+      "Applied On": "2026-10-09",
+      "approval_state": "PENDING",
+      "approval_turnaround_days": null
+    },
+    {
+      "observation_id": "B6",
+      "record_id": "B6",
+      "Employee Number": "SYN002",
+      "Employee Name": "Synthetic SYN002",
+      "Date": "2026-10-10",
+      "Status": "WFH",
+      "Attendance Type": "Work From Home",
+      "attendance_category": "Work From Home",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A",
+      "Applied On": "2026-10-12",
+      "approval_state": "PENDING",
+      "approval_turnaround_days": null
+    },
+    {
+      "observation_id": "B7",
+      "record_id": "B7",
+      "Employee Number": "SYN002",
+      "Employee Name": "Synthetic SYN002",
+      "Date": "2026-10-10",
+      "Status": "WFH",
+      "Attendance Type": "Work From Home",
+      "attendance_category": "Work From Home",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A",
+      "Applied On": null,
+      "approval_state": "PENDING",
+      "approval_turnaround_days": null
+    }
+  ],
+  "analysis_as_of": "2026-10-10",
+  "expected": {
+    "approved_ids": [
+      "B1",
+      "B2",
+      "B3"
+    ],
+    "turnaround_inputs": [
+      2,
+      2,
+      8
+    ],
+    "sum": 12,
+    "count": 3,
+    "mean": 4.0,
+    "median": 2.0,
+    "distinct_request_alternative_mean": 5.0,
+    "pending_ids_with_application": [
+      "B4",
+      "B5",
+      "B6"
+    ],
+    "pending_count": 3,
+    "valid_age_ids": [
+      "B4",
+      "B5"
+    ],
+    "age_inputs": [
+      5,
+      1
+    ],
+    "age_sum": 6,
+    "age_count": 2,
+    "age_mean": 3.0,
+    "excluded_negative_age": [
+      "B6"
+    ],
+    "excluded_missing_application": [
+      "B7"
+    ],
+    "period": "2026-10-01"
+  }
+}

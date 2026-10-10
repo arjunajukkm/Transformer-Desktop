@@ -1295,8 +1295,8 @@ def test_attendance_exceptions_exact_regularized_matching():
         {"record_id": "R6", "Employee Number": "E406", "Date": "2026-09-01", "Attendance Type": "Week Off", "Status": "WO"},
         # Disqualified: Holiday
         {"record_id": "R7", "Employee Number": "E407", "Date": "2026-09-01", "Attendance Type": "Holiday", "Status": "H"},
-        # Disqualified: Status is A(R) but Attendance Type is Absent
-        {"record_id": "R8", "Employee Number": "E408", "Date": "2026-09-01", "Attendance Type": "Absent", "Status": "A(R)"},
+        # Disqualified: Status is A and Attendance Type is Absent
+        {"record_id": "R8", "Employee Number": "E408", "Date": "2026-09-01", "Attendance Type": "Absent", "Status": "A"},
     ]
     df = pd.DataFrame(rows)
     bundle = compute_workforce_intelligence_bundle(df)
@@ -1428,14 +1428,14 @@ def test_attendance_composition_and_absent_kpi_remain_unchanged():
     df = pd.DataFrame(rows)
     bundle = compute_workforce_intelligence_bundle(df)
 
-    assert bundle["kpi_3_present_days"] == 1.0
+    assert bundle["kpi_3_present_days"] == 2.0  # E901 (Present) + E908 (Regularized A(R))
     assert bundle["kpi_4_od_days"] == 1.0
     assert bundle["kpi_5_leave_days"] == 1.0
     assert bundle["kpi_6_wfh_days"] == 1.0
     assert bundle["kpi_7_holiday_days"] == 1.0
     assert bundle["kpi_8_week_off_days"] == 1.0
-    assert bundle["kpi_absent_days"] == 1.0
-    assert bundle["kpi_9_attendance_exceptions_days"] == 1
+    assert bundle["kpi_absent_days"] == 1.0  # Only E907 (Absent)
+    assert bundle["kpi_9_attendance_exceptions_days"] == 1  # E908 (Regularized Attendance)
     assert bundle["attendance_composition_denominator"] == 8.0
 
 
@@ -2063,19 +2063,20 @@ def test_bu_table_headers_and_cells_identical_column_widths(desktop_app):
 # =========================================================================
 # 62. Step 27A: Table cells under headers are left-aligned
 # =========================================================================
-def test_bu_table_alignments(desktop_app):
-    """Verify column 0 and columns 1-12 under headers are left-aligned ('w')."""
+def test_bu_table_alignments(desktop_app, synthetic_snapshot_a):
+    """Verify all 13 cells are left-aligned using this test's own rows."""
     app = desktop_app
-    wf_view = app.workforce_dashboard_view
-    bu_widget = wf_view.bu_table_widget
+    bu_widget = app.workforce_dashboard_view.bu_table_widget
+    bundle = compute_workforce_intelligence_bundle(synthetic_snapshot_a.fact_df)
+    bu_widget.update_data(bundle["bu_attendance_comparison"], bundle["bu_comparison_total"])
+    app.update()
 
     rows = bu_widget.rows_frame.winfo_children()
-    assert len(rows) > 0
-    row_cells = rows[0].winfo_children()
-
-    # All columns 0-12 -> anchor 'w' (left indented/aligned under headers)
-    for c_idx in range(len(row_cells)):
-        assert row_cells[c_idx].cget("anchor") == "w"
+    assert len(rows) == 3
+    for row in rows:
+        row_cells = row.winfo_children()
+        assert len(row_cells) == 13
+        assert all(cell.cget("anchor") == "w" for cell in row_cells)
 
 
 # =========================================================================

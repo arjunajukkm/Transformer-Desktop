@@ -17,9 +17,37 @@ def process_attendance_summary(input_path, output_path):
         "P": "Present", "P(MS)": "Present",
         "H": "Holiday", "WOH": "Holiday",
         "OD": "On Duty",
-        "A(R)": "Attendance Regularized",
+        "A(R)": "Attendance Regularized", "P(R)": "Attendance Regularized",
+        "AR": "Attendance Regularized", "PR": "Attendance Regularized",
         "A": "Absent"
     }
+
+    def _resolve_category(st_code, att_type_val=""):
+        st = str(st_code or "").strip()
+        att = str(att_type_val or "").strip()
+        if "(r)" in st.lower() or st.upper() in ("A(R)", "P(R)", "AR", "PR") or "regulariz" in att.lower():
+            return "Attendance Regularized"
+        if st in mapping:
+            return mapping[st]
+        if st.upper() in mapping:
+            return mapping[st.upper()]
+        if "missing swipe" in att.lower() or st.upper().startswith("P(MS)") or st.upper() == "MS":
+            return "Present"
+        if "present" in att.lower():
+            return "Present"
+        if "work from home" in att.lower():
+            return "Work From Home"
+        if "leave" in att.lower():
+            return "Leave"
+        if "holiday" in att.lower():
+            return "Holiday"
+        if "week off" in att.lower() or "weekly off" in att.lower():
+            return "Week off"
+        if "on duty" in att.lower():
+            return "On Duty"
+        if "absent" in att.lower():
+            return "Absent"
+        return "Unknown"
 
     # Ensure required columns exist
     for col in ['Status', 'Employee Number', 'Date', 'Employee Name', 'Job Title', 'Location', 'Reporting Manager']:
@@ -32,7 +60,8 @@ def process_attendance_summary(input_path, output_path):
     
     # Iterate through to handle duplicates cleanly
     for idx, row in df.iterrows():
-        status = str(row['Status']).strip()
+        status = str(row.get('Status') or '').strip()
+        att_type_val = str(row.get('Attendance Type') or '')
         if ':' in status:
             parts = status.split(':')
             if len(parts) >= 2:
@@ -41,18 +70,18 @@ def process_attendance_summary(input_path, output_path):
                 
                 # Left row
                 row_left = row.copy()
-                row_left['Attendance Category'] = mapping.get(left, "Unknown")
+                row_left['Attendance Category'] = _resolve_category(left, att_type_val)
                 row_left['Quantity'] = 0.5
                 processed_rows.append(row_left)
                 
                 # Right row
                 row_right = row.copy()
-                row_right['Attendance Category'] = mapping.get(right, "Unknown")
+                row_right['Attendance Category'] = _resolve_category(right, att_type_val)
                 row_right['Quantity'] = 0.5
                 processed_rows.append(row_right)
         else:
             row_single = row.copy()
-            row_single['Attendance Category'] = mapping.get(status, "Unknown")
+            row_single['Attendance Category'] = _resolve_category(status, att_type_val)
             row_single['Quantity'] = 1.0
             processed_rows.append(row_single)
 

@@ -648,6 +648,20 @@ def reconcile_time_and_leave(
     if not col_p_date:
         raise ValueError("Daily Performance Report is missing 'Date' column.")
 
+    # Ensure Attendance Type column exists in df_perf
+    if not col_p_att_type:
+        col_p_att_type = "Attendance Type"
+        df_perf[col_p_att_type] = ""
+
+    # Populate/repair Attendance Type for records regularized by admin based on employee request (e.g. A(R), P(R))
+    if col_p_status and col_p_status in df_perf.columns and col_p_att_type in df_perf.columns:
+        st_upper = df_perf[col_p_status].astype(str).str.strip().str.upper()
+        is_reg_st = (
+            st_upper.str.contains(r'\(R\)|(?:^|:)AR(?::|$)|(?:^|:)PR(?::|$)', regex=True, na=False) |
+            st_upper.isin(["A(R)", "P(R)", "AR", "PR"])
+        )
+        df_perf.loc[is_reg_st, col_p_att_type] = "Regularized"
+
     # Populate Reporting Manager and Location from master if missing in df_perf
     if rm_map and col_p_emp_num and col_p_emp_num in df_perf.columns:
         if "Reporting Manager" not in df_perf.columns:
@@ -684,6 +698,26 @@ def reconcile_time_and_leave(
             df_perf[col] = df_perf[col].astype(object)
             # If the column already exists in df_perf, preserve existing values, but any empty or NaN cells default to "NA"
             df_perf[col] = df_perf[col].apply(lambda v: "NA" if (pd.isna(v) or str(v).strip() == "") else v)
+
+    # For regularized attendance (A(R), P(R)), populate approval status as Approved and admin audit defaults
+    if col_p_status and col_p_status in df_perf.columns:
+        st_upper = df_perf[col_p_status].astype(str).str.strip().str.upper()
+        is_reg_st = (
+            st_upper.str.contains(r'\(R\)|(?:^|:)AR(?::|$)|(?:^|:)PR(?::|$)', regex=True, na=False) |
+            st_upper.isin(["A(R)", "P(R)", "AR", "PR"])
+        )
+        if target_status_col in df_perf.columns:
+            df_perf.loc[is_reg_st & (df_perf[target_status_col].isin(["NA", ""])), target_status_col] = "Approved"
+        if "Applied By" in df_perf.columns:
+            df_perf.loc[is_reg_st & (df_perf["Applied By"].isin(["NA", ""])), "Applied By"] = "Employee"
+        if "Approved By" in df_perf.columns:
+            df_perf.loc[is_reg_st & (df_perf["Approved By"].isin(["NA", ""])), "Approved By"] = "Admin"
+        if col_p_date and col_p_date in df_perf.columns:
+            date_vals = df_perf.loc[is_reg_st, col_p_date]
+            if "Applied On" in df_perf.columns:
+                df_perf.loc[is_reg_st & (df_perf["Applied On"].isin(["NA", ""])), "Applied On"] = date_vals
+            if "Approved On" in df_perf.columns:
+                df_perf.loc[is_reg_st & (df_perf["Approved On"].isin(["NA", ""])), "Approved On"] = date_vals
 
     # 3. Expand Applications into Date-wise records
     total_raw_leaves = len(df_leave_active) + len(df_leave_inactive)
@@ -783,6 +817,9 @@ def reconcile_time_and_leave(
                     if p1 in ("P", "P(MS)", "MS"):
                         if col_p_att_type: r1[col_p_att_type] = "Present" if p1 == "P" else "Missing Swipes"
                         if col_p_leave_name: r1[col_p_leave_name] = "-"
+                    elif p1 in ("A(R)", "P(R)", "AR", "PR") or "(R)" in p1.upper():
+                        if col_p_att_type: r1[col_p_att_type] = "Regularized"
+                        if col_p_leave_name: r1[col_p_leave_name] = "-"
                     elif p1 == "WFH":
                         if col_p_att_type: r1[col_p_att_type] = "Work From Home"
                         if col_p_leave_name: r1[col_p_leave_name] = "-"
@@ -799,7 +836,15 @@ def reconcile_time_and_leave(
                     if col_p_quantity:
                         r2[col_p_quantity] = 0.5
                     r2["_parsed_quantity"] = 0.5
-                    if p2 == "A":
+                    if p2 in ("A(R)", "P(R)", "AR", "PR") or "(R)" in p2.upper():
+                        if col_p_att_type: r2[col_p_att_type] = "Regularized"
+                        if col_p_leave_name: r2[col_p_leave_name] = "-"
+                        r2["Applied By"] = "NA"
+                        r2["Applied On"] = "NA"
+                        r2["Approved By"] = "NA"
+                        r2["Approved On"] = "NA"
+                        if target_status_col: r2[target_status_col] = "NA"
+                    elif p2 == "A":
                         if col_p_att_type: r2[col_p_att_type] = "Absent"
                         if col_p_leave_name: r2[col_p_leave_name] = "-"
                         r2["Applied By"] = "NA"
@@ -1085,10 +1130,18 @@ def reconcile_time_and_leave(
     status_series = df_perf[col_p_status].astype(str).str.strip().str.upper() if (col_p_status and col_p_status in df_perf.columns) else pd.Series([""] * len(df_perf))
     att_type_series = df_perf[col_p_att_type].astype(str).str.strip().str.lower() if (col_p_att_type and col_p_att_type in df_perf.columns) else pd.Series([""] * len(df_perf))
 
+    is_regularized_mask = (
+        status_series.str.contains(r'\(R\)|(?:^|:)AR(?::|$)|(?:^|:)PR(?::|$)', regex=True, na=False) |
+        status_series.isin(["A(R)", "P(R)", "AR", "PR"]) |
+        att_type_series.str.contains("regulariz", na=False)
+    )
+
     absent_mask = (
-        status_series.isin(["A", "P(MS)", "MS"]) |
-        status_series.str.contains(r'(?:^|:)A(?::|$)|P\(MS\)', regex=True) |
-        att_type_series.isin(["absent", "missing swipes"])
+        (
+            status_series.isin(["A", "P(MS)", "MS"]) |
+            status_series.str.contains(r'(?:^|:)A(?::|$)|P\(MS\)', regex=True) |
+            att_type_series.isin(["absent", "missing swipes"])
+        ) & (~is_regularized_mask)
     )
     df_mailer_source = df_perf[absent_mask].copy() if absent_mask.any() else pd.DataFrame(columns=df_perf.columns)
 

@@ -189,6 +189,9 @@ def render_trend_time_series(
     x_indices = np.arange(n_pts)
     x_labels = [p.get("period_display", p.get("period", f"M{i+1}")) for i, p in enumerate(pts)]
 
+    comparison_mode = chart_data.get("comparison_mode")
+    is_contextual = (comparison_mode in ("EMPLOYEE", "MANAGER")) or any(p.get("dept_benchmark") is not None for p in pts)
+
     actual_vals = [p.get("actual") for p in pts]
     bench_vals = [p.get("benchmark") for p in pts]
     hist_vals = [p.get("historical") for p in pts]
@@ -198,14 +201,28 @@ def render_trend_time_series(
     bn_arr = np.array([float(v) if v is not None and not pd.isna(v) else np.nan for v in bench_vals])
     hs_arr = np.array([float(v) if v is not None and not pd.isna(v) else np.nan for v in hist_vals])
 
+    if is_contextual:
+        dept_vals = [p.get("dept_benchmark") for p in pts]
+        bu_vals = [p.get("bu_benchmark") for p in pts]
+        org_vals = [p.get("org_benchmark") if p.get("org_benchmark") is not None else p.get("benchmark") for p in pts]
+
+        dept_arr = np.array([float(v) if v is not None and not pd.isna(v) else np.nan for v in dept_vals])
+        bu_arr = np.array([float(v) if v is not None and not pd.isna(v) else np.nan for v in bu_vals])
+        org_arr = np.array([float(v) if v is not None and not pd.isna(v) else np.nan for v in org_vals])
+    else:
+        dept_arr = np.array([np.nan] * n_pts)
+        bu_arr = np.array([np.nan] * n_pts)
+        org_arr = bn_arr
+
     # Reference range
     ref_range = chart_data.get("reference_range")
     ref_low = float(ref_range[0]) if ref_range and ref_range[0] is not None else None
     ref_high = float(ref_range[1]) if ref_range and ref_range[1] is not None else None
 
-    # Calculate Y-axis bounds
+    # Calculate Y-axis bounds across all visible series
     all_num = []
-    for arr in (act_arr, bn_arr, hs_arr):
+    check_arrays = (act_arr, dept_arr, bu_arr, org_arr) if is_contextual else (act_arr, bn_arr, hs_arr)
+    for arr in check_arrays:
         valid = arr[~np.isnan(arr)]
         if len(valid) > 0:
             all_num.extend(valid.tolist())
@@ -243,25 +260,61 @@ def render_trend_time_series(
             )
             break
 
-    # 4. Draw Historical Baseline (dotted purple)
-    hs_valid_mask = ~np.isnan(hs_arr)
-    if np.any(hs_valid_mask):
-        ax.plot(
-            x_indices[hs_valid_mask], hs_arr[hs_valid_mask],
-            color=CHART_THEME["historical"], linestyle=":", linewidth=1.8,
-            alpha=0.9, label="Historical Baseline", zorder=2
-        )
+    if is_contextual:
+        # Contextual 4-Series Drawing:
+        # Series 4: Organisation Benchmark (Dotted Purple/Violet)
+        org_valid = ~np.isnan(org_arr)
+        if np.any(org_valid):
+            ax.plot(
+                x_indices[org_valid], org_arr[org_valid],
+                color="#A855F7", linestyle=":", linewidth=2.0,
+                alpha=0.9, label="Organisation", zorder=2
+            )
+            ax.scatter(x_indices[org_valid], org_arr[org_valid], color="#A855F7", s=28, alpha=0.85, zorder=2)
 
-    # 5. Draw Benchmark (dashed amber)
-    bn_valid_mask = ~np.isnan(bn_arr)
-    if np.any(bn_valid_mask):
-        ax.plot(
-            x_indices[bn_valid_mask], bn_arr[bn_valid_mask],
-            color=CHART_THEME["benchmark"], linestyle="--", linewidth=2.0,
-            alpha=0.95, label=f"{benchmark_label} Benchmark", zorder=3
-        )
+        # Series 3: BU Benchmark (Dash-dot Emerald)
+        bu_valid = ~np.isnan(bu_arr)
+        if np.any(bu_valid):
+            bu_lbl = chart_data.get("bu_label") or "BU Benchmark"
+            ax.plot(
+                x_indices[bu_valid], bu_arr[bu_valid],
+                color="#10B981", linestyle="-.", linewidth=1.8,
+                alpha=0.95, label=bu_lbl, zorder=3
+            )
+            ax.scatter(x_indices[bu_valid], bu_arr[bu_valid], color="#10B981", s=30, alpha=0.9, zorder=3)
 
-    # 6. Draw Actual Trend Line with Monotone Smooth Spline & Gradient Area
+        # Series 2: Department Benchmark (Dashed Amber)
+        dept_valid = ~np.isnan(dept_arr)
+        if np.any(dept_valid):
+            dept_lbl = chart_data.get("dept_label") or "Department Benchmark"
+            ax.plot(
+                x_indices[dept_valid], dept_arr[dept_valid],
+                color="#F59E0B", linestyle="--", linewidth=2.0,
+                alpha=0.95, label=dept_lbl, zorder=4
+            )
+            ax.scatter(x_indices[dept_valid], dept_arr[dept_valid], color="#F59E0B", s=32, alpha=0.9, zorder=4)
+
+    else:
+        # Standard 2/3 series:
+        # 4. Draw Historical Baseline (dotted purple)
+        hs_valid_mask = ~np.isnan(hs_arr)
+        if np.any(hs_valid_mask):
+            ax.plot(
+                x_indices[hs_valid_mask], hs_arr[hs_valid_mask],
+                color=CHART_THEME["historical"], linestyle=":", linewidth=1.8,
+                alpha=0.9, label="Historical Baseline", zorder=2
+            )
+
+        # 5. Draw Benchmark (dashed amber)
+        bn_valid_mask = ~np.isnan(bn_arr)
+        if np.any(bn_valid_mask):
+            ax.plot(
+                x_indices[bn_valid_mask], bn_arr[bn_valid_mask],
+                color=CHART_THEME["benchmark"], linestyle="--", linewidth=2.0,
+                alpha=0.95, label=f"{benchmark_label} Benchmark", zorder=3
+            )
+
+    # 6. Draw Selected Entity / Actual Trend Line with Monotone Smooth Spline & Gradient Area
     act_valid_mask = ~np.isnan(act_arr)
     valid_x = x_indices[act_valid_mask]
     valid_y = act_arr[act_valid_mask]

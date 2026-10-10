@@ -95,6 +95,16 @@ def normalize_dataset_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     work_df["_status"] = work_df[canon_cols["status"]].astype(str).str.strip() if "status" in canon_cols else ""
     work_df["_leave_name"] = work_df[canon_cols["leave_name"]].astype(str).str.strip() if "leave_name" in canon_cols else ""
 
+    # Normalize regularized attendance (A(R), P(R), (R) means attendance was regularized by admin upon request)
+    st_clean = work_df["_status"].astype(str).str.strip().str.upper()
+    is_reg = (
+        st_clean.str.contains(r'\(R\)|(?:^|:)AR(?::|$)|(?:^|:)PR(?::|$)', regex=True, na=False) |
+        st_clean.isin(["A(R)", "P(R)", "AR", "PR"])
+    )
+    at_clean = work_df["_att_type"].astype(str).str.strip().str.lower()
+    needs_reg = is_reg & (at_clean.isin(["", "nan", "none", "absent", "na"]) | work_df["_att_type"].isna())
+    work_df.loc[needs_reg, "_att_type"] = "Regularized"
+
     # 4. Swipes and Working Hours
     work_df["_in_mins"] = work_df[canon_cols["in_time"]].apply(tsa.parse_time_to_minutes) if "in_time" in canon_cols else None
     work_df["_out_mins"] = work_df[canon_cols["out_time"]].apply(tsa.parse_time_to_minutes) if "out_time" in canon_cols else None
@@ -103,7 +113,7 @@ def normalize_dataset_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         if in_m is None or out_m is None or pd.isna(in_m) or pd.isna(out_m):
             return float("nan")
         att_norm = str(att_t).lower()
-        if not ("present" in att_norm or "missing swipes" in att_norm or att_norm in ("p", "p(ms)", "ms")):
+        if not ("present" in att_norm or "missing swipes" in att_norm or "regulariz" in att_norm or att_norm in ("p", "p(ms)", "ms", "a(r)", "p(r)", "ar", "pr")):
             return float("nan")
         diff_mins = out_m - in_m
         if diff_mins < 0:

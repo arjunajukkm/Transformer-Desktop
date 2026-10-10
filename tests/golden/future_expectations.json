@@ -1,0 +1,155 @@
+{
+  "version": "1",
+  "synthetic": true,
+  "kind": "DESIGN_EXPECTATION_NOT_IMPLEMENTED_NOT_BUSINESS_APPROVAL",
+  "scenarios": [
+    {
+      "id": "same_native_revision",
+      "purpose": "Native SYN_EVENT_1 changes .5 to .25; two observations, one latest event",
+      "status": "REQUIRES_DATA_DECISION",
+      "input": {
+        "native_id": "SYN_EVENT_1",
+        "revisions": [
+          {
+            "revision": 1,
+            "quantity": 0.5
+          },
+          {
+            "revision": 2,
+            "quantity": 0.25
+          }
+        ]
+      },
+      "expected": {
+        "latest_quantity": 0.25,
+        "historical_revision_count": 2
+      }
+    },
+    {
+      "id": "explicit_correction",
+      "purpose": "SYN_EVENT_2 correction arrives after reporting date",
+      "status": "REQUIRES_DATA_DECISION",
+      "input": {
+        "event_id": "SYN_EVENT_2",
+        "effective": "2026-10-01",
+        "known_original": "2026-10-02",
+        "known_correction": "2026-11-01",
+        "original_quantity": 1,
+        "corrected_quantity": 0.5
+      },
+      "expected": {
+        "as_known_2026_10_31": 1,
+        "restated": 0.5
+      }
+    },
+    {
+      "id": "explicit_retraction",
+      "purpose": "Source retracts SYN_EVENT_3, not inferred from absence",
+      "status": "REQUIRES_DATA_DECISION",
+      "input": {
+        "event_id": "SYN_EVENT_3",
+        "quantity": 0.5,
+        "operation": "RETRACT"
+      },
+      "expected": {
+        "new_release_quantity": 0,
+        "old_release_quantity": 0.5
+      }
+    },
+    {
+      "id": "ambiguous_overlap",
+      "purpose": "Two different artifacts share employee/date but no native key",
+      "status": "REQUIRES_DATA_DECISION",
+      "input": {
+        "artifacts": [
+          "SYN_FILE_A",
+          "SYN_FILE_B"
+        ],
+        "employee": "SYN001",
+        "date": "2026-10-01",
+        "quantities": [
+          0.5,
+          0.5
+        ]
+      },
+      "expected": {
+        "resolution": "QUARANTINE_OR_STEWARD",
+        "must_not_assume_same_event": true
+      }
+    },
+    {
+      "id": "incomplete_source",
+      "purpose": "Two of three advertised pages received",
+      "status": "KNOWN_DEFECT",
+      "input": {
+        "pages_expected": 3,
+        "pages_received": 2,
+        "received_ids": [
+          "SYN_EV_1",
+          "SYN_EV_2"
+        ]
+      },
+      "expected": {
+        "coverage": "PARTIAL",
+        "publish_complete": false,
+        "infer_deletion": false
+      }
+    },
+    {
+      "id": "authorization_membership",
+      "purpose": "Current grant restricts employee even on historical release",
+      "status": "REQUIRES_SECURITY_DECISION",
+      "input": {
+        "visible_employee_ids": [
+          "SYN001"
+        ],
+        "candidate_employee_ids": [
+          "SYN001",
+          "SYN002"
+        ],
+        "historical_release": "SYN_RELEASE_1"
+      },
+      "expected": {
+        "included_employee_ids": [
+          "SYN001"
+        ],
+        "company_benchmark": "NOT_AUTHORIZED_FOR_EVALUATION"
+      }
+    },
+    {
+      "id": "scope_export",
+      "purpose": "Manager/employee/custom dates must accompany export",
+      "status": "KNOWN_DEFECT",
+      "input": {
+        "manager": "SYN_MANAGER_A",
+        "employee": "SYN001",
+        "from": "2026-10-10",
+        "to": "2026-10-10"
+      },
+      "expected": {
+        "included_ids": [
+          "W2"
+        ],
+        "coverage": "PARTIAL"
+      }
+    },
+    {
+      "id": "spreadsheet_text",
+      "purpose": "Untrusted formula-like text stays literal in future safe writer",
+      "status": "KNOWN_DEFECT",
+      "input": {
+        "values": [
+          "=1+1",
+          "+SUM(1,1)",
+          "-1+2",
+          "@SUM(1,1)",
+          "\t=1+1"
+        ]
+      },
+      "expected": {
+        "future_cell_type": "string",
+        "current_equals_cell_type": "f"
+      }
+    }
+  ]
+}

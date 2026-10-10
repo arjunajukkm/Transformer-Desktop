@@ -1516,19 +1516,47 @@ class KekaDataFetcher:
         ]
         return valid_records, err
 
+    def fetch_regularisation_requests(
+        self,
+        from_date: str = None,
+        to_date: str = None,
+        progress_callback: Optional[Callable[[str], None]] = None
+    ) -> Tuple[List[dict], Optional[str]]:
+        """
+        Fetches attendance regularisation requests from Keka API: GET /time/regularisationrequests
+        Filters out any Cancelled, Rejected, Revoked, or Withdrawn requests.
+        """
+        if not from_date or not to_date:
+            today = datetime.now()
+            first_day = today.replace(day=1)
+            from_date = first_day.strftime("%Y-%m-%d")
+            to_date = today.strftime("%Y-%m-%d")
+
+        if progress_callback:
+            progress_callback("Querying Regularisation Requests via Keka API...")
+
+        params = {"from": from_date, "to": to_date, "pageSize": 200}
+        records, err = self._paginated_get("/time/regularisationrequests", params, max_pages=50, label="Regularisations")
+        valid_records = [
+            r for r in (records or [])
+            if not self._is_cancelled_or_invalid_status(r.get("status"), r)
+        ]
+        return valid_records, err
+
     def fetch_attendance_records_api(
         self,
         from_date: str = None,
         to_date: str = None,
         emp_df: Optional[pd.DataFrame] = None,
         wfh_df: Optional[pd.DataFrame] = None,
+        reg_df_or_records: Optional[List[dict]] = None,
         progress_callback: Optional[Callable[[float, str], None]] = None
     ) -> Tuple[pd.DataFrame, Optional[str]]:
         """
         Fetches attendance records directly via Keka REST API:
           GET /time/attendance
-        and reconciles with Employee Master and Leave/WFH requests to synthesize
-        the full 24-column Daily Performance Report.
+        and reconciles with Employee Master, Leave/WFH requests, and Attendance Regularisations
+        to synthesize the full 24-column Daily Performance Report.
         """
         import concurrent.futures
 
@@ -1552,7 +1580,7 @@ class KekaDataFetcher:
         to_iso = to_dt.strftime("%Y-%m-%d")
 
         if progress_callback:
-            progress_callback(0.70, f"Pulling Attendance & Leave records ({from_iso} to {to_iso}) via API...")
+            progress_callback(0.70, f"Pulling Attendance, Leaves & Regularizations ({from_iso} to {to_iso}) via API...")
 
         # Partition into safe <= 15-day intervals so Keka 30-day API limit is never violated
         chunks = []
@@ -1565,13 +1593,15 @@ class KekaDataFetcher:
 
         att_records = []
         leave_records = []
+        reg_records = list(reg_df_or_records) if reg_df_or_records is not None else []
+        fetch_reg_api = reg_df_or_records is None
         att_err = None
 
         for c_idx, (c_from, c_to) in enumerate(chunks, 1):
             if progress_callback:
-                progress_callback(0.70 + (c_idx / len(chunks)) * 0.15, f"Pulling Attendance & Leaves ({c_from} to {c_to})...")
+                progress_callback(0.70 + (c_idx / len(chunks)) * 0.15, f"Pulling Attendance, Leaves & Regularizations ({c_from} to {c_to})...")
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
                 future_att = executor.submit(
                     self._paginated_get,
                     "/time/attendance",
@@ -1586,8 +1616,19 @@ class KekaDataFetcher:
                     max_pages=20,
                     label="Leaves"
                 )
+                future_reg = None
+                if fetch_reg_api:
+                    future_reg = executor.submit(
+                        self._paginated_get,
+                        "/time/regularisationrequests",
+                        {"from": c_from, "to": c_to, "pageSize": 200},
+                        max_pages=30,
+                        label="Regularisations"
+                    )
+
                 c_att, c_att_err = future_att.result()
                 c_lve, c_lve_err = future_leave.result()
+                c_reg, c_reg_err = (future_reg.result() if future_reg else ([], None))
 
             if c_att_err and not c_att:
                 att_err = c_att_err
@@ -1596,6 +1637,9 @@ class KekaDataFetcher:
 
             if c_lve:
                 leave_records.extend(c_lve)
+
+            if c_reg:
+                reg_records.extend(c_reg)
 
             time.sleep(0.15)
 
@@ -1764,6 +1808,46 @@ class KekaDataFetcher:
                             od_lookup[k] = info_dict
                         cur += timedelta(days=1)
 
+        # 4b. Build Attendance Regularisation lookup by (employeeNumber, YYYY-MM-DD)
+        # Cancelled or invalid requests are ignored; only approved (status == 2) are applied
+        reg_lookup = {}
+        for rr in (reg_records or []):
+            st = rr.get("status")
+            if self._is_cancelled_or_invalid_status(st, rr):
+                continue
+            if st != 2 and str(st).strip().lower() != "approved":
+                continue
+            r_emp_num = str(rr.get("employeeNumber") or "").strip()
+            req_d_str = str(rr.get("requestDate") or "")[:10]
+            if not r_emp_num or not req_d_str:
+                continue
+
+            rr_req_by = str(rr.get("requestedByName") or "").strip()
+            rr_req_on_raw = rr.get("requestedOn")
+            fmt_rr_req_on = _fmt_audit_date(rr_req_on_raw)
+
+            approvers = rr.get("approvers") or []
+            rr_act_by = ""
+            rr_act_on_raw = rr.get("lastModified") or rr_req_on_raw
+            if approvers and isinstance(approvers, list) and isinstance(approvers[0], dict):
+                first_appr = approvers[0]
+                rr_act_by = str(first_appr.get("actionTakenByName") or first_appr.get("approverName") or first_appr.get("name") or "").strip()
+                if first_appr.get("actionTakenOn"):
+                    rr_act_on_raw = first_appr.get("actionTakenOn")
+
+            fmt_rr_act_on = _fmt_audit_date(rr_act_on_raw) if rr_act_on_raw else fmt_rr_req_on
+
+            reg_lookup[(r_emp_num, req_d_str)] = {
+                "status": "Approved",
+                "requested_by": rr_req_by,
+                "requested_on": fmt_rr_req_on,
+                "requested_on_raw": rr_req_on_raw,
+                "approved_by": rr_act_by,
+                "approved_on": fmt_rr_act_on,
+                "approved_on_raw": rr_act_on_raw,
+                "note": str(rr.get("note") or ""),
+            }
+
         # 5. Build full 24-column Daily Performance rows
         perf_rows = []
         for att in att_records:
@@ -1826,6 +1910,29 @@ class KekaDataFetcher:
             has_punch = bool(in_time or out_time)
 
             lookup_key = (emp_num, att_date_str)
+            is_reg = lookup_key in reg_lookup
+            reg_info = reg_lookup.get(lookup_key, {})
+            if is_reg:
+                reg_app_status = reg_info.get("status", "Approved")
+                reg_applied_by = self._compute_applied_by(
+                    reg_info.get("requested_by"),
+                    emp_name,
+                    leave_name="Regularization",
+                    requested_on=reg_info.get("requested_on_raw"),
+                    action_taken_on=reg_info.get("approved_on_raw")
+                )
+                reg_applied_on = reg_info.get("requested_on") or "NA"
+                if str(reg_app_status).strip().lower() == "approved":
+                    reg_approved_by = self._compute_approved_by(
+                        reg_info.get("approved_by"),
+                        rm_name,
+                        is_admin_applied=(reg_applied_by == "Admin")
+                    )
+                    reg_approved_on = reg_info.get("approved_on") or reg_applied_on or _fmt_audit_date(att_date_str)
+                else:
+                    reg_approved_by = "NA"
+                    reg_approved_on = "NA"
+
             if lookup_key in leave_lookup:
                 l_info = leave_lookup[lookup_key]
                 st_code = l_info.get("status_code", "CL/SL")
@@ -1877,11 +1984,28 @@ class KekaDataFetcher:
                         "Break Duration": self._format_hours_hhmm(break_duration),
                         "Effective Hours": self._format_hours_hhmm(eff_hours)
                     })
-                    # Line item 2: Other half (Absent or Present)
-                    if eff_hours >= 4.0 or has_punch:
+                    # Line item 2: Other half (Absent, Present, or Regularized)
+                    if is_reg:
+                        other_st, other_type = "A(R)", "Regularized"
+                        other_app_st = reg_app_status
+                        other_app_by = reg_applied_by
+                        other_app_on = reg_applied_on
+                        other_appr_by = reg_approved_by
+                        other_appr_on = reg_approved_on
+                    elif eff_hours >= 4.0 or has_punch:
                         other_st, other_type = "P", "Present"
+                        other_app_st = "NA"
+                        other_app_by = "NA"
+                        other_app_on = "NA"
+                        other_appr_by = "NA"
+                        other_appr_on = "NA"
                     else:
                         other_st, other_type = "A", "Absent"
+                        other_app_st = "NA"
+                        other_app_by = "NA"
+                        other_app_on = "NA"
+                        other_appr_by = "NA"
+                        other_appr_on = "NA"
                     perf_rows.append({
                         "Employee Number": emp_num,
                         "Employee Name": emp_name,
@@ -1894,20 +2018,20 @@ class KekaDataFetcher:
                         "Date": att_date_str,
                         "Month": first_of_month,
                         "Last Working Day": lwd_val,
-                        "In Time": in_time if other_st == "P" else "",
-                        "Out Time": out_time if other_st == "P" else "",
+                        "In Time": in_time if other_st in ("P", "P(R)") else "",
+                        "Out Time": out_time if other_st in ("P", "P(R)") else "",
                         "Status": other_st,
                         "Attendance Type": other_type,
                         "Leave Name": "-",
                         "Quantity": 0.5,
-                        "Applied By": "NA",
-                        "Applied On": "NA",
-                        "Approval Status": "NA",
-                        "Approved By": "NA",
-                        "Approved On": "NA",
-                        "Total Hours": self._format_hours_hhmm(gross_hours) if other_st == "P" else "00:00",
-                        "Break Duration": self._format_hours_hhmm(break_duration) if other_st == "P" else "00:00",
-                        "Effective Hours": self._format_hours_hhmm(eff_hours) if other_st == "P" else "00:00"
+                        "Applied By": other_app_by,
+                        "Applied On": other_app_on,
+                        "Approval Status": other_app_st,
+                        "Approved By": other_appr_by,
+                        "Approved On": other_appr_on,
+                        "Total Hours": self._format_hours_hhmm(gross_hours) if other_st in ("P", "P(R)") else "00:00",
+                        "Break Duration": self._format_hours_hhmm(break_duration) if other_st in ("P", "P(R)") else "00:00",
+                        "Effective Hours": self._format_hours_hhmm(eff_hours) if other_st in ("P", "P(R)") else "00:00"
                     })
                 else:
                     # Full day leave
@@ -1988,11 +2112,28 @@ class KekaDataFetcher:
                         "Break Duration": self._format_hours_hhmm(break_duration),
                         "Effective Hours": self._format_hours_hhmm(eff_hours)
                     })
-                    # Line item 2: Other half (Absent or Present)
-                    if eff_hours >= 4.0 or has_punch:
+                    # Line item 2: Other half (Absent, Present, or Regularized)
+                    if is_reg:
+                        other_st, other_type = "A(R)", "Regularized"
+                        other_app_st = reg_app_status
+                        other_app_by = reg_applied_by
+                        other_app_on = reg_applied_on
+                        other_appr_by = reg_approved_by
+                        other_appr_on = reg_approved_on
+                    elif eff_hours >= 4.0 or has_punch:
                         other_st, other_type = "P", "Present"
+                        other_app_st = "NA"
+                        other_app_by = "NA"
+                        other_app_on = "NA"
+                        other_appr_by = "NA"
+                        other_appr_on = "NA"
                     else:
                         other_st, other_type = "A", "Absent"
+                        other_app_st = "NA"
+                        other_app_by = "NA"
+                        other_app_on = "NA"
+                        other_appr_by = "NA"
+                        other_appr_on = "NA"
                     perf_rows.append({
                         "Employee Number": emp_num,
                         "Employee Name": emp_name,
@@ -2005,23 +2146,25 @@ class KekaDataFetcher:
                         "Date": att_date_str,
                         "Month": first_of_month,
                         "Last Working Day": lwd_val,
-                        "In Time": in_time if other_st == "P" else "",
-                        "Out Time": out_time if other_st == "P" else "",
+                        "In Time": in_time if other_st in ("P", "P(R)") else "",
+                        "Out Time": out_time if other_st in ("P", "P(R)") else "",
                         "Status": other_st,
                         "Attendance Type": other_type,
                         "Leave Name": "-",
                         "Quantity": 0.5,
-                        "Applied By": "NA",
-                        "Applied On": "NA",
-                        "Approval Status": "NA",
-                        "Approved By": "NA",
-                        "Approved On": "NA",
-                        "Total Hours": self._format_hours_hhmm(gross_hours) if other_st == "P" else "00:00",
-                        "Break Duration": self._format_hours_hhmm(break_duration) if other_st == "P" else "00:00",
-                        "Effective Hours": self._format_hours_hhmm(eff_hours) if other_st == "P" else "00:00"
+                        "Applied By": other_app_by,
+                        "Applied On": other_app_on,
+                        "Approval Status": other_app_st,
+                        "Approved By": other_appr_by,
+                        "Approved On": other_appr_on,
+                        "Total Hours": self._format_hours_hhmm(gross_hours) if other_st in ("P", "P(R)") else "00:00",
+                        "Break Duration": self._format_hours_hhmm(break_duration) if other_st in ("P", "P(R)") else "00:00",
+                        "Effective Hours": self._format_hours_hhmm(eff_hours) if other_st in ("P", "P(R)") else "00:00"
                     })
                 else:
                     # Full day WFH
+                    wfh_st = "WFH(R)" if is_reg else "WFH"
+                    wfh_type = "Regularized" if is_reg else "Work From Home"
                     perf_rows.append({
                         "Employee Number": emp_num,
                         "Employee Name": emp_name,
@@ -2036,8 +2179,8 @@ class KekaDataFetcher:
                         "Last Working Day": lwd_val,
                         "In Time": in_time,
                         "Out Time": out_time,
-                        "Status": "WFH",
-                        "Attendance Type": "Work From Home",
+                        "Status": wfh_st,
+                        "Attendance Type": wfh_type,
                         "Leave Name": "-",
                         "Quantity": 1.0,
                         "Applied By": applied_by,
@@ -2068,6 +2211,8 @@ class KekaDataFetcher:
                     approved_by = "NA"
                     approved_on = "NA"
 
+                od_st = "OD(R)" if is_reg else "OD"
+                od_type = "Regularized" if is_reg else "Onduty"
                 perf_rows.append({
                     "Employee Number": emp_num,
                     "Employee Name": emp_name,
@@ -2082,8 +2227,8 @@ class KekaDataFetcher:
                     "Last Working Day": lwd_val,
                     "In Time": in_time,
                     "Out Time": out_time,
-                    "Status": "OD",
-                    "Attendance Type": "Onduty",
+                    "Status": od_st,
+                    "Attendance Type": od_type,
                     "Leave Name": "-",
                     "Quantity": 1.0,
                     "Applied By": applied_by,
@@ -2096,13 +2241,35 @@ class KekaDataFetcher:
                     "Effective Hours": self._format_hours_hhmm(eff_hours)
                 })
             else:
-                if day_type == 2:
+                has_in  = bool(in_time)
+                has_out = bool(out_time)
+                has_both_punches = has_in and has_out
+
+                if is_reg:
+                    if eff_hours >= 4.0 or has_both_punches:
+                        status = "P(R)"
+                    elif has_punch:
+                        status = "P(MS)(R)"
+                    else:
+                        status = "A(R)"
+                    att_type = "Regularized"
+                    app_status = reg_app_status
+                    applied_by = reg_applied_by
+                    applied_on = reg_applied_on
+                    approved_by = reg_approved_by
+                    approved_on = reg_approved_on
+                elif day_type == 2:
                     if eff_hours > 0 or has_punch:
                         status = "WOW"
                         att_type = "Worked on Week off"
                     else:
                         status = "WO"
                         att_type = "Week Off"
+                    app_status = "NA"
+                    applied_by = "NA"
+                    applied_on = "NA"
+                    approved_by = "NA"
+                    approved_on = "NA"
                 elif day_type == 1:
                     if eff_hours > 0 or has_punch:
                         status = "WOH"
@@ -2110,13 +2277,12 @@ class KekaDataFetcher:
                     else:
                         status = "H"
                         att_type = "Holiday"
+                    app_status = "NA"
+                    applied_by = "NA"
+                    applied_on = "NA"
+                    approved_by = "NA"
+                    approved_on = "NA"
                 else:  # day_type == 0 (Working Day)
-                    has_in  = bool(in_time)
-                    has_out = bool(out_time)
-                    has_both_punches = has_in and has_out
-                    # A complete swipe pair (In + Out) means the employee was genuinely Present,
-                    # even if totalEffectiveHours is under-reported by Keka.
-                    # P(MS) = truly missing swipe, i.e. only one side recorded.
                     if eff_hours >= 4.0 or has_both_punches:
                         status = "P"
                         att_type = "Present"
@@ -2126,6 +2292,11 @@ class KekaDataFetcher:
                     else:
                         status = "A"
                         att_type = "Absent"
+                    app_status = "NA"
+                    applied_by = "NA"
+                    applied_on = "NA"
+                    approved_by = "NA"
+                    approved_on = "NA"
 
                 perf_rows.append({
                     "Employee Number": emp_num,
@@ -2145,11 +2316,11 @@ class KekaDataFetcher:
                     "Attendance Type": att_type,
                     "Leave Name": "-",
                     "Quantity": 1.0,
-                    "Applied By": "NA",
-                    "Applied On": "NA",
-                    "Approval Status": "NA",
-                    "Approved By": "NA",
-                    "Approved On": "NA",
+                    "Applied By": applied_by,
+                    "Applied On": applied_on,
+                    "Approval Status": app_status,
+                    "Approved By": approved_by,
+                    "Approved On": approved_on,
                     "Total Hours": self._format_hours_hhmm(gross_hours),
                     "Break Duration": self._format_hours_hhmm(break_duration),
                     "Effective Hours": self._format_hours_hhmm(eff_hours)
@@ -2164,6 +2335,8 @@ class KekaDataFetcher:
                 "Leave Name", "Quantity", "Applied By", "Applied On", "Approval Status",
                 "Approved By", "Approved On", "Total Hours", "Break Duration", "Effective Hours"
             ])
+        else:
+            df_perf = self._normalize_attendance_df(df_perf)
         logger.info(f"Attendance Report: {len(df_perf)} records generated via REST API")
         return df_perf, None
 
@@ -2585,7 +2758,11 @@ class KekaDataFetcher:
                 r1 = row.to_dict()
                 r1[status_col] = p1
                 r1["Quantity"] = 0.5
-                if p1 == "A":
+                if p1 in ("A(R)", "P(R)", "AR", "PR") or "(R)" in p1.upper():
+                    if "Attendance Type" in r1:
+                        r1["Attendance Type"] = "Regularized"
+                    r1["Leave Name"] = "-"
+                elif p1 == "A":
                     if "Attendance Type" in r1:
                         r1["Attendance Type"] = "Absent"
                     r1["Leave Name"] = "-"
@@ -2613,7 +2790,16 @@ class KekaDataFetcher:
                 r2 = row.to_dict()
                 r2[status_col] = p2
                 r2["Quantity"] = 0.5
-                if p2 == "A":
+                if p2 in ("A(R)", "P(R)", "AR", "PR") or "(R)" in p2.upper():
+                    if "Attendance Type" in r2:
+                        r2["Attendance Type"] = "Regularized"
+                    r2["Leave Name"] = "-"
+                    r2["Applied By"] = "NA"
+                    r2["Applied On"] = "NA"
+                    r2["Approval Status"] = "NA"
+                    r2["Approved By"] = "NA"
+                    r2["Approved On"] = "NA"
+                elif p2 == "A":
                     if "Attendance Type" in r2:
                         r2["Attendance Type"] = "Absent"
                     r2["Leave Name"] = "-"
@@ -2797,13 +2983,13 @@ class KekaDataFetcher:
         _notify(0.35, "[2/3] Fetching OD/WFH Requests...", "Querying /time/wfh and /time/od...")
         wfh_df, wfh_err = self.fetch_od_wfh_requests(from_date=from_date, to_date=to_date)
 
-        _notify(0.60, "[3/3] Fetching Attendance & Leaves...", "Querying /time/attendance and /time/leaverequests...")
+        _notify(0.60, "[3/3] Fetching Attendance, Leaves & Regularizations...", "Querying /time/attendance, /time/leaverequests and /time/regularisationrequests...")
         att_df, att_err = self.fetch_attendance_records_api(
             from_date=from_date,
             to_date=to_date,
             emp_df=emp_df,
             wfh_df=wfh_df,
-            progress_callback=lambda p, m: _notify(0.60 + p * 0.30, "[3/3] Attendance & Leaves", m)
+            progress_callback=lambda p, m: _notify(0.60 + p * 0.30, "[3/3] Attendance, Leaves & Regularizations", m)
         )
         if att_err and (att_df is None or att_df.empty):
             raise RuntimeError(f"Attendance fetch failed: {att_err}")
@@ -2827,11 +3013,18 @@ class KekaDataFetcher:
             if "Approved On" in att_df.columns:
                 att_df.loc[not_appr, "Approved On"] = "NA"
 
-        # Build Absent Mailer sheet from att_df
+        # Build Absent Mailer sheet from att_df (excluding regularized attendance)
+        is_reg_mask = (
+            att_df["Status"].astype(str).str.contains(r'\(R\)|(?:^|:)AR(?::|$)|(?:^|:)PR(?::|$)', regex=True, na=False) |
+            att_df["Status"].astype(str).str.strip().str.upper().isin(["A(R)", "P(R)", "AR", "PR"]) |
+            att_df["Attendance Type"].astype(str).str.contains("regulariz", case=False, na=False)
+        )
         absent_mask = (
-            att_df["Status"].astype(str).str.strip().str.upper().isin(["A", "P(MS)", "MS"]) |
-            att_df["Status"].astype(str).str.contains(r'(?:^|:)A(?::|$)|P\(MS\)', regex=True) |
-            att_df["Attendance Type"].astype(str).str.strip().str.lower().isin(["absent", "missing swipes"])
+            (
+                att_df["Status"].astype(str).str.strip().str.upper().isin(["A", "P(MS)", "MS"]) |
+                att_df["Status"].astype(str).str.contains(r'(?:^|:)A(?::|$)|P\(MS\)', regex=True) |
+                att_df["Attendance Type"].astype(str).str.strip().str.lower().isin(["absent", "missing swipes"])
+            ) & (~is_reg_mask)
         )
         df_mailer_src = att_df[absent_mask].copy() if absent_mask.any() else pd.DataFrame(columns=att_df.columns)
 

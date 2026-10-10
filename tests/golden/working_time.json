@@ -1,0 +1,130 @@
+{
+  "version": "1",
+  "synthetic": true,
+  "rows": [
+    {
+      "observation_id": "T1",
+      "record_id": "T1",
+      "Employee Number": "SYN001",
+      "Employee Name": "Synthetic SYN001",
+      "Date": "2026-10-01",
+      "Status": "P",
+      "Attendance Type": "Present",
+      "attendance_category": "Present",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A",
+      "In Time": "09:00",
+      "Out Time": "17:00",
+      "Effective Hours": "08:00"
+    },
+    {
+      "observation_id": "T2",
+      "record_id": "T2",
+      "Employee Number": "SYN002",
+      "Employee Name": "Synthetic SYN002",
+      "Date": "2026-10-02",
+      "Status": "P(MS)",
+      "Attendance Type": "Missing Swipes",
+      "attendance_category": "Missing Swipes",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A",
+      "In Time": "10:00",
+      "Out Time": "19:00",
+      "Effective Hours": "09:00"
+    },
+    {
+      "observation_id": "T3",
+      "record_id": "T3",
+      "Employee Number": "SYN003",
+      "Employee Name": "Synthetic SYN003",
+      "Date": "2026-10-03",
+      "Status": "WFH",
+      "Attendance Type": "Work From Home",
+      "attendance_category": "Work From Home",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A",
+      "In Time": "01:00",
+      "Out Time": "23:00",
+      "Effective Hours": "22:00"
+    },
+    {
+      "observation_id": "T4",
+      "record_id": "T4",
+      "Employee Number": "SYN004",
+      "Employee Name": "Synthetic SYN004",
+      "Date": "2026-10-04",
+      "Status": "P",
+      "Attendance Type": "Present",
+      "attendance_category": "Present",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A",
+      "In Time": null,
+      "Out Time": null,
+      "Effective Hours": null
+    },
+    {
+      "observation_id": "T5",
+      "record_id": "T5",
+      "Employee Number": "SYN005",
+      "Employee Name": "Synthetic SYN005",
+      "Date": "2026-10-05",
+      "Status": "P",
+      "Attendance Type": "Present",
+      "attendance_category": "Present",
+      "Quantity": 1,
+      "Business Unit": "SYN_BU_A",
+      "Department": "SYN_DEPT",
+      "Reporting Manager": "SYN_MANAGER_A",
+      "In Time": "12:00",
+      "Out Time": "23:00",
+      "Effective Hours": "11:00"
+    }
+  ],
+  "expected": {
+    "included_ids": [
+      "T1",
+      "T2",
+      "T5"
+    ],
+    "unknown_ids": [
+      "T4"
+    ],
+    "ineligible_ids": [
+      "T3"
+    ],
+    "count": 3,
+    "arrival_inputs": [
+      540,
+      600,
+      720
+    ],
+    "exit_inputs": [
+      1020,
+      1140,
+      1380
+    ],
+    "duration_inputs": [
+      480,
+      540,
+      660
+    ],
+    "arrival_sum": 1860,
+    "exit_sum": 3540,
+    "duration_sum": 1680,
+    "arrival_value": 620.0,
+    "exit_value": 1180.0,
+    "duration_value": 560.0,
+    "period": "2026-10-01",
+    "arrival_median": 600.0,
+    "exit_median": 1140.0,
+    "duration_median": 540.0
+  }
+}

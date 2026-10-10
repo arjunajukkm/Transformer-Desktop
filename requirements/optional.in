@@ -1,0 +1,7 @@
+# Optional image/OCR workflows; no model files or browser drivers bundled.
+rembg==2.0.85
+onnxruntime==1.30.0
+opencv-python-headless==5.0.0.93
+ddddocr==1.6.1
+# Direct optional chart interpolation import (fallback exists).
+scipy==1.18.1

@@ -8,7 +8,7 @@ import subprocess
 import ctypes
 from datetime import datetime
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, ttk, Misc
 
 from dotenv import load_dotenv
 load_dotenv(override=True)
@@ -733,7 +733,13 @@ class App(ctk.CTk):
         else:
             parent_btn = getattr(self, "settings_parent_btn", self.nav_parent_btn)
         self.close_floating_nav()
-        parent_btn.focus_set()
+        # CTkButton.focus_set delegates to its optional text label. Focus the
+        # public Tk widget itself so image-only rail buttons work as well.
+        if parent_btn.winfo_exists() and parent_btn.winfo_viewable():
+            Misc.focus_set(parent_btn)
+        elif self.winfo_viewable():
+            Misc.focus_set(self)
+        return "break"
 
     def _on_flyout_cycle_focus(self, buttons, direction):
         focused = None

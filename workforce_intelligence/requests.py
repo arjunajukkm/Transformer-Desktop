@@ -37,6 +37,7 @@ class LeaveRequest:
 
     request_application_lag_days: Optional[int]
     approval_turnaround_days: Optional[int]
+    applied_by: Optional[str] = None
 
     record_ids: List[str] = field(default_factory=list)
     source_row_numbers: List[int] = field(default_factory=list)
@@ -232,6 +233,9 @@ def build_leave_requests(
         approved_by = first_row.get("Approved By")
         approved_by_str = str(approved_by).strip() if pd.notna(approved_by) else None
 
+        applied_by_val = first_row.get("Applied By") or first_row.get("applied_by")
+        applied_by_str = str(applied_by_val).strip() if pd.notna(applied_by_val) else None
+
         # Application lag from request start date
         req_lag_days: Optional[int] = None
         if applied_dt and start_date:
@@ -268,6 +272,7 @@ def build_leave_requests(
             approved_on=approved_dt,
             approval_status=approval_status_str,
             approved_by=approved_by_str,
+            applied_by=applied_by_str,
             request_application_lag_days=req_lag_days,
             approval_turnaround_days=turnaround,
             record_ids=record_ids,

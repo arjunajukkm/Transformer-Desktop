@@ -1,0 +1,446 @@
+{
+  "version": "1",
+  "synthetic": true,
+  "executable": [
+    {
+      "case": "tests/characterization/test_legacy_conflicts.py::test_mc02_legacy_wfh_counts_rows_across_months",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/characterization/test_legacy_conflicts.py::test_mc03_legacy_leave_lead_time_positive_means_advance",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/characterization/test_legacy_conflicts.py::test_mc12_scalar_and_vectorized_alias_classification_disagree",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/characterization/test_legacy_conflicts.py::test_known_defect_history_drops_legitimate_split_day",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/characterization/test_legacy_conflicts.py::test_known_defect_pagination_cap_returns_success",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/characterization/test_legacy_conflicts.py::test_duplicate_observations_preserve_raw_and_analytical_quantities",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/characterization/test_legacy_conflicts.py::test_mc09_request_reconstruction_preserves_two_row_lineage",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/characterization/test_legacy_conflicts.py::test_mc10_cached_pending_age_ignores_new_as_of",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/characterization/test_legacy_conflicts.py::test_mc01_export_callback_omits_manager_employee_and_interval",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/characterization/test_legacy_conflicts.py::test_known_defect_formula_like_text_is_written_as_formula",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/characterization/test_legacy_conflicts.py::test_future_design_cases_are_explicitly_not_runtime_approval",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/characterization/test_legacy_conflicts.py::test_mc14_legacy_regularized_ar_missing_from_present_quantity[Absent]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/characterization/test_legacy_conflicts.py::test_mc14_legacy_regularized_ar_missing_from_present_quantity[Regularized]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/characterization/test_legacy_conflicts.py::test_scope_manager_employee_and_custom_interval_membership",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_attendance_components_and_membership[missing_swipe_rate]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_attendance_components_and_membership[absence_rate]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_attendance_components_and_membership[regularization_rate]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_zero_is_distinct_from_null[P-Present-0.0-missing_swipe_rate]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_zero_is_distinct_from_null[P-Present-0.0-absence_rate]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_zero_is_distinct_from_null[P-Present-0.0-regularization_rate]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_zero_is_distinct_from_null[WO-Week Off-None-missing_swipe_rate]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_zero_is_distinct_from_null[WO-Week Off-None-absence_rate]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_zero_is_distinct_from_null[WO-Week Off-None-regularization_rate]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_approval_row_weighting_and_pinned_age[average_approval_turnaround-mean-3]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_approval_row_weighting_and_pinned_age[median_approval_turnaround-median-3]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_approval_row_weighting_and_pinned_age[pending_approval_count-pending_count-3]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_approval_row_weighting_and_pinned_age[average_pending_approval_age-age_mean-2]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_leave_timing_components_not_compliance_rate",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_wfh_timing_row_components",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_working_time_units_membership_and_components[average_effective_hours-duration]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_working_time_units_membership_and_components[median_effective_hours-duration]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_working_time_units_membership_and_components[average_arrival_time-arrival]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_working_time_units_membership_and_components[median_arrival_time-arrival]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_working_time_units_membership_and_components[average_exit_time-exit]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_working_time_units_membership_and_components[median_exit_time-exit]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_policy_boundary_and_notice_tiers[POL01]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_policy_boundary_and_notice_tiers[POL02]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_policy_boundary_and_notice_tiers[POL03]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_policy_boundary_and_notice_tiers[POL04]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_policy_boundary_and_notice_tiers[POL05]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_policy_boundary_and_notice_tiers[POL06]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_policy_boundary_and_notice_tiers[POL07]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_policy_boundary_and_notice_tiers[POL08]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_policy_boundary_and_notice_tiers[POL09]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_policy_boundary_and_notice_tiers[POL10]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_policy_boundary_and_notice_tiers[POL11]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_policy_boundary_and_notice_tiers[POL12]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_policy_boundary_and_notice_tiers[POL13]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_post_policy_compliance_components",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_wfh_policy_lag_boundary[3-COMPLIANT]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_wfh_policy_lag_boundary[4-NON_COMPLIANT]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_wfh_month_quantity_scope_and_transfer_order",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_wfh_unknown_or_nonpositive_quantity_becomes_one[None]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_wfh_unknown_or_nonpositive_quantity_becomes_one[0]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_wfh_unknown_or_nonpositive_quantity_becomes_one[-1]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_late_arrival_count_is_descriptive_not_rate[660-0-60.0]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_late_arrival_count_is_descriptive_not_rate[662-1-61.0]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    },
+    {
+      "case": "tests/contracts/test_metric_golden.py::test_legacy_late_arrival_count_is_descriptive_not_rate[1142-0-None]",
+      "status": "passed",
+      "kind": "IMPLEMENTATION_CHARACTERIZATION_NOT_BUSINESS_APPROVAL"
+    }
+  ],
+  "future_only": [
+    {
+      "id": "same_native_revision",
+      "purpose": "Native SYN_EVENT_1 changes .5 to .25; two observations, one latest event",
+      "status": "REQUIRES_DATA_DECISION",
+      "input": {
+        "native_id": "SYN_EVENT_1",
+        "revisions": [
+          {
+            "revision": 1,
+            "quantity": 0.5
+          },
+          {
+            "revision": 2,
+            "quantity": 0.25
+          }
+        ]
+      },
+      "expected": {
+        "latest_quantity": 0.25,
+        "historical_revision_count": 2
+      }
+    },
+    {
+      "id": "explicit_correction",
+      "purpose": "SYN_EVENT_2 correction arrives after reporting date",
+      "status": "REQUIRES_DATA_DECISION",
+      "input": {
+        "event_id": "SYN_EVENT_2",
+        "effective": "2026-10-01",
+        "known_original": "2026-10-02",
+        "known_correction": "2026-11-01",
+        "original_quantity": 1,
+        "corrected_quantity": 0.5
+      },
+      "expected": {
+        "as_known_2026_10_31": 1,
+        "restated": 0.5
+      }
+    },
+    {
+      "id": "explicit_retraction",
+      "purpose": "Source retracts SYN_EVENT_3, not inferred from absence",
+      "status": "REQUIRES_DATA_DECISION",
+      "input": {
+        "event_id": "SYN_EVENT_3",
+        "quantity": 0.5,
+        "operation": "RETRACT"
+      },
+      "expected": {
+        "new_release_quantity": 0,
+        "old_release_quantity": 0.5
+      }
+    },
+    {
+      "id": "ambiguous_overlap",
+      "purpose": "Two different artifacts share employee/date but no native key",
+      "status": "REQUIRES_DATA_DECISION",
+      "input": {
+        "artifacts": [
+          "SYN_FILE_A",
+          "SYN_FILE_B"
+        ],
+        "employee": "SYN001",
+        "date": "2026-10-01",
+        "quantities": [
+          0.5,
+          0.5
+        ]
+      },
+      "expected": {
+        "resolution": "QUARANTINE_OR_STEWARD",
+        "must_not_assume_same_event": true
+      }
+    },
+    {
+      "id": "incomplete_source",
+      "purpose": "Two of three advertised pages received",
+      "status": "KNOWN_DEFECT",
+      "input": {
+        "pages_expected": 3,
+        "pages_received": 2,
+        "received_ids": [
+          "SYN_EV_1",
+          "SYN_EV_2"
+        ]
+      },
+      "expected": {
+        "coverage": "PARTIAL",
+        "publish_complete": false,
+        "infer_deletion": false
+      }
+    },
+    {
+      "id": "authorization_membership",
+      "purpose": "Current grant restricts employee even on historical release",
+      "status": "REQUIRES_SECURITY_DECISION",
+      "input": {
+        "visible_employee_ids": [
+          "SYN001"
+        ],
+        "candidate_employee_ids": [
+          "SYN001",
+          "SYN002"
+        ],
+        "historical_release": "SYN_RELEASE_1"
+      },
+      "expected": {
+        "included_employee_ids": [
+          "SYN001"
+        ],
+        "company_benchmark": "NOT_AUTHORIZED_FOR_EVALUATION"
+      }
+    },
+    {
+      "id": "scope_export",
+      "purpose": "Manager/employee/custom dates must accompany export",
+      "status": "KNOWN_DEFECT",
+      "input": {
+        "manager": "SYN_MANAGER_A",
+        "employee": "SYN001",
+        "from": "2026-10-10",
+        "to": "2026-10-10"
+      },
+      "expected": {
+        "included_ids": [
+          "W2"
+        ],
+        "coverage": "PARTIAL"
+      }
+    },
+    {
+      "id": "spreadsheet_text",
+      "purpose": "Untrusted formula-like text stays literal in future safe writer",
+      "status": "KNOWN_DEFECT",
+      "input": {
+        "values": [
+          "=1+1",
+          "+SUM(1,1)",
+          "-1+2",
+          "@SUM(1,1)",
+          "\t=1+1"
+        ]
+      },
+      "expected": {
+        "future_cell_type": "string",
+        "current_equals_cell_type": "f"
+      }
+    }
+  ]
+}

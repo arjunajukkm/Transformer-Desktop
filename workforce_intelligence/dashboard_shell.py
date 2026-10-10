@@ -2114,8 +2114,10 @@ class MainTrendChartWidget(ctk.CTkFrame):
         # Actual
         f_act = ctk.CTkFrame(leg_box, fg_color="transparent")
         f_act.pack(side="left", padx=(0, 8))
-        ctk.CTkLabel(f_act, text="━●", font=ctk.CTkFont(size=10, weight="bold"), text_color="#06B6D4").pack(side="left", padx=(0, 2))
-        ctk.CTkLabel(f_act, text="Actual", font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9), text_color=ui.COLOR_TEXT).pack(side="left")
+        self.lbl_leg_act_icon = ctk.CTkLabel(f_act, text="━●", font=ctk.CTkFont(size=10, weight="bold"), text_color="#38BDF8")
+        self.lbl_leg_act_icon.pack(side="left", padx=(0, 2))
+        self.lbl_leg_act_text = ctk.CTkLabel(f_act, text="Actual", font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9), text_color=ui.COLOR_TEXT)
+        self.lbl_leg_act_text.pack(side="left")
 
         # Benchmark
         f_bn = ctk.CTkFrame(leg_box, fg_color="transparent")
@@ -2128,14 +2130,18 @@ class MainTrendChartWidget(ctk.CTkFrame):
         # Historical Baseline
         f_hist = ctk.CTkFrame(leg_box, fg_color="transparent")
         f_hist.pack(side="left", padx=(0, 8))
-        ctk.CTkLabel(f_hist, text="····", font=ctk.CTkFont(size=10, weight="bold"), text_color="#8B5CF6").pack(side="left", padx=(0, 2))
-        ctk.CTkLabel(f_hist, text="Historical", font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9), text_color=ui.COLOR_TEXT_SEC).pack(side="left")
+        self.lbl_leg_hist_icon = ctk.CTkLabel(f_hist, text="╍·", font=ctk.CTkFont(size=10, weight="bold"), text_color="#10B981")
+        self.lbl_leg_hist_icon.pack(side="left", padx=(0, 2))
+        self.lbl_leg_hist_text = ctk.CTkLabel(f_hist, text="Historical", font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9), text_color=ui.COLOR_TEXT_SEC)
+        self.lbl_leg_hist_text.pack(side="left")
 
         # Reference Corridor
         f_ref = ctk.CTkFrame(leg_box, fg_color="transparent")
         f_ref.pack(side="left", padx=(0, 2))
-        ctk.CTkLabel(f_ref, text="■", font=ctk.CTkFont(size=10), text_color="#1E293B").pack(side="left", padx=(0, 2))
-        ctk.CTkLabel(f_ref, text="Normal Range", font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9), text_color=ui.COLOR_TEXT_SEC).pack(side="left")
+        self.lbl_leg_ref_icon = ctk.CTkLabel(f_ref, text="····", font=ctk.CTkFont(size=10, weight="bold"), text_color="#A855F7")
+        self.lbl_leg_ref_icon.pack(side="left", padx=(0, 2))
+        self.lbl_leg_ref_text = ctk.CTkLabel(f_ref, text="Organisation", font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9), text_color=ui.COLOR_TEXT_SEC)
+        self.lbl_leg_ref_text.pack(side="left")
 
         # Matplotlib Chart Canvas container
         self.canvas_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -2161,9 +2167,44 @@ class MainTrendChartWidget(ctk.CTkFrame):
 
         m_name = self._chart_data.get("metric_name", "Selected Metric")
         self.lbl_title.configure(text=f"{m_name} — Trajectory & Benchmark Evaluation")
-        self.lbl_subtitle.configure(text=f"Actual vs {benchmark_label} Benchmark • Trailing baseline • Decision markers")
-        bn_short = "Org Benchmark" if "organis" in benchmark_label.lower() else f"{benchmark_label}"
-        self.lbl_leg_bn_text.configure(text=bn_short)
+
+        is_comp = (self._chart_data.get("comparison_mode") in ("EMPLOYEE", "MANAGER")) or self._chart_data.get("is_comparison_mode", False)
+
+        if is_comp:
+            entity_name = self._chart_data.get("entity_name", "Selected Entity")
+            dept_name = self._chart_data.get("dept_name", "Department")
+            bu_name = self._chart_data.get("bu_name", "Business Unit")
+            self.lbl_subtitle.configure(text=f"{entity_name} vs Department, Business Unit & Organisation Benchmarks")
+
+            ent_disp = f"{entity_name[:16]}..." if len(entity_name) > 16 else entity_name
+            self.lbl_leg_act_icon.configure(text="━●", text_color="#38BDF8")
+            self.lbl_leg_act_text.configure(text=ent_disp)
+
+            dept_disp = f"Dept ({dept_name[:10]}...)" if len(dept_name) > 10 else f"Dept ({dept_name})"
+            self.lbl_leg_bn_icon.configure(text="╍╍", text_color="#F59E0B")
+            self.lbl_leg_bn_text.configure(text=dept_disp)
+
+            bu_disp = f"BU ({bu_name[:10]}...)" if len(bu_name) > 10 else f"BU ({bu_name})"
+            self.lbl_leg_hist_icon.configure(text="╍·", text_color="#10B981")
+            self.lbl_leg_hist_text.configure(text=bu_disp)
+
+            self.lbl_leg_ref_icon.configure(text="····", text_color="#A855F7")
+            self.lbl_leg_ref_text.configure(text="Org Benchmark")
+        else:
+            self.lbl_subtitle.configure(text=f"Actual vs {benchmark_label} Benchmark • Trailing baseline • Decision markers")
+            bn_short = "Org Benchmark" if "organis" in benchmark_label.lower() else f"{benchmark_label}"
+
+            self.lbl_leg_act_icon.configure(text="━●", text_color="#06B6D4")
+            self.lbl_leg_act_text.configure(text="Actual")
+
+            self.lbl_leg_bn_icon.configure(text="╍╍", text_color="#F59E0B")
+            self.lbl_leg_bn_text.configure(text=bn_short)
+
+            self.lbl_leg_hist_icon.configure(text="····", text_color="#8B5CF6")
+            self.lbl_leg_hist_text.configure(text="Historical")
+
+            self.lbl_leg_ref_icon.configure(text="■", text_color="#1E293B")
+            self.lbl_leg_ref_text.configure(text="Normal Range")
 
         self._draw_chart()
 
@@ -2234,13 +2275,34 @@ class MainTrendChartWidget(ctk.CTkFrame):
         hs_f = p.get("historical_formatted", "—")
         obs = p.get("evaluable", 0)
 
-        tip_lines = [
-            f"{p_name}",
-            f"Actual: {act_f}",
-            f"{self._benchmark_label}: {bn_f}",
-            f"Historical: {hs_f}",
-            f"Volume: {obs:,} obs",
-        ]
+        is_comp = (self._chart_data.get("comparison_mode") in ("EMPLOYEE", "MANAGER")) or self._chart_data.get("is_comparison_mode", False)
+        if is_comp:
+            entity_name = self._chart_data.get("entity_name", "Entity")
+            dept_name = self._chart_data.get("dept_name", "Dept")
+            bu_name = self._chart_data.get("bu_name", "BU")
+            dept_f = p.get("dept_benchmark_formatted", "—")
+            bu_f = p.get("bu_benchmark_formatted", "—")
+            org_f = p.get("org_benchmark_formatted", bn_f)
+            gap_dp = p.get("gap_vs_dept_formatted", "—")
+            gap_bu = p.get("gap_vs_bu_formatted", "—")
+            gap_og = p.get("gap_vs_org_formatted", "—")
+
+            tip_lines = [
+                f"{p_name}",
+                f"● {entity_name[:14]}: {act_f}",
+                f"╍ Dept ({dept_name[:10]}): {dept_f} (gap: {gap_dp})",
+                f"╍· BU ({bu_name[:10]}): {bu_f} (gap: {gap_bu})",
+                f"·· Org Benchmark: {org_f} (gap: {gap_og})",
+                f"Volume: {obs:,} obs",
+            ]
+        else:
+            tip_lines = [
+                f"{p_name}",
+                f"Actual: {act_f}",
+                f"{self._benchmark_label}: {bn_f}",
+                f"Historical: {hs_f}",
+                f"Volume: {obs:,} obs",
+            ]
         if p.get("is_regression"):
             tip_lines.append("⚠️ Regression Flagged")
         if p.get("is_low_volume"):
@@ -2911,7 +2973,392 @@ class BusinessUnitRankingLollipopWidget(ctk.CTkFrame):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 7. Multi-Dimension Business Unit Benchmark Comparison Table Widget
+# 7. Contextual Summary Widget (Employee / Manager Comparison Mode)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ContextualSummaryWidget(ctk.CTkFrame):
+    """
+    Contextual Evaluation Summary Card for Employee / Manager comparison modes.
+    Replaces the company-wide BU ranking lollipop chart when an Employee or Manager is selected.
+    Displays:
+    - Current Month comparison (Entity vs Dept vs BU vs Org)
+    - 3-Month Average comparison (Entity vs Dept vs BU vs Org)
+    - Benchmark Gap Analysis (vs Dept, vs BU, vs Org with directional color coding)
+    """
+    def __init__(self, parent, **kwargs):
+        kwargs.setdefault("corner_radius", 10)
+        kwargs.setdefault("fg_color", ui.COLOR_CARD)
+        kwargs.setdefault("border_width", 1)
+        kwargs.setdefault("border_color", ui.COLOR_BORDER)
+        super().__init__(parent, **kwargs)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+
+        # Header Title Block
+        hdr = ctk.CTkFrame(self, fg_color="transparent")
+        hdr.grid(row=0, column=0, sticky="ew", padx=12, pady=(8, 4))
+        hdr.grid_columnconfigure(0, weight=1)
+
+        t_box = ctk.CTkFrame(hdr, fg_color="transparent")
+        t_box.grid(row=0, column=0, sticky="w")
+        self.lbl_title = ctk.CTkLabel(
+            t_box,
+            text="Contextual Evaluation Summary",
+            font=ctk.CTkFont(family=ui.FONT_FAMILY, size=12, weight="bold"),
+            text_color=ui.COLOR_TEXT,
+            anchor="w",
+        )
+        self.lbl_title.pack(anchor="w")
+        self.lbl_sub = ctk.CTkLabel(
+            t_box,
+            text="Selected Entity vs Department, Business Unit & Organisation benchmarks",
+            font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9),
+            text_color=ui.COLOR_TEXT_SEC,
+            anchor="w",
+        )
+        self.lbl_sub.pack(anchor="w")
+
+        # Content container
+        self.body_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.body_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 8))
+        self.body_frame.grid_columnconfigure(0, weight=1)
+
+    def update_data(self, summary_data: Dict[str, Any], lower_is_better: bool = True):
+        for child in self.body_frame.winfo_children():
+            child.destroy()
+
+        if not summary_data:
+            ctk.CTkLabel(
+                self.body_frame,
+                text="No contextual summary data available",
+                font=ctk.CTkFont(family=ui.FONT_FAMILY, size=10),
+                text_color=ui.COLOR_TEXT_DIM,
+            ).pack(pady=20)
+            return
+
+        entity_name = summary_data.get("entity_name", "Selected Entity")
+        dept_name = summary_data.get("dept_name", "Department")
+        bu_name = summary_data.get("bu_name", "Business Unit")
+        curr_month = summary_data.get("current_month_display", "Current Month")
+        curr = summary_data.get("current", {})
+        avg3m = summary_data.get("three_month_avg", {})
+
+        self.lbl_sub.configure(
+            text=f"{entity_name} • Dept: {dept_name} • BU: {bu_name}"
+        )
+
+        # 1. Grid of Current Month vs 3M Average (2 columns)
+        perf_grid = ctk.CTkFrame(self.body_frame, fg_color="transparent")
+        perf_grid.pack(fill="x", pady=(2, 6))
+        perf_grid.grid_columnconfigure(0, weight=1)
+        perf_grid.grid_columnconfigure(1, weight=1)
+
+        # Left Column: Current Month
+        card_curr = ctk.CTkFrame(perf_grid, fg_color="#0F172A", corner_radius=6, border_width=1, border_color="#1E293B")
+        card_curr.grid(row=0, column=0, sticky="nsew", padx=(0, 3))
+        card_curr.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            card_curr,
+            text=f"📅 {curr_month}",
+            font=ctk.CTkFont(family=ui.FONT_FAMILY, size=10, weight="bold"),
+            text_color="#94A3B8",
+            anchor="w",
+        ).pack(anchor="w", padx=8, pady=(6, 4))
+
+        self._render_metric_row(card_curr, "Entity", curr.get("entity", "—"), "#38BDF8", is_bold=True)
+        self._render_metric_row(card_curr, f"Dept ({dept_name[:10]})", curr.get("dept", "—"), "#F59E0B")
+        self._render_metric_row(card_curr, f"BU ({bu_name[:10]})", curr.get("bu", "—"), "#10B981")
+        self._render_metric_row(card_curr, "Org Benchmark", curr.get("org", "—"), "#C084FC", is_last=True)
+
+        # Right Column: 3-Month Average
+        card_3m = ctk.CTkFrame(perf_grid, fg_color="#0F172A", corner_radius=6, border_width=1, border_color="#1E293B")
+        card_3m.grid(row=0, column=1, sticky="nsew", padx=(3, 0))
+        card_3m.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            card_3m,
+            text="⏱ Trailing 3-Month Avg",
+            font=ctk.CTkFont(family=ui.FONT_FAMILY, size=10, weight="bold"),
+            text_color="#94A3B8",
+            anchor="w",
+        ).pack(anchor="w", padx=8, pady=(6, 4))
+
+        self._render_metric_row(card_3m, "Entity", avg3m.get("entity", "—"), "#38BDF8", is_bold=True)
+        self._render_metric_row(card_3m, f"Dept ({dept_name[:10]})", avg3m.get("dept", "—"), "#F59E0B")
+        self._render_metric_row(card_3m, f"BU ({bu_name[:10]})", avg3m.get("bu", "—"), "#10B981")
+        self._render_metric_row(card_3m, "Org Benchmark", avg3m.get("org", "—"), "#C084FC", is_last=True)
+
+        # 2. Benchmark Gap Analysis Section
+        gap_frame = ctk.CTkFrame(self.body_frame, fg_color="#0B132B", corner_radius=6, border_width=1, border_color="#1E293B")
+        gap_frame.pack(fill="x", pady=(2, 0))
+        gap_frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            gap_frame,
+            text="BENCHMARK GAP ANALYSIS (CURRENT MONTH)",
+            font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9, weight="bold"),
+            text_color="#64748B",
+            anchor="w",
+        ).pack(anchor="w", padx=8, pady=(6, 4))
+
+        gap_dept_str = curr.get("gap_dept", "—")
+        gap_bu_str = curr.get("gap_bu", "—")
+        gap_org_str = curr.get("gap_org", "—")
+
+        self._render_gap_row(gap_frame, f"vs Department Benchmark ({dept_name})", gap_dept_str, lower_is_better)
+        self._render_gap_row(gap_frame, f"vs Business Unit Benchmark ({bu_name})", gap_bu_str, lower_is_better)
+        self._render_gap_row(gap_frame, "vs Organisation Benchmark", gap_org_str, lower_is_better, is_last=True)
+
+    def _render_metric_row(self, parent: ctk.CTkFrame, label: str, value: str, color: str, is_bold: bool = False, is_last: bool = False):
+        row = ctk.CTkFrame(parent, fg_color="transparent")
+        row.pack(fill="x", padx=8, pady=(1, 4 if is_last else 1))
+        row.grid_columnconfigure(0, weight=1)
+        row.grid_columnconfigure(1, weight=0)
+
+        ctk.CTkLabel(
+            row,
+            text=label,
+            font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9, weight="bold" if is_bold else "normal"),
+            text_color=ui.COLOR_TEXT_SEC if not is_bold else ui.COLOR_TEXT,
+            anchor="w",
+        ).grid(row=0, column=0, sticky="w")
+
+        ctk.CTkLabel(
+            row,
+            text=value,
+            font=ctk.CTkFont(family=ui.FONT_FAMILY, size=10, weight="bold"),
+            text_color=color,
+            anchor="e",
+        ).grid(row=0, column=1, sticky="e")
+
+    def _render_gap_row(self, parent: ctk.CTkFrame, label: str, gap_str: str, lower_is_better: bool, is_last: bool = False):
+        row = ctk.CTkFrame(parent, fg_color="transparent")
+        row.pack(fill="x", padx=8, pady=(2, 6 if is_last else 2))
+        row.grid_columnconfigure(0, weight=1)
+        row.grid_columnconfigure(1, weight=0)
+
+        ctk.CTkLabel(
+            row,
+            text=label,
+            font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9),
+            text_color=ui.COLOR_TEXT,
+            anchor="w",
+        ).grid(row=0, column=0, sticky="w")
+
+        val_clean = str(gap_str).strip().replace("pp", "").replace("d", "").replace("%", "").strip()
+        try:
+            num = float(val_clean)
+            if abs(num) < 0.001:
+                badge_bg = "#1E293B"
+                badge_fg = "#94A3B8"
+            elif lower_is_better:
+                badge_bg = "#064E3B" if num < 0 else "#4C0519"
+                badge_fg = "#34D399" if num < 0 else "#FB7185"
+            else:
+                badge_bg = "#064E3B" if num > 0 else "#4C0519"
+                badge_fg = "#34D399" if num > 0 else "#FB7185"
+        except Exception:
+            badge_bg = "#1E293B"
+            badge_fg = "#94A3B8"
+
+        badge = ctk.CTkFrame(row, fg_color=badge_bg, corner_radius=4)
+        badge.grid(row=0, column=1, sticky="e")
+        ctk.CTkLabel(
+            badge,
+            text=f" {gap_str} ",
+            font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9, weight="bold"),
+            text_color=badge_fg,
+        ).pack(padx=4, pady=1)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. Contextual Comparison Matrix Widget (Employee / Manager Comparison Mode)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ContextualComparisonWidget(ctk.CTkFrame):
+    """
+    Contextual Trend Comparison Matrix for Employee / Manager comparison modes.
+    Replaces the company-wide BU heatmap when an Employee or Manager is selected.
+    Displays: Month x [Entity, Dept Benchmark, BU Benchmark, Org Benchmark, Gap vs Dept, Gap vs Org]
+    along with summary rows for Current Month and 3-Month Average.
+    """
+    def __init__(self, parent, **kwargs):
+        kwargs.setdefault("corner_radius", 10)
+        kwargs.setdefault("fg_color", ui.COLOR_CARD)
+        kwargs.setdefault("border_width", 1)
+        kwargs.setdefault("border_color", ui.COLOR_BORDER)
+        super().__init__(parent, **kwargs)
+        self.grid_columnconfigure(0, weight=1)
+
+        # Header Title Block
+        hdr = ctk.CTkFrame(self, fg_color="transparent")
+        hdr.grid(row=0, column=0, sticky="ew", padx=12, pady=(8, 4))
+        hdr.grid_columnconfigure(0, weight=1)
+
+        t_box = ctk.CTkFrame(hdr, fg_color="transparent")
+        t_box.grid(row=0, column=0, sticky="w")
+        self.lbl_title = ctk.CTkLabel(
+            t_box,
+            text="Contextual Trend Matrix",
+            font=ctk.CTkFont(family=ui.FONT_FAMILY, size=12, weight="bold"),
+            text_color=ui.COLOR_TEXT,
+            anchor="w",
+        )
+        self.lbl_title.pack(anchor="w")
+        self.lbl_sub = ctk.CTkLabel(
+            t_box,
+            text="Monthly progression across Entity, Department, BU, and Organisation benchmarks",
+            font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9),
+            text_color=ui.COLOR_TEXT_SEC,
+            anchor="w",
+        )
+        self.lbl_sub.pack(anchor="w")
+
+        # Table Header Row (Row 1)
+        self.hdr_frame = ctk.CTkFrame(self, fg_color="#1E293B", corner_radius=4, height=28)
+        self.hdr_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 2))
+        self._configure_cols(self.hdr_frame)
+
+        self.hdr_labels: List[ctk.CTkLabel] = []
+        col_defs = [
+            ("month", "Month"),
+            ("entity", "Entity"),
+            ("dept", "Dept Benchmark"),
+            ("bu", "BU Benchmark"),
+            ("org", "Org Benchmark"),
+            ("gap_dept", "Gap vs Dept"),
+            ("gap_org", "Gap vs Org"),
+        ]
+        for c_idx, (cid, cname) in enumerate(col_defs):
+            lbl = ctk.CTkLabel(
+                self.hdr_frame,
+                text=cname,
+                font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9, weight="bold"),
+                text_color=ui.COLOR_TEXT_DIM,
+                anchor="w",
+            )
+            lbl.grid(row=0, column=c_idx, sticky="nsew", padx=6, pady=4)
+            self.hdr_labels.append(lbl)
+
+        # Rows Container (Row 2)
+        self.rows_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.rows_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=(0, 2))
+        self.rows_frame.grid_columnconfigure(0, weight=1)
+
+        # Summary Frame (Row 3)
+        self.summary_frame = ctk.CTkFrame(self, fg_color="#1E293B", corner_radius=4, border_width=1, border_color="#334155")
+        self.summary_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=(2, 8))
+        self._configure_cols(self.summary_frame)
+
+    def _configure_cols(self, container: ctk.CTkFrame):
+        weights = (2, 2, 2, 2, 2, 2, 2)
+        for c_idx, w in enumerate(weights):
+            container.grid_columnconfigure(c_idx, weight=w, minsize=0, uniform="ctx_comp_col")
+        container.grid_rowconfigure(0, weight=1)
+
+    def update_data(self, comp_data: Dict[str, Any], lower_is_better: bool = True):
+        for child in self.rows_frame.winfo_children():
+            child.destroy()
+        for child in self.summary_frame.winfo_children():
+            child.destroy()
+
+        if not comp_data:
+            ctk.CTkLabel(
+                self.rows_frame,
+                text="No contextual comparison data available",
+                font=ctk.CTkFont(family=ui.FONT_FAMILY, size=10),
+                text_color=ui.COLOR_TEXT_DIM,
+            ).pack(pady=15)
+            return
+
+        entity_name = comp_data.get("entity_name", "Entity")
+        dept_name = comp_data.get("dept_name", "Dept")
+        bu_name = comp_data.get("bu_name", "BU")
+
+        # Update column headers if dynamic
+        if len(self.hdr_labels) >= 5:
+            self.hdr_labels[1].configure(text=f"{entity_name[:12]}..." if len(entity_name) > 12 else entity_name)
+            self.hdr_labels[2].configure(text=f"Dept ({dept_name[:8]}...) " if len(dept_name) > 8 else f"Dept ({dept_name})")
+            self.hdr_labels[3].configure(text=f"BU ({bu_name[:8]}...) " if len(bu_name) > 8 else f"BU ({bu_name})")
+
+        rows = comp_data.get("rows", [])
+        summary_rows = comp_data.get("summary_rows", [])
+
+        # Render data rows
+        for r_idx, r in enumerate(rows):
+            bg = "#0B132B" if r_idx % 2 == 1 else "transparent"
+            rf = ctk.CTkFrame(self.rows_frame, fg_color=bg, corner_radius=3, height=26)
+            rf.pack(fill="x", pady=1)
+            self._configure_cols(rf)
+
+            m_txt = r.get("period_display", r.get("period", ""))
+            ent_txt = r.get("entity", "—")
+            dept_txt = r.get("dept", "—")
+            bu_txt = r.get("bu", "—")
+            org_txt = r.get("org", "—")
+            gap_dp = r.get("gap_dept", "—")
+            gap_og = r.get("gap_org", "—")
+
+            ctk.CTkLabel(rf, text=m_txt, font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9), text_color=ui.COLOR_TEXT, anchor="w").grid(row=0, column=0, sticky="nsew", padx=6, pady=2)
+            ctk.CTkLabel(rf, text=ent_txt, font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9, weight="bold"), text_color="#38BDF8", anchor="w").grid(row=0, column=1, sticky="nsew", padx=6, pady=2)
+            ctk.CTkLabel(rf, text=dept_txt, font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9), text_color="#F59E0B", anchor="w").grid(row=0, column=2, sticky="nsew", padx=6, pady=2)
+            ctk.CTkLabel(rf, text=bu_txt, font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9), text_color="#10B981", anchor="w").grid(row=0, column=3, sticky="nsew", padx=6, pady=2)
+            ctk.CTkLabel(rf, text=org_txt, font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9), text_color="#C084FC", anchor="w").grid(row=0, column=4, sticky="nsew", padx=6, pady=2)
+            self._render_gap_badge(rf, gap_dp, lower_is_better, column=5)
+            self._render_gap_badge(rf, gap_og, lower_is_better, column=6)
+
+        # Render summary rows (e.g. Current Month, 3M Average)
+        for s_idx, sr in enumerate(summary_rows):
+            s_lbl = sr.get("label", "Summary")
+            s_ent = sr.get("entity", "—")
+            s_dept = sr.get("dept", "—")
+            s_bu = sr.get("bu", "—")
+            s_org = sr.get("org", "—")
+            s_g_dp = sr.get("gap_dept", "—")
+            s_g_og = sr.get("gap_org", "—")
+
+            srf = ctk.CTkFrame(self.summary_frame, fg_color="transparent", height=24)
+            srf.pack(fill="x", pady=1)
+            self._configure_cols(srf)
+
+            ctk.CTkLabel(srf, text=s_lbl, font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9, weight="bold"), text_color="#F8FAFC", anchor="w").grid(row=0, column=0, sticky="nsew", padx=6, pady=2)
+            ctk.CTkLabel(srf, text=s_ent, font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9, weight="bold"), text_color="#38BDF8", anchor="w").grid(row=0, column=1, sticky="nsew", padx=6, pady=2)
+            ctk.CTkLabel(srf, text=s_dept, font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9, weight="bold"), text_color="#F59E0B", anchor="w").grid(row=0, column=2, sticky="nsew", padx=6, pady=2)
+            ctk.CTkLabel(srf, text=s_bu, font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9, weight="bold"), text_color="#10B981", anchor="w").grid(row=0, column=3, sticky="nsew", padx=6, pady=2)
+            ctk.CTkLabel(srf, text=s_org, font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9, weight="bold"), text_color="#C084FC", anchor="w").grid(row=0, column=4, sticky="nsew", padx=6, pady=2)
+            self._render_gap_badge(srf, s_g_dp, lower_is_better, column=5)
+            self._render_gap_badge(srf, s_g_og, lower_is_better, column=6)
+
+    def _render_gap_badge(self, parent: ctk.CTkFrame, gap_str: str, lower_is_better: bool, column: int):
+        val_clean = str(gap_str).strip().replace("pp", "").replace("d", "").replace("%", "").strip()
+        try:
+            num = float(val_clean)
+            if abs(num) < 0.001:
+                badge_bg = "transparent"
+                badge_fg = "#94A3B8"
+            elif lower_is_better:
+                badge_bg = "#064E3B" if num < 0 else "#4C0519"
+                badge_fg = "#34D399" if num < 0 else "#FB7185"
+            else:
+                badge_bg = "#064E3B" if num > 0 else "#4C0519"
+                badge_fg = "#34D399" if num > 0 else "#FB7185"
+        except Exception:
+            badge_bg = "transparent"
+            badge_fg = "#94A3B8"
+
+        b_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        b_frame.grid(row=0, column=column, sticky="w", padx=6, pady=2)
+        if badge_bg != "transparent":
+            pill = ctk.CTkFrame(b_frame, fg_color=badge_bg, corner_radius=3)
+            pill.pack(side="left")
+            ctk.CTkLabel(pill, text=f" {gap_str} ", font=ctk.CTkFont(family=ui.FONT_FAMILY, size=8, weight="bold"), text_color=badge_fg).pack(padx=2, pady=1)
+        else:
+            ctk.CTkLabel(b_frame, text=gap_str, font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9), text_color=badge_fg).pack(side="left")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. Multi-Dimension Benchmark Comparison Table Widget
 # ─────────────────────────────────────────────────────────────────────────────
 
 TREND_BENCHMARK_COLUMNS: List[Tuple[str, str, int, str]] = [
@@ -2930,6 +3377,7 @@ class TrendBenchmarkTableWidget(ctk.CTkFrame):
     Multi-Dimension Benchmark Comparison Table:
     Columns: Business Unit | Current | 3M Average | Organisation | Historical | Gap vs Org | Trajectory | Confidence / Volume
     Renders directly in page flow with compact 28px rows and locked pixel-perfect left-aligned column headers and values.
+    Supports both Normal mode (BU comparison) and Contextual mode (Entity vs Dept vs BU vs Org tiers).
     """
     def __init__(self, parent, on_bu_click: Optional[Callable[[str], None]] = None, **kwargs):
         kwargs.setdefault("corner_radius", 10)
@@ -2948,36 +3396,39 @@ class TrendBenchmarkTableWidget(ctk.CTkFrame):
 
         t_box = ctk.CTkFrame(hdr, fg_color="transparent")
         t_box.grid(row=0, column=0, sticky="w")
-        lbl_title = ctk.CTkLabel(
+        self.lbl_title = ctk.CTkLabel(
             t_box,
             text="Business Unit Benchmark Comparison",
             font=ctk.CTkFont(family=ui.FONT_FAMILY, size=12, weight="bold"),
             text_color=ui.COLOR_TEXT,
             anchor="w",
         )
-        lbl_title.pack(anchor="w")
-        lbl_sub = ctk.CTkLabel(
+        self.lbl_title.pack(anchor="w")
+        self.lbl_sub = ctk.CTkLabel(
             t_box,
             text="Current performance vs 3M Average, Organisation Benchmark & Historical Baseline",
             font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9),
             text_color=ui.COLOR_TEXT_SEC,
             anchor="w",
         )
-        lbl_sub.pack(anchor="w")
+        self.lbl_sub.pack(anchor="w")
 
         # Table Header Row (Row 1)
         self.hdr_frame = ctk.CTkFrame(self, fg_color="#1E293B", corner_radius=4, height=28)
         self.hdr_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 2))
         self._configure_columns(self.hdr_frame)
 
+        self.hdr_labels: List[ctk.CTkLabel] = []
         for c_idx, (col_id, col_name, col_w, _) in enumerate(TREND_BENCHMARK_COLUMNS):
-            ctk.CTkLabel(
+            lbl = ctk.CTkLabel(
                 self.hdr_frame,
                 text=col_name,
                 font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9, weight="bold"),
                 text_color=ui.COLOR_TEXT_DIM,
                 anchor="w",
-            ).grid(row=0, column=c_idx, sticky="nsew", padx=10, pady=4)
+            )
+            lbl.grid(row=0, column=c_idx, sticky="nsew", padx=10, pady=4)
+            self.hdr_labels.append(lbl)
 
         # Rows Container (Row 2)
         self.rows_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -3005,14 +3456,27 @@ class TrendBenchmarkTableWidget(ctk.CTkFrame):
 
         rows = self._table_data.get("rows", [])
         total = self._table_data.get("total", {})
+        is_comp = self._table_data.get("is_comparison_mode", False)
+
+        if is_comp:
+            self.lbl_title.configure(text="Contextual Multi-Tier Benchmark Comparison")
+            self.lbl_sub.configure(text="Entity performance vs Department, Business Unit, and Organisation benchmarks")
+            if self.hdr_labels:
+                self.hdr_labels[0].configure(text="Entity / Benchmark Tier")
+        else:
+            self.lbl_title.configure(text="Business Unit Benchmark Comparison")
+            self.lbl_sub.configure(text="Current performance vs 3M Average, Organisation Benchmark & Historical Baseline")
+            if self.hdr_labels:
+                self.hdr_labels[0].configure(text="Business Unit")
 
         if not rows:
             ctk.CTkLabel(
                 self.rows_frame,
-                text="No Business Unit comparison data available",
+                text="No comparison data available",
                 font=ctk.CTkFont(family=ui.FONT_FAMILY, size=10),
                 text_color=ui.COLOR_TEXT_DIM,
             ).pack(pady=15)
+            self.total_frame.grid_remove()
             return
 
         # Render rows
@@ -3061,12 +3525,23 @@ class TrendBenchmarkTableWidget(ctk.CTkFrame):
                 tr_bg = "#1E293B"
                 tr_col = "#94A3B8"
 
-            # Column 0: BU Name (Left-aligned)
+            # Column 0: BU / Tier Name
+            bu_col = ui.COLOR_TEXT
+            if is_comp:
+                if "Selected Employee" in bu_name or "Selected Manager" in bu_name:
+                    bu_col = "#38BDF8"
+                elif "Department Benchmark" in bu_name:
+                    bu_col = "#F59E0B"
+                elif "Business Unit Benchmark" in bu_name:
+                    bu_col = "#10B981"
+                elif "Organisation Benchmark" in bu_name:
+                    bu_col = "#C084FC"
+
             lbl_bu = ctk.CTkLabel(
                 row_frame,
                 text=bu_name,
                 font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9, weight="bold"),
-                text_color=ui.COLOR_TEXT,
+                text_color=bu_col,
                 anchor="w",
             )
             lbl_bu.grid(row=0, column=0, sticky="nsew", padx=10, pady=3)
@@ -3137,35 +3612,39 @@ class TrendBenchmarkTableWidget(ctk.CTkFrame):
             lbl_vol.grid(row=0, column=7, sticky="nsew", padx=10, pady=3)
             lbl_vol.bind("<Button-1>", _make_click())
 
-        # Render Total Pinned Row (Left-aligned)
-        tot_bu = total.get("business_unit", "Total (Organisation-Wide)")
-        tot_curr = total.get("current", "—")
-        tot_avg3m = total.get("three_month_avg", "—")
-        tot_org_b = total.get("org_benchmark", "—")
-        tot_hist = total.get("historical", "—")
-        tot_gap = total.get("gap", "—")
-        tot_trend = total.get("trend", "Stable")
-        tot_vol = total.get("volume", "—")
+        # Render Total Pinned Row (Left-aligned) if total exists
+        if not total:
+            self.total_frame.grid_remove()
+        else:
+            self.total_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=(2, 8))
+            tot_bu = total.get("business_unit", "Total (Organisation-Wide)")
+            tot_curr = total.get("current", "—")
+            tot_avg3m = total.get("three_month_avg", "—")
+            tot_org_b = total.get("org_benchmark", "—")
+            tot_hist = total.get("historical", "—")
+            tot_gap = total.get("gap", "—")
+            tot_trend = total.get("trend", "Stable")
+            tot_vol = total.get("volume", "—")
 
-        tot_vals = [
-            (0, tot_bu, ui.COLOR_TEXT, True),
-            (1, tot_curr, ui.COLOR_TEXT, True),
-            (2, tot_avg3m, ui.COLOR_TEXT_SEC, False),
-            (3, tot_org_b, "#F59E0B", False),
-            (4, tot_hist, "#8B5CF6", False),
-            (5, tot_gap, ui.COLOR_TEXT, False),
-            (6, tot_trend, ui.COLOR_TEXT, False),
-            (7, tot_vol, ui.COLOR_TEXT_DIM, False),
-        ]
+            tot_vals = [
+                (0, tot_bu, ui.COLOR_TEXT, True),
+                (1, tot_curr, ui.COLOR_TEXT, True),
+                (2, tot_avg3m, ui.COLOR_TEXT_SEC, False),
+                (3, tot_org_b, "#F59E0B", False),
+                (4, tot_hist, "#8B5CF6", False),
+                (5, tot_gap, ui.COLOR_TEXT, False),
+                (6, tot_trend, ui.COLOR_TEXT, False),
+                (7, tot_vol, ui.COLOR_TEXT_DIM, False),
+            ]
 
-        for c_idx, txt, col, is_bld in tot_vals:
-            ctk.CTkLabel(
-                self.total_frame,
-                text=txt,
-                font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9, weight="bold" if is_bld else "normal"),
-                text_color=col,
-                anchor="w",
-            ).grid(row=0, column=c_idx, sticky="nsew", padx=10, pady=4)
+            for c_idx, txt, col, is_bld in tot_vals:
+                ctk.CTkLabel(
+                    self.total_frame,
+                    text=txt,
+                    font=ctk.CTkFont(family=ui.FONT_FAMILY, size=9, weight="bold" if is_bld else "normal"),
+                    text_color=col,
+                    anchor="w",
+                ).grid(row=0, column=c_idx, sticky="nsew", padx=10, pady=4)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -3199,7 +3678,7 @@ class WorkforceDashboardView(ctk.CTkFrame):
         self._latest_trend_job_id: int = 0
         self._is_loading_trend: bool = False
         self._last_trend_bundle: Optional[Dict[str, Any]] = None
-        self._selected_trend_metric: str = "attendance_exception_rate"
+        self._selected_trend_metric: str = "missing_swipe_rate"
         self._selected_benchmark_type: str = "ORGANIZATION"
         self._trend_metric_name_to_id: Dict[str, str] = {}
         self._trend_metric_id_to_name: Dict[str, str] = {}
@@ -4725,7 +5204,7 @@ class WorkforceDashboardView(ctk.CTkFrame):
         ).grid(row=0, column=0, padx=(2, 6), sticky="w")
 
         metric_names = list(self._trend_metric_name_to_id.keys())
-        default_metric_name = self._trend_metric_id_to_name.get(self._selected_trend_metric, metric_names[0] if metric_names else "Attendance Exception Rate (%)")
+        default_metric_name = self._trend_metric_id_to_name.get(self._selected_trend_metric, metric_names[0] if metric_names else "Missing Swipe Rate (%)")
 
         self.combo_trend_metric = ui.SearchableDropdown(
             ctrl_inner,
@@ -4880,6 +5359,8 @@ class WorkforceDashboardView(ctk.CTkFrame):
         )
         self.bu_ranking_widget.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
 
+        self.contextual_summary_widget = ContextualSummaryWidget(hero_frame)
+
         # Section 3: Middle Row — BU Trend Heatmap (Left, 58%) + What Changed? Driver Attribution (Right, 42%)
         mid_frame = ctk.CTkFrame(self.trends_content_frame, fg_color="transparent")
         mid_frame.grid(row=2, column=0, sticky="ew", pady=(0, 6))
@@ -4891,6 +5372,8 @@ class WorkforceDashboardView(ctk.CTkFrame):
             on_bu_click=self._on_heatmap_bu_click,
         )
         self.bu_heatmap_widget.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+
+        self.contextual_comparison_widget = ContextualComparisonWidget(mid_frame)
 
         self.what_changed_widget = WhatChangedWidget(mid_frame)
         self.what_changed_widget.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
@@ -4926,7 +5409,19 @@ class WorkforceDashboardView(ctk.CTkFrame):
 
     def _on_trend_metric_selected(self, val: str):
         val = val.strip()
-        metric_id = self._trend_metric_name_to_id.get(val, "attendance_exception_rate")
+        metric_id = None
+        if val in self._trend_metric_name_to_id:
+            metric_id = self._trend_metric_name_to_id[val]
+        elif val in self._trend_metric_id_to_name:
+            metric_id = val
+        else:
+            val_lower = val.lower()
+            for name, m_id in self._trend_metric_name_to_id.items():
+                if val_lower == name.lower() or val_lower == m_id.lower() or val_lower in name.lower() or name.lower().startswith(val_lower):
+                    metric_id = m_id
+                    break
+        if not metric_id:
+            metric_id = "missing_swipe_rate"
         if metric_id != self._selected_trend_metric:
             self._selected_trend_metric = metric_id
             self._load_trend_metrics()
@@ -5110,30 +5605,60 @@ class WorkforceDashboardView(ctk.CTkFrame):
         if hasattr(self, "main_trend_chart"):
             self.main_trend_chart.update_data(chart_data, benchmark_label=bench_lbl)
 
-        # 3. BU Trend Heatmap
-        heatmap_data = bundle.get("heatmap", {})
-        if hasattr(self, "bu_heatmap_widget"):
-            self.bu_heatmap_widget.update_data(heatmap_data)
+        # Determine metric direction
+        metric_id = bundle.get("metric_id", "")
+        meta = TREND_METRICS.get(metric_id)
+        if meta is not None:
+            lower_is_better = getattr(meta, "direction", "lower_is_better") == "lower_is_better"
+        else:
+            metric_def = bundle.get("metric_def", {})
+            if isinstance(metric_def, dict):
+                lower_is_better = metric_def.get("direction", "lower_is_better") == "lower_is_better"
+            else:
+                lower_is_better = getattr(metric_def, "direction", "lower_is_better") == "lower_is_better"
 
-        # 4. What Changed?
+        is_comp_mode = bundle.get("comparison_mode") in ("EMPLOYEE", "MANAGER")
+
+        # 3. Hero Col 1: Contextual Summary vs BU Ranking Lollipop
+        table_data = bundle.get("benchmark_table", {})
+        if is_comp_mode:
+            if hasattr(self, "bu_ranking_widget"):
+                self.bu_ranking_widget.grid_remove()
+            if hasattr(self, "contextual_summary_widget"):
+                self.contextual_summary_widget.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
+                self.contextual_summary_widget.update_data(
+                    bundle.get("contextual_summary", {}),
+                    lower_is_better=lower_is_better,
+                )
+        else:
+            if hasattr(self, "contextual_summary_widget"):
+                self.contextual_summary_widget.grid_remove()
+            if hasattr(self, "bu_ranking_widget"):
+                self.bu_ranking_widget.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
+                self.bu_ranking_widget.update_data(table_data, lower_is_better=lower_is_better)
+
+        # 4. Mid Col 0: Contextual Comparison Matrix vs BU Heatmap
+        heatmap_data = bundle.get("heatmap", {})
+        if is_comp_mode:
+            if hasattr(self, "bu_heatmap_widget"):
+                self.bu_heatmap_widget.grid_remove()
+            if hasattr(self, "contextual_comparison_widget"):
+                self.contextual_comparison_widget.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+                self.contextual_comparison_widget.update_data(
+                    bundle.get("contextual_comparison", {}),
+                    lower_is_better=lower_is_better,
+                )
+        else:
+            if hasattr(self, "contextual_comparison_widget"):
+                self.contextual_comparison_widget.grid_remove()
+            if hasattr(self, "bu_heatmap_widget"):
+                self.bu_heatmap_widget.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+                self.bu_heatmap_widget.update_data(heatmap_data)
+
+        # 5. What Changed?
         what_changed_data = bundle.get("what_changed", {})
         if hasattr(self, "what_changed_widget"):
             self.what_changed_widget.update_data(what_changed_data)
-
-        # 5. BU Benchmark Ranking Lollipop
-        table_data = bundle.get("benchmark_table", {})
-        if hasattr(self, "bu_ranking_widget"):
-            metric_id = bundle.get("metric_id", "")
-            meta = TREND_METRICS.get(metric_id)
-            if meta is not None:
-                lower_is_better = getattr(meta, "direction", "lower_is_better") == "lower_is_better"
-            else:
-                metric_def = bundle.get("metric_def", {})
-                if isinstance(metric_def, dict):
-                    lower_is_better = metric_def.get("direction", "lower_is_better") == "lower_is_better"
-                else:
-                    lower_is_better = getattr(metric_def, "direction", "lower_is_better") == "lower_is_better"
-            self.bu_ranking_widget.update_data(table_data, lower_is_better=lower_is_better)
 
         # 6. Emerging Patterns
         patterns_data = bundle.get("patterns", [])
