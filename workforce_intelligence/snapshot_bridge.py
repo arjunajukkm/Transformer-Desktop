@@ -84,6 +84,20 @@ def _norm_emp(val: Optional[str]) -> Optional[str]:
     return s
 
 
+def _safe_point_volume(pt: Optional[Dict[str, Any]]) -> int:
+    """Extract evaluable volume or valid observation count as guaranteed integer >= 0."""
+    if not pt or not isinstance(pt, dict):
+        return 0
+    for key in ("evaluable", "valid_observation_count", "denominator", "total_applicable"):
+        val = pt.get(key)
+        if val is not None and not pd.isna(val):
+            try:
+                return max(0, int(val))
+            except (ValueError, TypeError):
+                pass
+    return 0
+
+
 def _filter_workforce_df(
     df: pd.DataFrame,
     business_unit: Optional[str] = None,
@@ -1108,8 +1122,7 @@ class WorkforceIntelligenceBridge:
 
         valid_obs = 0
         if scope_series:
-            latest_scope_pt = scope_series[-1]
-            valid_obs = latest_scope_pt.get("evaluable", 0) or latest_scope_pt.get("valid_observation_count", 0) or latest_scope_pt.get("total_applicable", 0) or 0
+            valid_obs = _safe_point_volume(scope_series[-1])
         vol_status = scope_trend.get("volume_status") or ("HIGH" if valid_obs >= 50 else ("MODERATE" if valid_obs >= 10 else "LOW"))
         conf_label = f"{vol_status.capitalize()} confidence · {valid_obs:,} observations" if valid_obs > 0 else "Low confidence · 0 observations"
 
@@ -1224,9 +1237,7 @@ class WorkforceIntelligenceBridge:
                 b_gap_val = None
                 b_gap_fmt = "—"
 
-            b_vol_count = 0
-            if b_series:
-                b_vol_count = b_series[-1].get("evaluable", 0) or b_series[-1].get("valid_observation_count", 0) or 0
+            b_vol_count = _safe_point_volume(b_series[-1]) if b_series else 0
             b_vol_st = b_tr.get("volume_status") or ("High" if b_vol_count >= 50 else ("Moderate" if b_vol_count >= 10 else "Low"))
             b_trend_dir = b_tr.get("trend_direction", "INSUFFICIENT_DATA")
 
@@ -1281,9 +1292,7 @@ class WorkforceIntelligenceBridge:
             })
 
         # Organization-Wide Total Row for Table
-        org_vol_cnt = 0
-        if org_series:
-            org_vol_cnt = org_series[-1].get("evaluable", 0) or org_series[-1].get("valid_observation_count", 0) or 0
+        org_vol_cnt = _safe_point_volume(org_series[-1]) if org_series else 0
         org_vol_st = org_trend.get("volume_status") or ("High" if org_vol_cnt >= 50 else "Moderate")
 
         org_total_row = {
@@ -1391,8 +1400,10 @@ class WorkforceIntelligenceBridge:
 
         if comparison_mode in ("EMPLOYEE", "MANAGER"):
             entity_type_title = "Selected Employee" if comparison_mode == "EMPLOYEE" else "Selected Manager Team"
-            dept_vol = dept_trend.get("time_series", [{}])[-1].get("evaluable", 0) if dept_trend.get("time_series") else 0
-            bu_vol = bu_benchmark_trend.get("time_series", [{}])[-1].get("evaluable", 0) if bu_benchmark_trend.get("time_series") else 0
+            dept_series_pts = dept_trend.get("time_series", [])
+            bu_series_pts = bu_benchmark_trend.get("time_series", [])
+            dept_vol = _safe_point_volume(dept_series_pts[-1]) if dept_series_pts else 0
+            bu_vol = _safe_point_volume(bu_series_pts[-1]) if bu_series_pts else 0
             comp_table_rows = [
                 {
                     "business_unit": f"{entity_label} ({entity_type_title})",
@@ -1415,7 +1426,7 @@ class WorkforceIntelligenceBridge:
                     "org_benchmark": latest_pt.get("org_benchmark_formatted", "—"),
                     "historical": hist_baseline_fmt,
                     "gap": format_benchmark_diff(round(latest_pt.get("dept_benchmark", 0) - latest_pt.get("org_benchmark", 0), 2) if latest_pt.get("dept_benchmark") is not None and latest_pt.get("org_benchmark") is not None else None, metric_def.format, metric_id),
-                    "gap_val": 0.0,
+                    "gap_val": round(latest_pt.get("dept_benchmark", 0) - latest_pt.get("org_benchmark", 0), 2) if latest_pt.get("dept_benchmark") is not None and latest_pt.get("org_benchmark") is not None else 0.0,
                     "trend": dept_trend.get("trend_direction", "STABLE").replace("_", " ").title(),
                     "volume": f"{dept_vol:,} observations",
                     "evaluable": dept_vol,
@@ -1428,7 +1439,7 @@ class WorkforceIntelligenceBridge:
                     "org_benchmark": latest_pt.get("org_benchmark_formatted", "—"),
                     "historical": hist_baseline_fmt,
                     "gap": format_benchmark_diff(round(latest_pt.get("bu_benchmark", 0) - latest_pt.get("org_benchmark", 0), 2) if latest_pt.get("bu_benchmark") is not None and latest_pt.get("org_benchmark") is not None else None, metric_def.format, metric_id),
-                    "gap_val": 0.0,
+                    "gap_val": round(latest_pt.get("bu_benchmark", 0) - latest_pt.get("org_benchmark", 0), 2) if latest_pt.get("bu_benchmark") is not None and latest_pt.get("org_benchmark") is not None else 0.0,
                     "trend": bu_benchmark_trend.get("trend_direction", "STABLE").replace("_", " ").title(),
                     "volume": f"{bu_vol:,} observations",
                     "evaluable": bu_vol,
@@ -1471,7 +1482,19 @@ class WorkforceIntelligenceBridge:
                 prefix = f"{entity_label}'s" if comparison_mode == "EMPLOYEE" else f"{entity_label}'s team"
                 if comparison_mode == "MANAGER" and is_approval_metric:
                     prefix = f"{entity_label}'s"
-                headline = f"{prefix} {metric_def.label} {dir_w} by {abs(tot_delta):.1f}{' pp' if metric_def.format == 'percentage' else ''} in {latest_p['period_display']} (from {prev_p['actual_formatted']} to {latest_p['actual_formatted']}), {dp_eval}."
+
+                if metric_def.format == "percentage":
+                    delta_unit_txt = f"{abs(tot_delta):.1f} pp"
+                elif metric_def.format == "days":
+                    delta_unit_txt = f"{abs(tot_delta):.1f} days"
+                elif metric_def.format in ("duration", "time"):
+                    delta_unit_txt = f"{abs(tot_delta):.0f} minutes"
+                elif metric_def.format == "integer":
+                    delta_unit_txt = f"{int(round(abs(tot_delta)))}"
+                else:
+                    delta_unit_txt = f"{abs(tot_delta):.1f}"
+
+                headline = f"{prefix} {metric_def.label} {dir_w} by {delta_unit_txt} in {latest_p['period_display']} (from {prev_p['actual_formatted']} to {latest_p['actual_formatted']}), {dp_eval}."
                 summary = f"{prefix} recorded {latest_p['actual_formatted']} in {latest_p['period_display']}. Department ({dept_label}) benchmark is {latest_p['dept_benchmark_formatted']} ({latest_p.get('gap_vs_dept_formatted', '—')}), Business Unit ({bu_label}) is {latest_p['bu_benchmark_formatted']} ({latest_p.get('gap_vs_bu_formatted', '—')}), and Organisation average is {latest_p['org_benchmark_formatted']} ({latest_p.get('gap_vs_org_formatted', '—')})."
 
                 drivers = [

@@ -693,6 +693,7 @@ def calculate_monthly_attendance(
             formatted_value=format_metric_value(rate, "percentage", metric_id),
             total_applicable=raw_eligible,
             evaluable=evaluable,
+            valid_observation_count=evaluable,
             excluded_data_quality=dq_ex,
             numerator=num,
             denominator=evaluable,
@@ -783,7 +784,9 @@ def calculate_monthly_approvals(
             period_display=format_period_label(p_month),
             value=val,
             formatted_value=format_metric_value(val, fmt_type, metric_id),
+            evaluable=valid_obs,
             valid_observation_count=valid_obs,
+            denominator=valid_obs,
             volume_status=vol_st,
             volume_label=vol_lbl,
         ))
@@ -905,7 +908,9 @@ def calculate_monthly_working_time(
             period_display=format_period_label(p_month),
             value=val,
             formatted_value=format_metric_value(val, fmt_type, metric_id),
+            evaluable=valid_obs,
             valid_observation_count=valid_obs,
+            denominator=valid_obs,
             volume_status=vol_st,
             volume_label=vol_lbl,
         ))
