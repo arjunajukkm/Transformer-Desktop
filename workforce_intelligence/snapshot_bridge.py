@@ -972,7 +972,7 @@ class WorkforceIntelligenceBridge:
                 )
 
         # 2. Main Scoped Trend & Benchmarks via Vectorized OLAP Engine (< 5ms)
-        if self._olap_engine is not None and metric_def.category in ("Attendance", "Working Time"):
+        if self._olap_engine is not None:
             scope_trend = self._olap_engine.query_trend_response(
                 metric_id=metric_id,
                 business_unit=business_unit,
@@ -980,15 +980,21 @@ class WorkforceIntelligenceBridge:
                 manager=manager,
                 employee=employee,
                 date_range=date_range,
+                analysis_as_of_date=analysis_as_of_date,
             )
             with self._lock:
                 if metric_id in self._org_trends_cache:
                     org_trend = self._org_trends_cache[metric_id]
                 else:
-                    org_trend = self._olap_engine.query_trend_response(metric_id=metric_id)
+                    org_trend = self._olap_engine.query_trend_response(
+                        metric_id=metric_id,
+                        analysis_as_of_date=analysis_as_of_date,
+                    )
                     self._org_trends_cache[metric_id] = org_trend
 
-            bu_trends = self._olap_engine.query_all_bu_benchmarks(metric_id, all_bus)
+            bu_trends = self._olap_engine.query_all_bu_benchmarks(
+                metric_id, all_bus, analysis_as_of_date=analysis_as_of_date
+            )
         else:
             scope_trend = calculate_time_series_trends(
                 scoped_eval_df,
