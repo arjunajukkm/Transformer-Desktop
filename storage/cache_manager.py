@@ -91,6 +91,7 @@ class AnalyticalSnapshot:
         metadata: Optional[Dict[str, Any]] = None,
         max_filter_cache_size: int = 128,
         workforce_foundation: Optional[Any] = None,
+        olap_engine: Optional[Any] = None,
     ):
         self.dataset_id = dataset_id or key or f"dataset_v{version}_{int(time.time() * 1000)}"
         self.key = self.dataset_id  # Backward-compatibility alias
@@ -98,6 +99,8 @@ class AnalyticalSnapshot:
         self.raw_source = raw_source
         self.fact_df = fact_df
         self.workforce_foundation = workforce_foundation
+        self.olap_engine = olap_engine
+        self._olap_engine_lock = threading.Lock()
         self.created_at = time.time()
         self.row_count = len(fact_df) if fact_df is not None else 0
 
@@ -120,6 +123,39 @@ class AnalyticalSnapshot:
         self._filter_metrics_cache: OrderedDict[Tuple[Optional[str], Optional[str], Optional[str]], Dict[str, Any]] = OrderedDict()
         self._filter_breakdown_cache: OrderedDict[Tuple[str, Optional[str], Optional[str], Optional[str]], List[Dict[str, Any]]] = OrderedDict()
         self._lock = threading.RLock()
+
+    def get_olap_engine(self) -> Any:
+        """
+        Thread-safe accessor for the analytical OLAPRollupEngine.
+        Lazily creates and attaches the engine if not already initialized.
+        """
+        if self.olap_engine is not None:
+            return self.olap_engine
+        with self._olap_engine_lock:
+            if self.olap_engine is not None:
+                return self.olap_engine
+            if self.fact_df is not None and not self.fact_df.empty:
+                try:
+                    from workforce_intelligence.olap_engine import OLAPRollupEngine
+                    facts_df = getattr(self.workforce_foundation, "employee_day_facts", None) if self.workforce_foundation else None
+                    reqs = getattr(self.workforce_foundation, "evaluated_requests", None) if self.workforce_foundation else None
+                    self.olap_engine = OLAPRollupEngine(
+                        fact_df=self.fact_df,
+                        employee_day_facts=facts_df,
+                        evaluated_requests=reqs,
+                    )
+                except Exception:
+                    self.olap_engine = None
+            return self.olap_engine
+
+    def export_cubes(self, target_dir: Optional[Union[str, Path]] = None) -> Optional[Dict[str, str]]:
+        """Persist materialized OLAP cubes to disk using Apache Parquet."""
+        engine = self.get_olap_engine()
+        if engine is not None and hasattr(engine, "export_parquet_cubes"):
+            if target_dir is None:
+                target_dir = Path(".cache") / "cubes" / str(self.dataset_id)
+            return engine.export_parquet_cubes(target_dir)
+        return None
 
     def is_valid(self) -> bool:
         """Returns True if the snapshot contains a non-empty analytical fact DataFrame."""

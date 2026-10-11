@@ -190,7 +190,11 @@ def _filter_workforce_df(
     return filtered
 
 
-def _derive_employee_hierarchy(df: pd.DataFrame, employee: Optional[str]) -> Dict[str, Optional[str]]:
+def _derive_employee_hierarchy(
+    df: pd.DataFrame,
+    employee: Optional[str],
+    olap_engine: Optional[Any] = None,
+) -> Dict[str, Optional[str]]:
     """
     Given an employee identifier or raw string, extract their:
     - emp_num: Employee Number / ID
@@ -199,6 +203,11 @@ def _derive_employee_hierarchy(df: pd.DataFrame, employee: Optional[str]) -> Dic
     - bu: Business Unit
     - manager: Reporting Manager
     """
+    if olap_engine is not None and hasattr(olap_engine, "get_employee_hierarchy"):
+        res = olap_engine.get_employee_hierarchy(employee)
+        if res.get("emp_num") or res.get("dept") or res.get("bu") or res.get("manager"):
+            return res
+
     if df is None or df.empty or not employee:
         return {"emp_num": None, "emp_name": None, "dept": None, "bu": None, "manager": None}
 
@@ -254,13 +263,22 @@ def _derive_employee_hierarchy(df: pd.DataFrame, employee: Optional[str]) -> Dic
     }
 
 
-def _derive_manager_hierarchy(df: pd.DataFrame, manager: Optional[str]) -> Dict[str, Optional[str]]:
+def _derive_manager_hierarchy(
+    df: pd.DataFrame,
+    manager: Optional[str],
+    olap_engine: Optional[Any] = None,
+) -> Dict[str, Optional[str]]:
     """
     Given a reporting manager identifier or raw string, extract their:
     - mgr_name: Clean Manager Name
     - dept: Department / Function (derived from team members or manager record)
     - bu: Business Unit (derived from team members or manager record)
     """
+    if olap_engine is not None and hasattr(olap_engine, "get_manager_hierarchy"):
+        res = olap_engine.get_manager_hierarchy(manager)
+        if res.get("dept") or res.get("bu") or res.get("mgr_name"):
+            return res
+
     if df is None or df.empty or not manager:
         return {"mgr_name": None, "dept": None, "bu": None}
 
@@ -593,13 +611,16 @@ class WorkforceIntelligenceBridge:
             self._bu_employee_day_facts = bu_facts
             self._bu_eval_reqs = bu_reqs
 
-            # Initialize Vectorized Columnar OLAP Engine
+            # Initialize Vectorized Columnar OLAP Engine with evaluated foundation
             try:
                 self._olap_engine = OLAPRollupEngine(
                     org_eval_df,
                     employee_day_facts=org_facts,
                     evaluated_requests=org_eval_reqs,
                 )
+                active_snap = self.service.get_active_snapshot() if hasattr(self, "service") else None
+                if active_snap and hasattr(active_snap, "olap_engine"):
+                    active_snap.olap_engine = self._olap_engine
             except Exception as e:
                 self._olap_engine = None
 
@@ -1066,7 +1087,7 @@ class WorkforceIntelligenceBridge:
         derived_rm = None
 
         if comparison_mode == "EMPLOYEE":
-            emp_info = _derive_employee_hierarchy(org_eval_df, employee)
+            emp_info = _derive_employee_hierarchy(org_eval_df, employee, olap_engine=self._olap_engine)
             derived_dept = emp_info.get("dept")
             derived_bu = emp_info.get("bu")
             derived_rm = emp_info.get("manager")
@@ -1081,7 +1102,7 @@ class WorkforceIntelligenceBridge:
             bu_label = derived_bu or bu_label
 
         elif comparison_mode == "MANAGER":
-            mgr_info = _derive_manager_hierarchy(org_eval_df, manager)
+            mgr_info = _derive_manager_hierarchy(org_eval_df, manager, olap_engine=self._olap_engine)
             derived_dept = mgr_info.get("dept")
             derived_bu = mgr_info.get("bu")
             entity_label = mgr_info.get("mgr_name") or str(manager)
@@ -1089,7 +1110,9 @@ class WorkforceIntelligenceBridge:
             bu_label = derived_bu or bu_label
 
         if comparison_mode in ("EMPLOYEE", "MANAGER"):
-            if self._olap_engine is not None and metric_def.category in ("Attendance", "Working Time"):
+            dept_df = None
+            bu_df = None
+            if self._olap_engine is not None:
                 if derived_dept:
                     dept_trend = self._olap_engine.query_trend_response(metric_id, department=derived_dept)
                 else:
@@ -1123,15 +1146,24 @@ class WorkforceIntelligenceBridge:
             # Scaling for pending_approval_count in manager comparison mode
             if comparison_mode == "MANAGER" and metric_id == "pending_approval_count":
                 def _distinct_mgr_count(d_slice):
+                    if d_slice is None or d_slice.empty:
+                        return 1
                     m_c = "_rm" if "_rm" in d_slice.columns else ("Reporting Manager" if "Reporting Manager" in d_slice.columns else None)
                     if m_c and not d_slice.empty:
                         vals = set(d_slice[m_c].dropna().astype(str).str.strip().str.lower().unique()) - {"", "none", "nan", "unknown"}
                         return max(1, len(vals))
                     return 1
 
-                dept_mgr_cnt = _distinct_mgr_count(dept_df if derived_dept else org_eval_df)
-                bu_mgr_cnt = _distinct_mgr_count(bu_df if derived_bu else org_eval_df)
-                org_mgr_cnt = _distinct_mgr_count(org_eval_df)
+                if self._olap_engine is not None:
+                    dept_mgrs = [m for (b, d), mgrs in getattr(self._olap_engine, "_mgrs_by_bu_dept", {}).items() if d == derived_dept for m in mgrs] if derived_dept else []
+                    dept_mgr_cnt = max(1, len(set(dept_mgrs))) if dept_mgrs else 1
+                    bu_mgrs = getattr(self._olap_engine, "_mgrs_by_bu", {}).get(derived_bu, []) if derived_bu else []
+                    bu_mgr_cnt = max(1, len(set(bu_mgrs))) if bu_mgrs else 1
+                    org_mgr_cnt = max(1, len(getattr(self._olap_engine, "_all_mgrs", [])))
+                else:
+                    dept_mgr_cnt = _distinct_mgr_count(dept_df if (derived_dept and dept_df is not None) else org_eval_df)
+                    bu_mgr_cnt = _distinct_mgr_count(bu_df if (derived_bu and bu_df is not None) else org_eval_df)
+                    org_mgr_cnt = _distinct_mgr_count(org_eval_df)
 
                 dept_trend_series = []
                 for pt in dept_trend.get("time_series", []):

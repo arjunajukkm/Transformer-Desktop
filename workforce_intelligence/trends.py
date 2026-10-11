@@ -561,8 +561,9 @@ def calculate_monthly_compliance(
         for p_month in sorted(valid_wfh["_month"].unique()):
             m_group = valid_wfh[valid_wfh["_month"] == p_month]
             tot = len(m_group)
-            dq_ex = int((m_group["compliance_status"] == "DATA_QUALITY_UNCERTAIN").sum()) if "compliance_status" in m_group.columns else 0
-            evaluable_group = m_group[m_group["compliance_status"] != "DATA_QUALITY_UNCERTAIN"] if "compliance_status" in m_group.columns else m_group
+            comp_c = "compliance_status" if "compliance_status" in m_group.columns else ("Compliance Status" if "Compliance Status" in m_group.columns else None)
+            dq_ex = int((m_group[comp_c] == "DATA_QUALITY_UNCERTAIN").sum()) if comp_c else 0
+            evaluable_group = m_group[m_group[comp_c] != "DATA_QUALITY_UNCERTAIN"] if comp_c else m_group
             evaluable = len(evaluable_group)
 
             lag_series = []
