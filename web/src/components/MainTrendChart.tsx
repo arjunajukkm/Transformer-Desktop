@@ -12,6 +12,7 @@ interface MainTrendChartProps {
   entityLabel: string;
   policyEffectiveDate?: string;
   unit?: string;
+  theme?: "dark" | "light";
 }
 
 export function MainTrendChart({
@@ -22,6 +23,7 @@ export function MainTrendChart({
   entityLabel,
   policyEffectiveDate,
   unit,
+  theme = "dark",
 }: MainTrendChartProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
@@ -89,28 +91,32 @@ export function MainTrendChart({
       : "";
 
   return (
-    <div className="glass-panel p-5 mb-6">
+    <div
+      className={`rounded-xl border p-4 transition-all shadow-sm ${
+        theme === "dark" ? "bg-[#0b1019]/90 border-slate-800 text-slate-100" : "bg-white border-slate-200 text-slate-800"
+      }`}
+    >
       {/* Chart Header & Legend */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-white/5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 pb-2 border-b border-inherit">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="font-bold text-sm text-white tracking-tight">{metricName} — Trajectory & Benchmark</h3>
-            {unit && <span className="text-xs text-slate-500 font-mono">({unit})</span>}
+            <h3 className="font-bold text-xs uppercase tracking-tight font-mono">{metricName} — Trajectory</h3>
+            {unit && <span className="text-[10px] text-slate-500 font-mono">({unit})</span>}
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-[11px] text-slate-400 mt-0.5">
             Scope Actual ({entityLabel}) vs {benchmarkLabel} Baseline
           </p>
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-4 text-xs font-medium">
-          <div className="flex items-center gap-1.5 text-slate-300">
-            <span className="h-2.5 w-6 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
-            <span>Actual ({entityLabel})</span>
+        <div className="flex items-center gap-3 text-[11px] font-mono">
+          <div className="flex items-center gap-1.5 font-medium">
+            <span className="h-2 w-5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
+            <span className={theme === "dark" ? "text-slate-200" : "text-slate-700"}>Actual ({entityLabel})</span>
           </div>
-          <div className="flex items-center gap-1.5 text-slate-400">
-            <span className="h-0.5 w-6 border-t-2 border-dashed border-amber-400" />
-            <span>{benchmarkLabel} Baseline</span>
+          <div className="flex items-center gap-1.5 font-medium">
+            <span className="h-0.5 w-5 border-t-2 border-dashed border-amber-400" />
+            <span className="text-amber-500">{benchmarkLabel} Baseline</span>
           </div>
         </div>
       </div>

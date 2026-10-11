@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Filter, Layers, Target, ChevronDown } from "lucide-react";
+import { Filter, Layers, Target, ChevronDown, RotateCcw, Building, Users, User, Briefcase } from "lucide-react";
 import { CascadedFilters, MetricMetadata } from "@/lib/types";
 
 interface FilterBarProps {
@@ -19,6 +19,7 @@ interface FilterBarProps {
   onSelectManager: (mgr: string) => void;
   selectedEmployee: string;
   onSelectEmployee: (emp: string) => void;
+  theme?: "dark" | "light";
 }
 
 export function FilterBar({
@@ -36,68 +37,97 @@ export function FilterBar({
   onSelectManager,
   selectedEmployee,
   onSelectEmployee,
+  theme = "dark",
 }: FilterBarProps) {
   const currentMetric = metrics.find((m) => m.id === selectedMetricId);
-
-  // Group metrics by category
   const categories = ["Attendance", "Working Time", "Compliance", "Approval"] as const;
 
+  const isFiltered =
+    selectedBU !== "All Business Units" ||
+    selectedDept !== "All Departments" ||
+    selectedManager !== "All Reporting Managers" ||
+    selectedEmployee !== "All Employees";
+
+  const handleResetFilters = () => {
+    onSelectBU("All Business Units");
+    onSelectDept("All Departments");
+    onSelectManager("All Reporting Managers");
+    onSelectEmployee("All Employees");
+  };
+
   return (
-    <div className="glass-panel p-4 mb-6">
-      {/* Upper Tier: Metric Selector & Benchmark Mode */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-white/5">
-        {/* Metric Selector Dropdown with Category Badges */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Target className="h-3.5 w-3.5 text-cyan-400" />
+    <div
+      className={`rounded-xl border p-3 mb-5 transition-all shadow-sm ${
+        theme === "dark"
+          ? "bg-[#0b1019]/90 border-slate-800 text-slate-100"
+          : "bg-white border-slate-200 text-slate-800"
+      }`}
+    >
+      {/* ── Single-Row Top Control: Target Metric + Benchmark Mode + Reset ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-2.5 mb-2.5 border-b border-inherit">
+        {/* Metric Selector with Category Color Dot */}
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 text-xs font-mono font-bold text-cyan-400 uppercase">
+            <Target className="h-3.5 w-3.5" />
             <span>Target Metric:</span>
-          </label>
-          <div className="relative min-w-[280px]">
+          </span>
+
+          <div className="relative min-w-[220px]">
             <select
               value={selectedMetricId}
               onChange={(e) => onSelectMetric(e.target.value)}
-              className="w-full appearance-none bg-slate-900/90 border border-cyan-500/30 text-white font-medium text-sm rounded-lg px-3.5 py-2 pr-9 focus:outline-none focus:border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.15)] cursor-pointer"
+              className={`w-full appearance-none rounded-lg px-3 py-1.5 pr-8 text-xs font-medium border focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer font-mono ${
+                theme === "dark"
+                  ? "bg-[#070b10] border-slate-700 text-white"
+                  : "bg-slate-50 border-slate-300 text-slate-900"
+              }`}
             >
               {categories.map((cat) => (
-                <optgroup key={cat} label={`── ${cat.toUpperCase()} ──`} className="bg-slate-950 text-slate-400">
+                <optgroup key={cat} label={`── ${cat.toUpperCase()} ──`}>
                   {metrics
                     .filter((m) => m.category === cat)
                     .map((m) => (
-                      <option key={m.id} value={m.id} className="text-white py-1">
+                      <option key={m.id} value={m.id}>
                         {m.label} ({m.format})
                       </option>
                     ))}
                 </optgroup>
               ))}
             </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-cyan-400 pointer-events-none" />
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cyan-400 pointer-events-none" />
           </div>
 
           {currentMetric && (
-            <span className="hidden xl:inline-block text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-300 border border-white/5 max-w-sm truncate">
+            <span
+              className={`hidden xl:inline-block text-[11px] px-2 py-0.5 rounded truncate max-w-xs ${
+                theme === "dark"
+                  ? "bg-slate-800/60 text-slate-400 border border-slate-700/50"
+                  : "bg-slate-100 text-slate-600 border border-slate-200"
+              }`}
+            >
               {currentMetric.description}
             </span>
           )}
         </div>
 
-        {/* Benchmark Baseline Selector */}
+        {/* Benchmark Baseline Selector & Reset */}
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Layers className="h-3.5 w-3.5 text-amber-400" />
-            <span>Baseline:</span>
-          </span>
-          <div className="flex rounded-lg bg-slate-900 p-0.5 border border-white/5 text-xs">
+          <div
+            className={`flex rounded-lg p-0.5 border text-xs font-mono ${
+              theme === "dark" ? "bg-[#070b10] border-slate-800" : "bg-slate-100 border-slate-200"
+            }`}
+          >
             {[
               { id: "ORGANIZATION", label: "Organisation" },
-              { id: "HISTORICAL", label: "Historical Trajectory" },
-              { id: "PEER", label: "Peer Business Unit" },
+              { id: "HISTORICAL", label: "Historical" },
+              { id: "PEER", label: "Peer BU" },
             ].map((btn) => (
               <button
                 key={btn.id}
                 onClick={() => onSelectBenchmarkType(btn.id)}
-                className={`px-3 py-1.5 rounded-md font-medium transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
                   benchmarkType === btn.id
-                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-[0_0_8px_rgba(245,158,11,0.2)]"
+                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold shadow-sm"
                     : "text-slate-400 hover:text-slate-200"
                 }`}
               >
@@ -105,14 +135,26 @@ export function FilterBar({
               </button>
             ))}
           </div>
+
+          {isFiltered && (
+            <button
+              onClick={handleResetFilters}
+              className="flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded-md bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-colors"
+              title="Reset all filters to organization global scope"
+            >
+              <RotateCcw className="h-3 w-3" />
+              <span>Reset</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Lower Tier: Dependent Cascading Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-4">
+      {/* ── Compact Cascading Dropdowns Strip (Single Row) ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
         {/* Business Unit */}
         <div>
-          <label className="block text-[11px] font-medium text-slate-400 mb-1 flex items-center gap-1">
+          <label className="text-[10px] font-mono font-bold text-slate-400 uppercase flex items-center gap-1 mb-1">
+            <Building className="h-3 w-3 text-cyan-400" />
             <span>Business Unit</span>
             {selectedBU !== "All Business Units" && <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />}
           </label>
@@ -120,16 +162,21 @@ export function FilterBar({
             <select
               value={selectedBU}
               onChange={(e) => onSelectBU(e.target.value)}
-              className="w-full appearance-none bg-slate-900 border border-white/10 text-slate-200 text-xs rounded-md px-2.5 py-1.5 pr-7 focus:outline-none focus:border-cyan-500 cursor-pointer"
+              className={`w-full appearance-none rounded-lg px-2.5 py-1.5 pr-7 text-xs border font-medium focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer ${
+                theme === "dark"
+                  ? selectedBU !== "All Business Units"
+                    ? "bg-cyan-950/30 border-cyan-500/40 text-cyan-200"
+                    : "bg-[#070b10] border-slate-700 text-slate-200"
+                  : selectedBU !== "All Business Units"
+                  ? "bg-cyan-50 border-cyan-300 text-cyan-800"
+                  : "bg-slate-50 border-slate-300 text-slate-800"
+              }`}
             >
-              <option value="All Business Units">All Business Units</option>
-              {filters.business_units
-                .filter((b) => b !== "All Business Units")
-                .map((bu) => (
-                  <option key={bu} value={bu}>
-                    {bu}
-                  </option>
-                ))}
+              {filters.business_units.map((bu) => (
+                <option key={bu} value={bu}>
+                  {bu}
+                </option>
+              ))}
             </select>
             <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
           </div>
@@ -137,24 +184,30 @@ export function FilterBar({
 
         {/* Department */}
         <div>
-          <label className="block text-[11px] font-medium text-slate-400 mb-1 flex items-center gap-1">
+          <label className="text-[10px] font-mono font-bold text-slate-400 uppercase flex items-center gap-1 mb-1">
+            <Briefcase className="h-3 w-3 text-indigo-400" />
             <span>Department</span>
-            {selectedDept !== "All Departments" && <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />}
+            {selectedDept !== "All Departments" && <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />}
           </label>
           <div className="relative">
             <select
               value={selectedDept}
               onChange={(e) => onSelectDept(e.target.value)}
-              className="w-full appearance-none bg-slate-900 border border-white/10 text-slate-200 text-xs rounded-md px-2.5 py-1.5 pr-7 focus:outline-none focus:border-cyan-500 cursor-pointer"
+              className={`w-full appearance-none rounded-lg px-2.5 py-1.5 pr-7 text-xs border font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer ${
+                theme === "dark"
+                  ? selectedDept !== "All Departments"
+                    ? "bg-indigo-950/30 border-indigo-500/40 text-indigo-200"
+                    : "bg-[#070b10] border-slate-700 text-slate-200"
+                  : selectedDept !== "All Departments"
+                  ? "bg-indigo-50 border-indigo-300 text-indigo-800"
+                  : "bg-slate-50 border-slate-300 text-slate-800"
+              }`}
             >
-              <option value="All Departments">All Departments</option>
-              {filters.departments
-                .filter((d) => d !== "All Departments")
-                .map((dept) => (
-                  <option key={dept} value={dept}>
-                    {dept}
-                  </option>
-                ))}
+              {filters.departments.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
             </select>
             <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
           </div>
@@ -162,24 +215,30 @@ export function FilterBar({
 
         {/* Reporting Manager */}
         <div>
-          <label className="block text-[11px] font-medium text-slate-400 mb-1 flex items-center gap-1">
+          <label className="text-[10px] font-mono font-bold text-slate-400 uppercase flex items-center gap-1 mb-1">
+            <Users className="h-3 w-3 text-purple-400" />
             <span>Reporting Manager</span>
-            {selectedManager !== "All Reporting Managers" && <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />}
+            {selectedManager !== "All Reporting Managers" && <span className="h-1.5 w-1.5 rounded-full bg-purple-400" />}
           </label>
           <div className="relative">
             <select
               value={selectedManager}
               onChange={(e) => onSelectManager(e.target.value)}
-              className="w-full appearance-none bg-slate-900 border border-white/10 text-slate-200 text-xs rounded-md px-2.5 py-1.5 pr-7 focus:outline-none focus:border-cyan-500 cursor-pointer"
+              className={`w-full appearance-none rounded-lg px-2.5 py-1.5 pr-7 text-xs border font-medium focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer ${
+                theme === "dark"
+                  ? selectedManager !== "All Reporting Managers"
+                    ? "bg-purple-950/30 border-purple-500/40 text-purple-200"
+                    : "bg-[#070b10] border-slate-700 text-slate-200"
+                  : selectedManager !== "All Reporting Managers"
+                  ? "bg-purple-50 border-purple-300 text-purple-800"
+                  : "bg-slate-50 border-slate-300 text-slate-800"
+              }`}
             >
-              <option value="All Reporting Managers">All Reporting Managers</option>
-              {filters.managers
-                .filter((m) => m !== "All Reporting Managers")
-                .map((mgr) => (
-                  <option key={mgr} value={mgr}>
-                    {mgr}
-                  </option>
-                ))}
+              {filters.managers.map((mgr) => (
+                <option key={mgr} value={mgr}>
+                  {mgr}
+                </option>
+              ))}
             </select>
             <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
           </div>
@@ -187,24 +246,30 @@ export function FilterBar({
 
         {/* Employee */}
         <div>
-          <label className="block text-[11px] font-medium text-slate-400 mb-1 flex items-center gap-1">
-            <span>Employee</span>
-            {selectedEmployee !== "All Employees" && <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />}
+          <label className="text-[10px] font-mono font-bold text-slate-400 uppercase flex items-center gap-1 mb-1">
+            <User className="h-3 w-3 text-emerald-400" />
+            <span>Individual Employee</span>
+            {selectedEmployee !== "All Employees" && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />}
           </label>
           <div className="relative">
             <select
               value={selectedEmployee}
               onChange={(e) => onSelectEmployee(e.target.value)}
-              className="w-full appearance-none bg-slate-900 border border-white/10 text-slate-200 text-xs rounded-md px-2.5 py-1.5 pr-7 focus:outline-none focus:border-cyan-500 cursor-pointer"
+              className={`w-full appearance-none rounded-lg px-2.5 py-1.5 pr-7 text-xs border font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer ${
+                theme === "dark"
+                  ? selectedEmployee !== "All Employees"
+                    ? "bg-emerald-950/30 border-emerald-500/40 text-emerald-200"
+                    : "bg-[#070b10] border-slate-700 text-slate-200"
+                  : selectedEmployee !== "All Employees"
+                  ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+                  : "bg-slate-50 border-slate-300 text-slate-800"
+              }`}
             >
-              <option value="All Employees">All Employees</option>
-              {filters.employees
-                .filter((e) => e !== "All Employees")
-                .map((emp) => (
-                  <option key={emp} value={emp}>
-                    {emp}
-                  </option>
-                ))}
+              {filters.employees.map((emp) => (
+                <option key={emp} value={emp}>
+                  {emp}
+                </option>
+              ))}
             </select>
             <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
           </div>

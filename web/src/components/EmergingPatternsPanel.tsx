@@ -1,44 +1,53 @@
 "use client";
 
 import React from "react";
-import { AlertTriangle, ShieldAlert, Eye, Info, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, ShieldAlert, CheckCircle2 } from "lucide-react";
 import { EmergingPattern } from "@/lib/types";
 
 interface EmergingPatternsPanelProps {
   patterns: EmergingPattern[];
+  theme?: "dark" | "light";
 }
 
-export function EmergingPatternsPanel({ patterns }: EmergingPatternsPanelProps) {
+export function EmergingPatternsPanel({ patterns, theme = "dark" }: EmergingPatternsPanelProps) {
   if (!patterns || patterns.length === 0) {
     return (
-      <div className="glass-panel p-5 mb-6">
-        <div className="flex items-center gap-2 mb-3 pb-3 border-b border-white/5">
-          <ShieldAlert className="h-4 w-4 text-cyan-400" />
-          <h3 className="font-bold text-sm text-white tracking-tight">Emerging Patterns & Dossiers</h3>
+      <div
+        className={`rounded-xl border p-4 transition-all shadow-sm ${
+          theme === "dark" ? "bg-[#0b1019]/90 border-slate-800 text-slate-100" : "bg-white border-slate-200 text-slate-800"
+        }`}
+      >
+        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-inherit">
+          <ShieldAlert className="h-3.5 w-3.5 text-cyan-400" />
+          <h3 className="font-bold text-xs uppercase tracking-tight font-mono">Emerging Risk Patterns</h3>
         </div>
-        <div className="text-xs text-slate-500 text-center py-4 flex items-center justify-center gap-2">
-          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-          <span>No anomalous exception clusters detected. All parameters within governance thresholds.</span>
+        <div className="text-xs text-slate-500 text-center py-3 flex items-center justify-center gap-2">
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+          <span>No anomalous exception clusters detected. All parameters nominal.</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="glass-panel p-5 mb-6">
-      <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-white/5">
-        <div className="flex items-center gap-2">
-          <ShieldAlert className="h-4 w-4 text-rose-400" />
-          <h3 className="font-bold text-sm text-white tracking-tight">Emerging Exception Patterns & Risk Dossiers</h3>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 font-mono">
-            {patterns.length} ACTIVE
+    <div
+      className={`rounded-xl border p-4 transition-all shadow-sm ${
+        theme === "dark" ? "bg-[#0b1019]/90 border-slate-800 text-slate-100" : "bg-white border-slate-200 text-slate-800"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2 mb-2.5 pb-2 border-b border-inherit">
+        <div className="flex items-center gap-1.5">
+          <ShieldAlert className="h-3.5 w-3.5 text-rose-400" />
+          <h3 className="font-bold text-xs uppercase tracking-tight font-mono">Emerging Patterns &amp; Sentinel</h3>
+          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 font-mono font-bold">
+            {patterns.length} DETECTED
           </span>
         </div>
-        <span className="text-xs text-slate-400">Autonomous Governance Detection</span>
+        <span className="text-[10px] text-slate-400 font-mono">Autonomous Sentinel</span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-        {patterns.slice(0, 6).map((pat) => {
+      <div className="space-y-2">
+        {patterns.slice(0, 3).map((pat) => {
           const isCritical = pat.badge === "CRITICAL";
           const isAttention = pat.badge === "ATTENTION";
 
@@ -51,30 +60,27 @@ export function EmergingPatternsPanel({ patterns }: EmergingPatternsPanelProps) 
           return (
             <div
               key={pat.id}
-              className="p-4 rounded-lg bg-slate-900/50 border border-white/5 hover:border-white/15 transition-all flex flex-col justify-between"
+              className={`p-2.5 rounded-lg border text-xs flex flex-col gap-1 transition-colors ${
+                theme === "dark" ? "bg-slate-900/30 border-slate-800/80" : "bg-slate-50 border-slate-200/80"
+              }`}
             >
-              <div>
-                {/* Header */}
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="font-bold text-white text-xs leading-snug">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 truncate">
+                  <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0" />
+                  <span className="font-semibold text-xs truncate">
                     {pat.pattern_title || pat.name}
                   </span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-semibold border ${badgeColor}`}>
-                    {pat.badge}
-                  </span>
                 </div>
-
-                {/* Explanation */}
-                <p className="text-xs text-slate-300 mb-2 leading-relaxed">{pat.explanation}</p>
-                <p className="text-[11px] text-slate-400 bg-slate-950/60 p-2 rounded border border-white/5 leading-relaxed font-mono">
-                  {pat.why_detected}
-                </p>
+                <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-bold uppercase border ${badgeColor}`}>
+                  {pat.badge}
+                </span>
               </div>
 
-              {/* Footer Meta */}
-              <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                <span>Scope: <strong className="text-slate-300">{pat.scope}</strong></span>
-                <span>Volume: <strong className="text-slate-300">{pat.volume}</strong></span>
+              <p className="text-[11px] text-slate-400 leading-tight">{pat.explanation}</p>
+              
+              <div className="mt-1 pt-1.5 border-t border-inherit flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                <span>Scope: <strong className={theme === "dark" ? "text-slate-300" : "text-slate-700"}>{pat.scope}</strong></span>
+                <span>Volume: <strong className={theme === "dark" ? "text-slate-300" : "text-slate-700"}>{pat.volume}</strong></span>
               </div>
             </div>
           );

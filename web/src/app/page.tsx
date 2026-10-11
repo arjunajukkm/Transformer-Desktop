@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Header } from "@/components/Header";
+import { Sidebar } from "@/components/Sidebar";
+import { TopBar } from "@/components/TopBar";
 import { FilterBar } from "@/components/FilterBar";
 import { TrendPulseCards } from "@/components/TrendPulseCards";
 import { MainTrendChart } from "@/components/MainTrendChart";
@@ -22,7 +23,6 @@ import {
   queryTrendIntelligence,
 } from "@/lib/api";
 import { CascadedFilters, MetricMetadata, SnapshotMetadata, TrendBundle } from "@/lib/types";
-import { Activity, Sparkles, Sliders, LayoutGrid, Plug, FileSpreadsheet } from "lucide-react";
 
 type ActiveTab = "telemetry" | "predictive" | "simulation" | "connectors" | "operations" | "all";
 
@@ -33,6 +33,9 @@ export default function WorkforceIntelligenceDashboard() {
   const [selectedMetricId, setSelectedMetricId] = useState("missing_swipe_rate");
   const [benchmarkType, setBenchmarkType] = useState("ORGANIZATION");
   const [activeTab, setActiveTab] = useState<ActiveTab>("telemetry");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [showDetailedBenchmarks, setShowDetailedBenchmarks] = useState(false);
 
   const [filters, setFilters] = useState<CascadedFilters>({
     business_units: ["All Business Units"],
@@ -49,6 +52,32 @@ export default function WorkforceIntelligenceDashboard() {
 
   const [bundle, setBundle] = useState<TrendBundle | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Sync theme with document element
+  useEffect(() => {
+    const savedTheme = (localStorage.getItem("transformers_theme") as "dark" | "light") || "dark";
+    setTheme(savedTheme);
+    if (savedTheme === "light") {
+      document.documentElement.classList.add("light");
+      document.documentElement.classList.remove("dark");
+    } else {
+      document.documentElement.classList.add("dark");
+      document.documentElement.classList.remove("light");
+    }
+  }, []);
+
+  const handleToggleTheme = () => {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    localStorage.setItem("transformers_theme", nextTheme);
+    if (nextTheme === "light") {
+      document.documentElement.classList.add("light");
+      document.documentElement.classList.remove("dark");
+    } else {
+      document.documentElement.classList.add("dark");
+      document.documentElement.classList.remove("light");
+    }
+  };
 
   // 1. Initial Load: Check gateway, fetch metrics, active snapshot, filters
   const loadInitialData = useCallback(async () => {
@@ -68,7 +97,7 @@ export default function WorkforceIntelligenceDashboard() {
       const initialFilters = await fetchCascadedFilters({});
       setFilters(initialFilters);
 
-      // If user's allowed business units is restricted (e.g. BU Head Lending), lock the selection
+      // Enforce RLS restriction if active persona scope is restricted
       if (initialFilters.business_units.length === 1 && initialFilters.business_units[0] !== "All Business Units") {
         setSelectedBU(initialFilters.business_units[0]);
       } else if (!initialFilters.business_units.includes(selectedBU)) {
@@ -85,7 +114,7 @@ export default function WorkforceIntelligenceDashboard() {
     loadInitialData();
   }, [loadInitialData]);
 
-  // 2. Fetch Cascaded Filter Options when BU, Dept, or Manager changes
+  // 2. Cascaded Filters update
   useEffect(() => {
     const updateCascadedFilters = async () => {
       try {
@@ -103,7 +132,7 @@ export default function WorkforceIntelligenceDashboard() {
     updateCascadedFilters();
   }, [selectedBU, selectedDept, selectedManager]);
 
-  // 3. Query Trend Intelligence when selection parameters change
+  // 3. Trend Intelligence Query
   useEffect(() => {
     const fetchTrendData = async () => {
       try {
@@ -127,209 +156,193 @@ export default function WorkforceIntelligenceDashboard() {
   const currentMetric = metrics.find((m) => m.id === selectedMetricId);
   const metricLabel = currentMetric?.label || "Missing Swipe Rate";
 
+  const tabTitles: Record<ActiveTab, string> = {
+    telemetry: "Workforce Telemetry & Trends",
+    predictive: "AI Predictive Signals & Retention Risk",
+    simulation: "What-If Policy Simulation Studio",
+    connectors: "Data Connection Hub (Keka & Slack)",
+    operations: "Desktop Operations Suite",
+    all: "Executive War Room (All Panels)",
+  };
+
   return (
-    <div className="min-h-screen bg-[#06090e] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-slate-950">
-      {/* Top Header & Telemetry Status */}
-      <Header
-        metadata={metadata}
-        gatewayStatus={gatewayStatus}
-        onRefresh={loadInitialData}
+    <div
+      className={`min-h-screen flex font-sans transition-colors duration-200 ${
+        theme === "dark"
+          ? "bg-[#080c14] text-slate-100 selection:bg-cyan-500 selection:text-slate-950"
+          : "bg-[#f8fafc] text-slate-900 selection:bg-cyan-600 selection:text-white"
+      }`}
+    >
+      {/* ── Left Collapsible Sidebar Navigation ── */}
+      <Sidebar
+        activeTab={activeTab}
+        onSelectTab={(tab) => setActiveTab(tab as ActiveTab)}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
         onPersonaChanged={loadInitialData}
       />
 
-      {/* Main Dashboard Canvas */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
-        {/* Navigation Mode Segmented Controller */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6 bg-[#070b10] p-1.5 rounded-xl border border-slate-800 shadow-lg">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              onClick={() => setActiveTab("telemetry")}
-              className={`px-3.5 py-2 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-2 ${
-                activeTab === "telemetry"
-                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
-              }`}
-            >
-              <Activity className="w-4 h-4 text-cyan-400" />
-              Workforce Telemetry &amp; Trends
-            </button>
-            <button
-              onClick={() => setActiveTab("predictive")}
-              className={`px-3.5 py-2 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-2 ${
-                activeTab === "predictive"
-                  ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.25)]"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
-              }`}
-            >
-              <Sparkles className="w-4 h-4 text-purple-400" />
-              AI Predictive Signals &amp; Burnout
-            </button>
-            <button
-              onClick={() => setActiveTab("simulation")}
-              className={`px-3.5 py-2 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-2 ${
-                activeTab === "simulation"
-                  ? "bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-[0_0_12px_rgba(59,130,246,0.25)]"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
-              }`}
-            >
-              <Sliders className="w-4 h-4 text-blue-400" />
-              What-If Simulation Studio
-            </button>
-            <button
-              onClick={() => setActiveTab("connectors")}
-              className={`px-3.5 py-2 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-2 ${
-                activeTab === "connectors"
-                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-[0_0_12px_rgba(52,211,153,0.25)]"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
-              }`}
-            >
-              <Plug className="w-4 h-4 text-emerald-400" />
-              Data Connection Hub (Keka &amp; Slack)
-            </button>
-            <button
-              onClick={() => setActiveTab("operations")}
-              className={`px-3.5 py-2 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-2 ${
-                activeTab === "operations"
-                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.25)]"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
-              }`}
-            >
-              <FileSpreadsheet className="w-4 h-4 text-amber-400" />
-              Desktop Operations Suite
-            </button>
-          </div>
+      {/* ── Main Workspace Viewport Canvas ── */}
+      <div
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
+          sidebarCollapsed ? "ml-[72px]" : "ml-[250px]"
+        }`}
+      >
+        {/* Top Context & Quick Actions Bar */}
+        <TopBar
+          metadata={metadata}
+          gatewayStatus={gatewayStatus}
+          activeTabTitle={tabTitles[activeTab]}
+          scopeLabel={selectedBU !== "All Business Units" ? selectedBU : "Global FinBox"}
+          theme={theme}
+          onRefresh={loadInitialData}
+        />
 
-          <button
-            onClick={() => setActiveTab("all")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all flex items-center gap-1.5 ${
-              activeTab === "all"
-                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.25)]"
-                : "text-slate-500 hover:text-slate-300"
-            }`}
-          >
-            <LayoutGrid className="w-3.5 h-3.5" />
-            Executive War Room (All)
-          </button>
-        </div>
-
-        {/* Cascading Filter Bar */}
-        {(activeTab === "telemetry" || activeTab === "all" || activeTab === "predictive") && (
-          <FilterBar
-            metrics={metrics}
-            selectedMetricId={selectedMetricId}
-            onSelectMetric={setSelectedMetricId}
-            benchmarkType={benchmarkType}
-            onSelectBenchmarkType={setBenchmarkType}
-            filters={filters}
-            selectedBU={selectedBU}
-            onSelectBU={(bu) => {
-              setSelectedBU(bu);
-              setSelectedDept("All Departments");
-              setSelectedManager("All Reporting Managers");
-              setSelectedEmployee("All Employees");
-            }}
-            selectedDept={selectedDept}
-            onSelectDept={(dept) => {
-              setSelectedDept(dept);
-              setSelectedManager("All Reporting Managers");
-              setSelectedEmployee("All Employees");
-            }}
-            selectedManager={selectedManager}
-            onSelectManager={(mgr) => {
-              setSelectedManager(mgr);
-              setSelectedEmployee("All Employees");
-            }}
-            selectedEmployee={selectedEmployee}
-            onSelectEmployee={setSelectedEmployee}
-          />
-        )}
-
-        {/* VIEW 1: WORKFORCE TELEMETRY & TRENDS */}
-        {(activeTab === "telemetry" || activeTab === "all") && (
-          <div className="space-y-6 mb-8">
-            {/* Executive Pulse KPI Cards */}
-            {bundle && (
-              <TrendPulseCards
-                cards={bundle.trend_pulse}
-                pulse={bundle.pulse}
-                metricLabel={metricLabel}
-              />
-            )}
-
-            {/* Primary Time-Series Trajectory Visualizer */}
-            {bundle && (
-              <MainTrendChart
-                points={bundle.chart.points}
-                metricName={bundle.chart.metric_name}
-                metricFormat={bundle.chart.format}
-                benchmarkLabel={bundle.benchmark_label}
-                entityLabel={bundle.chart.entity_label}
-                policyEffectiveDate={bundle.policy_effective_date}
-                unit={bundle.chart.unit}
-              />
-            )}
-
-            {/* Deterministic Drivers & Emerging Exception Risk Dossiers */}
-            {bundle && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <WhatChangedPanel decomposition={bundle.what_changed} />
-                <EmergingPatternsPanel patterns={bundle.patterns} />
-              </div>
-            )}
-
-            {/* Business Unit Matrix Heatmap */}
-            {bundle && (
-              <BusinessUnitHeatmap
-                months={bundle.heatmap.months}
-                rows={bundle.heatmap.rows}
-                metricLabel={metricLabel}
-              />
-            )}
-
-            {/* Multi-Dimension Benchmark Matrix Table */}
-            {bundle && (
-              <BenchmarkTable
-                rows={bundle.benchmark_table.rows}
-                total={bundle.benchmark_table.total}
-                metricLabel={metricLabel}
-              />
-            )}
-          </div>
-        )}
-
-        {/* VIEW 2: AI PREDICTIVE SIGNALS & BURNOUT */}
-        {(activeTab === "predictive" || activeTab === "all") && (
-          <div className="mb-8">
-            <PredictiveSignalsPanel
-              businessUnit={selectedBU}
-              department={selectedDept}
+        {/* Content Viewport with Fit-to-Screen Constraints */}
+        <main className="flex-1 px-4 sm:px-6 py-5 max-w-7xl w-full mx-auto">
+          {/* Cascading Filter Bar (Shown in Telemetry, Predictive, and War Room) */}
+          {(activeTab === "telemetry" || activeTab === "all" || activeTab === "predictive") && (
+            <FilterBar
+              metrics={metrics}
+              selectedMetricId={selectedMetricId}
+              onSelectMetric={setSelectedMetricId}
+              benchmarkType={benchmarkType}
+              onSelectBenchmarkType={setBenchmarkType}
+              filters={filters}
+              selectedBU={selectedBU}
+              onSelectBU={(bu) => {
+                setSelectedBU(bu);
+                setSelectedDept("All Departments");
+                setSelectedManager("All Reporting Managers");
+                setSelectedEmployee("All Employees");
+              }}
+              selectedDept={selectedDept}
+              onSelectDept={(dept) => {
+                setSelectedDept(dept);
+                setSelectedManager("All Reporting Managers");
+                setSelectedEmployee("All Employees");
+              }}
+              selectedManager={selectedManager}
+              onSelectManager={(mgr) => {
+                setSelectedManager(mgr);
+                setSelectedEmployee("All Employees");
+              }}
+              selectedEmployee={selectedEmployee}
+              onSelectEmployee={setSelectedEmployee}
+              theme={theme}
             />
-          </div>
-        )}
+          )}
 
-        {/* VIEW 3: WHAT-IF POLICY SIMULATION STUDIO */}
-        {(activeTab === "simulation" || activeTab === "all") && (
-          <div className="mb-8">
-            <PolicySimulationStudio
-              businessUnit={selectedBU}
-            />
-          </div>
-        )}
+          {/* ── VIEW 1: WORKFORCE TELEMETRY & TRENDS (COMPACT FIT TO SCREEN) ── */}
+          {(activeTab === "telemetry" || activeTab === "all") && (
+            <div className="space-y-4 mb-6">
+              {/* Row 1: Compact Trend Pulse Cards */}
+              {bundle && (
+                <TrendPulseCards
+                  cards={bundle.trend_pulse}
+                  pulse={bundle.pulse}
+                  metricLabel={metricLabel}
+                  theme={theme}
+                />
+              )}
 
-        {/* VIEW 4: DATA CONNECTION HUB (KEKA & SLACK) */}
-        {(activeTab === "connectors" || activeTab === "all") && (
-          <div className="mb-8">
-            <ConnectorsHub onSyncCompleted={loadInitialData} />
-          </div>
-        )}
+              {/* Row 2: 2-Column Responsive Layout (Main Chart & Heatmap Side-by-Side) */}
+              {bundle && (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                  <div className="lg:col-span-7">
+                    <MainTrendChart
+                      points={bundle.chart.points}
+                      metricName={bundle.chart.metric_name}
+                      metricFormat={bundle.chart.format}
+                      benchmarkLabel={bundle.benchmark_label}
+                      entityLabel={bundle.chart.entity_label}
+                      policyEffectiveDate={bundle.policy_effective_date}
+                      unit={bundle.chart.unit}
+                      theme={theme}
+                    />
+                  </div>
+                  <div className="lg:col-span-5">
+                    <BusinessUnitHeatmap
+                      months={bundle.heatmap.months}
+                      rows={bundle.heatmap.rows}
+                      metricLabel={metricLabel}
+                      theme={theme}
+                    />
+                  </div>
+                </div>
+              )}
 
-        {/* VIEW 5: DESKTOP OPERATIONS SUITE */}
-        {(activeTab === "operations" || activeTab === "all") && (
-          <div className="mb-8">
-            <DesktopOperationsSuite />
-          </div>
-        )}
-      </main>
+              {/* Row 3: Deterministic Attribution & Sentinel Insights */}
+              {bundle && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <WhatChangedPanel decomposition={bundle.what_changed} theme={theme} />
+                  <EmergingPatternsPanel patterns={bundle.patterns} theme={theme} />
+                </div>
+              )}
+
+              {/* Collapsible Detailed Benchmark Table */}
+              {bundle && (
+                <div className="pt-2">
+                  <button
+                    onClick={() => setShowDetailedBenchmarks(!showDetailedBenchmarks)}
+                    className={`text-xs font-mono font-medium px-3 py-1.5 rounded-lg border transition-all flex items-center gap-2 ${
+                      theme === "dark"
+                        ? "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                        : "bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span>{showDetailedBenchmarks ? "Hide" : "Show"} Detailed Department Benchmark Table</span>
+                  </button>
+                  {showDetailedBenchmarks && (
+                    <div className="mt-3">
+                      <BenchmarkTable
+                        rows={bundle.benchmark_table.rows}
+                        total={bundle.benchmark_table.total}
+                        metricLabel={metricLabel}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── VIEW 2: AI PREDICTIVE SIGNALS & BURNOUT ── */}
+          {(activeTab === "predictive" || activeTab === "all") && (
+            <div className="mb-6">
+              <PredictiveSignalsPanel
+                businessUnit={selectedBU}
+                department={selectedDept}
+              />
+            </div>
+          )}
+
+          {/* ── VIEW 3: WHAT-IF POLICY SIMULATION STUDIO ── */}
+          {(activeTab === "simulation" || activeTab === "all") && (
+            <div className="mb-6">
+              <PolicySimulationStudio
+                businessUnit={selectedBU}
+              />
+            </div>
+          )}
+
+          {/* ── VIEW 4: DATA CONNECTION HUB (KEKA & SLACK) ── */}
+          {(activeTab === "connectors" || activeTab === "all") && (
+            <div className="mb-6">
+              <ConnectorsHub onSyncCompleted={loadInitialData} />
+            </div>
+          )}
+
+          {/* ── VIEW 5: DESKTOP OPERATIONS SUITE ── */}
+          {(activeTab === "operations" || activeTab === "all") && (
+            <div className="mb-6">
+              <DesktopOperationsSuite />
+            </div>
+          )}
+        </main>
+      </div>
 
       {/* Floating AI Workforce Decision Intelligence Copilot */}
       <WorkforceCopilot
