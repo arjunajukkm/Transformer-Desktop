@@ -473,6 +473,26 @@ class WorkforceIntelligenceBridge:
                 self._pattern_computing_keys.clear()
                 self._last_dataset_id = current_id
 
+    def invalidate_cache(self) -> None:
+        """Explicitly clear all cached analytical results and foundations."""
+        with self._lock:
+            self._cache.clear()
+            self._pattern_cache.clear()
+            self._org_trends_cache.clear()
+            self._bu_trends_cache.clear()
+            self._clean_org_df = None
+            self._org_eval_df = None
+            self._org_eval_reqs = None
+            self._org_employee_day_facts = None
+            self._all_bus = []
+            self._bu_eval_dfs.clear()
+            self._bu_eval_reqs.clear()
+            self._bu_employee_day_facts.clear()
+            self._olap_engine = None
+            self._global_pattern_pool.clear()
+            self._pattern_computing_keys.clear()
+            self._last_dataset_id = None
+
     def _format_pattern_results(self, pattern_results: List[Any]) -> List[Dict[str, Any]]:
         """Format PatternResult domain objects into UI presentation dictionary contracts."""
         pattern_items = []

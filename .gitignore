@@ -28,4 +28,5 @@ scratch/
 
 # Local Data / Employee Datasets (Data Privacy)
 local_data/
-
+.cache/
+.pytest_cache/
