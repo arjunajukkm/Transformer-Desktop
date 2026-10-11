@@ -8,6 +8,7 @@ import {
   Plug,
   FileSpreadsheet,
   LayoutGrid,
+  LayoutDashboard,
   ChevronLeft,
   ChevronRight,
   Sun,
@@ -81,6 +82,15 @@ export function Sidebar({
     {
       group: "INTELLIGENCE",
       items: [
+        {
+          id: "overview",
+          label: "Executive Overview",
+          icon: LayoutDashboard,
+          color: "text-emerald-400",
+          activeBg: theme === "dark" ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" : "bg-emerald-50 text-emerald-700 border-emerald-300",
+          badge: "15 KPIs",
+          badgeColor: "bg-emerald-500/20 text-emerald-400",
+        },
         {
           id: "telemetry",
           label: "Telemetry & Trends",

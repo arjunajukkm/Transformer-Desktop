@@ -389,3 +389,98 @@ export interface SchedulerConfigPayload {
   slack_channel?: string;
 }
 
+// ── Executive Overview Analytical Types ──
+export interface ExecutiveKPICardData {
+  id: string;
+  number: number;
+  title: string;
+  label: string;
+  primary: string;
+  unit: string;
+  secondary: string;
+  footnote: string;
+  color: string;
+  category: "Volume" | "Presence" | "Hybrid" | "Rest" | "Absence" | "Governance" | "Punctuality";
+  sparkline?: number[] | null;
+}
+
+export interface AttendanceCompositionItem {
+  category: string;
+  label: string;
+  days: number;
+  pct: number;
+  color: string;
+  description: string;
+  is_exception?: boolean;
+}
+
+export interface DailyAttendanceRecord {
+  date_str: string;
+  date_iso: string;
+  present_days: number;
+  absent_days: number;
+  wfh_days: number;
+  leave_days: number;
+  recorded_days: number;
+  missing_swipe_days: number;
+  regularized_days: number;
+}
+
+export interface BUAttendanceComparisonRow {
+  business_unit: string;
+  observed_headcount: number;
+  recorded_employee_days: number;
+  present_days: number;
+  present_pct: number;
+  leave_days: number;
+  leave_pct: number;
+  wfh_days: number;
+  wfh_pct: number;
+  od_days?: number;
+  od_pct?: number;
+  holiday_days?: number;
+  holiday_pct?: number;
+  week_off_days?: number;
+  week_off_pct?: number;
+  absent_days: number;
+  absent_pct: number;
+  exception_days: number;
+  exception_rate_pct: number;
+  missing_swipe_days: number;
+  missing_swipe_rate_pct: number;
+}
+
+export interface ReconciliationData {
+  status: "clean" | "notice" | "warning";
+  is_reconciled: boolean;
+  total_days: number;
+  categorized_days: number;
+  conflicts_count: number;
+  unclassified_records_count: number;
+  unclassified_days: number;
+  summary: string;
+  description: string;
+}
+
+export interface ExecutiveOverviewBundle {
+  execution_time_ms: number;
+  scope: {
+    business_unit: string;
+    department: string;
+    manager: string;
+    employee: string;
+  };
+  kpi_cards: ExecutiveKPICardData[];
+  reconciliation: ReconciliationData;
+  attendance_composition: AttendanceCompositionItem[];
+  attendance_composition_denominator: number;
+  daily_attendance_trend: DailyAttendanceRecord[];
+  bu_attendance_comparison: BUAttendanceComparisonRow[];
+  bu_comparison_total: BUAttendanceComparisonRow;
+  data_quality: {
+    status: string;
+    conflicts_count: number;
+    unclassified_count: number;
+  };
+}
+

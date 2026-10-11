@@ -15,16 +15,24 @@ import { PredictiveSignalsPanel } from "@/components/PredictiveSignalsPanel";
 import { PolicySimulationStudio } from "@/components/PolicySimulationStudio";
 import { ConnectorsHub } from "@/components/ConnectorsHub";
 import { DesktopOperationsSuite } from "@/components/DesktopOperationsSuite";
+import { ExecutiveOverview } from "@/components/ExecutiveOverview";
 import {
   fetchCascadedFilters,
   fetchHealth,
   fetchMetrics,
   fetchSnapshotMetadata,
   queryTrendIntelligence,
+  fetchExecutiveOverview,
 } from "@/lib/api";
-import { CascadedFilters, MetricMetadata, SnapshotMetadata, TrendBundle } from "@/lib/types";
+import {
+  CascadedFilters,
+  MetricMetadata,
+  SnapshotMetadata,
+  TrendBundle,
+  ExecutiveOverviewBundle,
+} from "@/lib/types";
 
-type ActiveTab = "telemetry" | "predictive" | "simulation" | "connectors" | "operations" | "all";
+type ActiveTab = "overview" | "telemetry" | "predictive" | "simulation" | "connectors" | "operations" | "all";
 
 export default function WorkforceIntelligenceDashboard() {
   const [gatewayStatus, setGatewayStatus] = useState("checking");
@@ -32,7 +40,7 @@ export default function WorkforceIntelligenceDashboard() {
   const [metrics, setMetrics] = useState<MetricMetadata[]>([]);
   const [selectedMetricId, setSelectedMetricId] = useState("missing_swipe_rate");
   const [benchmarkType, setBenchmarkType] = useState("ORGANIZATION");
-  const [activeTab, setActiveTab] = useState<ActiveTab>("telemetry");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [showDetailedBenchmarks, setShowDetailedBenchmarks] = useState(false);
@@ -52,6 +60,9 @@ export default function WorkforceIntelligenceDashboard() {
 
   const [bundle, setBundle] = useState<TrendBundle | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const [overviewBundle, setOverviewBundle] = useState<ExecutiveOverviewBundle | null>(null);
+  const [isOverviewLoading, setIsOverviewLoading] = useState(true);
 
   // Sync theme with document element
   useEffect(() => {
@@ -153,16 +164,45 @@ export default function WorkforceIntelligenceDashboard() {
     fetchTrendData();
   }, [selectedMetricId, benchmarkType, selectedBU, selectedDept, selectedManager, selectedEmployee]);
 
+  // 4. Executive Overview Query
+  useEffect(() => {
+    let isMounted = true;
+    const loadOverview = async () => {
+      setIsOverviewLoading(true);
+      try {
+        const res = await fetchExecutiveOverview({
+          business_unit: selectedBU,
+          department: selectedDept,
+          manager: selectedManager,
+          employee: selectedEmployee,
+        });
+        if (isMounted) setOverviewBundle(res);
+      } catch (err) {
+        console.error("Failed to fetch executive overview:", err);
+      } finally {
+        if (isMounted) setIsOverviewLoading(false);
+      }
+    };
+
+    if (activeTab === "overview" || activeTab === "all") {
+      loadOverview();
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, selectedBU, selectedDept, selectedManager, selectedEmployee]);
+
   const currentMetric = metrics.find((m) => m.id === selectedMetricId);
   const metricLabel = currentMetric?.label || "Missing Swipe Rate";
 
   const tabTitles: Record<ActiveTab, string> = {
-    telemetry: "Workforce Telemetry & Trends",
+    overview: "Executive Overview (15 Primary KPIs & Reconciliation)",
+    telemetry: "Workforce Telemetry & Decision Trends",
     predictive: "AI Predictive Signals & Retention Risk",
     simulation: "What-If Policy Simulation Studio",
     connectors: "Data Connection Hub (Keka & Slack)",
     operations: "Desktop Operations Suite",
-    all: "Executive War Room (All Panels)",
+    all: "Executive War Room (Composite Analytics)",
   };
 
   return (
@@ -202,8 +242,8 @@ export default function WorkforceIntelligenceDashboard() {
 
         {/* Content Viewport with Fit-to-Screen Constraints */}
         <main className="flex-1 px-4 sm:px-6 py-5 max-w-7xl w-full mx-auto">
-          {/* Cascading Filter Bar (Shown in Telemetry, Predictive, and War Room) */}
-          {(activeTab === "telemetry" || activeTab === "all" || activeTab === "predictive") && (
+          {/* Cascading Filter Bar (Shown in Overview, Telemetry, Predictive, and War Room) */}
+          {(activeTab === "overview" || activeTab === "telemetry" || activeTab === "all" || activeTab === "predictive") && (
             <FilterBar
               metrics={metrics}
               selectedMetricId={selectedMetricId}
@@ -232,7 +272,19 @@ export default function WorkforceIntelligenceDashboard() {
               selectedEmployee={selectedEmployee}
               onSelectEmployee={setSelectedEmployee}
               theme={theme}
+              hideMetricSelector={activeTab === "overview"}
             />
+          )}
+
+          {/* ── VIEW 0: EXECUTIVE OVERVIEW (15 PRIMARY KPIS, RECONCILIATION, COMPOSITION & BU TABLE) ── */}
+          {(activeTab === "overview" || activeTab === "all") && (
+            <div className="mb-6">
+              <ExecutiveOverview
+                bundle={overviewBundle}
+                isLoading={isOverviewLoading}
+                theme={theme}
+              />
+            </div>
           )}
 
           {/* ── VIEW 1: WORKFORCE TELEMETRY & TRENDS (COMPACT FIT TO SCREEN) ── */}

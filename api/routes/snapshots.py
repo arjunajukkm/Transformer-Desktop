@@ -52,50 +52,184 @@ def load_enterprise_demo_snapshot():
     with multi-BU hierarchy, attendance events, and approval cycles into active memory.
     """
     t0 = time.perf_counter()
-    dates = [
-        date(2026, 5, 10), date(2026, 5, 15), date(2026, 5, 20),
-        date(2026, 6, 10), date(2026, 6, 15), date(2026, 6, 20),
-        date(2026, 7, 10), date(2026, 7, 15), date(2026, 7, 20),
-    ]
+    from datetime import timedelta
     bus = ["Engineering", "Lending", "Operations"]
-    emp_ids = [101, 102, 103, 104, 105, 106, 107, 108, 109]
+    emp_configs = [
+        {"id": "EMP101", "name": "Arjun Sharma", "bu": "Engineering", "dept": "Platform Eng", "mgr": "Vikram Malhotra"},
+        {"id": "EMP102", "name": "Priya Nair", "bu": "Engineering", "dept": "Data Analytics", "mgr": "Vikram Malhotra"},
+        {"id": "EMP103", "name": "Rohan Mehta", "bu": "Engineering", "dept": "Platform Eng", "mgr": "Vikram Malhotra"},
+        {"id": "EMP104", "name": "Ananya Desai", "bu": "Engineering", "dept": "Data Analytics", "mgr": "Vikram Malhotra"},
+        {"id": "EMP105", "name": "Rahul Verma", "bu": "Lending", "dept": "Credit Risk", "mgr": "Sneha Sen"},
+        {"id": "EMP106", "name": "Kavita Rao", "bu": "Lending", "dept": "Underwriting", "mgr": "Sneha Sen"},
+        {"id": "EMP107", "name": "Siddharth Jain", "bu": "Lending", "dept": "Credit Risk", "mgr": "Sneha Sen"},
+        {"id": "EMP108", "name": "Pooja Hegde", "bu": "Lending", "dept": "Underwriting", "mgr": "Sneha Sen"},
+        {"id": "EMP109", "name": "Aditya Roy", "bu": "Operations", "dept": "Customer Ops", "mgr": "Rajesh Kumar"},
+        {"id": "EMP110", "name": "Meera Patel", "bu": "Operations", "dept": "Disbursements", "mgr": "Rajesh Kumar"},
+        {"id": "EMP111", "name": "Gaurav Sen", "bu": "Operations", "dept": "Customer Ops", "mgr": "Rajesh Kumar"},
+        {"id": "EMP112", "name": "Divya Krishnan", "bu": "Operations", "dept": "Disbursements", "mgr": "Rajesh Kumar"},
+    ]
 
     records = []
-    for d in dates:
-        for idx, emp_id in enumerate(emp_ids):
-            bu = bus[idx % 3]
-            if bu == "Lending" and d.month == 7:
-                att_type = "Single Swipe"
-                in_t = "10:30"
-                out_t = ""
-                exc_flag = "Missing Out Punch"
-            elif idx % 4 == 0:
-                att_type = "Present"
-                in_t = "09:30"
-                out_t = "18:30"
-                exc_flag = ""
-            else:
-                att_type = "Present"
-                in_t = "09:00"
-                out_t = "18:00"
-                exc_flag = ""
+    # Build a calendar from May 1 to July 31, 2026
+    start_date = date(2026, 5, 1)
+    end_date = date(2026, 7, 31)
+    curr = start_date
 
-            records.append({
-                "Date": d,
-                "Employee No": emp_id,
-                "Employee Name": f"Employee {emp_id}",
-                "Business Unit": bu,
-                "Department": f"{bu} Core",
-                "Reporting Manager": f"Manager {bu}",
-                "Attendance Type": att_type,
-                "Status": "P(MS)" if (bu == "Lending" and d.month == 7) else "P",
-                "First In": in_t,
-                "Last Out": out_t,
-                "Total Duration": "09:00" if out_t else "04:00",
-                "Exceptions": exc_flag,
-                "Leave Type": "",
-                "Leave Status": "",
-            })
+    while curr <= end_date:
+        is_sunday = (curr.weekday() == 6)
+        is_saturday = (curr.weekday() == 5)
+        is_holiday = (curr.month == 5 and curr.day == 1) # May Day
+        day_num = curr.day
+
+        for e_idx, emp in enumerate(emp_configs):
+            if is_holiday:
+                records.append({
+                    "Date": curr,
+                    "Employee No": emp["id"],
+                    "Employee Name": emp["name"],
+                    "Business Unit": emp["bu"],
+                    "Department": emp["dept"],
+                    "Reporting Manager": emp["mgr"],
+                    "Attendance Type": "Holiday",
+                    "Status": "H",
+                    "Quantity": 1.0,
+                    "First In": "",
+                    "Last Out": "",
+                    "Total Duration": "00:00",
+                    "Exceptions": "",
+                    "Applied On": "",
+                })
+            elif is_sunday or (is_saturday and day_num % 2 == 0):
+                records.append({
+                    "Date": curr,
+                    "Employee No": emp["id"],
+                    "Employee Name": emp["name"],
+                    "Business Unit": emp["bu"],
+                    "Department": emp["dept"],
+                    "Reporting Manager": emp["mgr"],
+                    "Attendance Type": "Week Off",
+                    "Status": "WO",
+                    "Quantity": 1.0,
+                    "First In": "",
+                    "Last Out": "",
+                    "Total Duration": "00:00",
+                    "Exceptions": "",
+                    "Applied On": "",
+                })
+            else:
+                # Working Day distribution: Present (80%), WFH (10%), Leave (5%), Absent (3%), OD (2%)
+                hash_seed = (e_idx * 37 + curr.month * 17 + day_num * 7) % 100
+                if emp["bu"] == "Lending" and curr.month == 7 and (e_idx % 2 == 0) and day_num in (10, 15, 20, 22):
+                    # Single Swipe attendance exception pattern
+                    records.append({
+                        "Date": curr,
+                        "Employee No": emp["id"],
+                        "Employee Name": emp["name"],
+                        "Business Unit": emp["bu"],
+                        "Department": emp["dept"],
+                        "Reporting Manager": emp["mgr"],
+                        "Attendance Type": "Single Swipe",
+                        "Status": "P(MS)",
+                        "Quantity": 1.0,
+                        "First In": "09:42",
+                        "Last Out": "",
+                        "Total Duration": "04:00",
+                        "Exceptions": "Missing Out Punch",
+                        "Applied On": curr - timedelta(days=1),
+                    })
+                elif hash_seed < 70:
+                    # Regular Physical Attendance
+                    in_min = 10 + (hash_seed % 30)
+                    out_min = 15 + (hash_seed % 40)
+                    records.append({
+                        "Date": curr,
+                        "Employee No": emp["id"],
+                        "Employee Name": emp["name"],
+                        "Business Unit": emp["bu"],
+                        "Department": emp["dept"],
+                        "Reporting Manager": emp["mgr"],
+                        "Attendance Type": "Present",
+                        "Status": "P",
+                        "Quantity": 1.0,
+                        "First In": f"09:{in_min:02d}",
+                        "Last Out": f"18:{out_min:02d}",
+                        "Total Duration": f"09:{abs(out_min - in_min):02d}",
+                        "Exceptions": "",
+                        "Applied On": "",
+                    })
+                elif hash_seed < 82:
+                    # Work From Home
+                    records.append({
+                        "Date": curr,
+                        "Employee No": emp["id"],
+                        "Employee Name": emp["name"],
+                        "Business Unit": emp["bu"],
+                        "Department": emp["dept"],
+                        "Reporting Manager": emp["mgr"],
+                        "Attendance Type": "Work From Home",
+                        "Status": "WFH",
+                        "Quantity": 1.0,
+                        "First In": "",
+                        "Last Out": "",
+                        "Total Duration": "08:30",
+                        "Exceptions": "",
+                        "Applied On": curr - timedelta(days=2),
+                    })
+                elif hash_seed < 90:
+                    # Approved Leave
+                    records.append({
+                        "Date": curr,
+                        "Employee No": emp["id"],
+                        "Employee Name": emp["name"],
+                        "Business Unit": emp["bu"],
+                        "Department": emp["dept"],
+                        "Reporting Manager": emp["mgr"],
+                        "Attendance Type": "Casual Leave",
+                        "Status": "CL",
+                        "Quantity": 1.0,
+                        "First In": "",
+                        "Last Out": "",
+                        "Total Duration": "00:00",
+                        "Exceptions": "",
+                        "Applied On": curr - timedelta(days=3),
+                    })
+                elif hash_seed < 95:
+                    # On Duty
+                    records.append({
+                        "Date": curr,
+                        "Employee No": emp["id"],
+                        "Employee Name": emp["name"],
+                        "Business Unit": emp["bu"],
+                        "Department": emp["dept"],
+                        "Reporting Manager": emp["mgr"],
+                        "Attendance Type": "On Duty",
+                        "Status": "OD",
+                        "Quantity": 1.0,
+                        "First In": "09:30",
+                        "Last Out": "18:00",
+                        "Total Duration": "08:30",
+                        "Exceptions": "",
+                        "Applied On": curr - timedelta(days=1),
+                    })
+                else:
+                    # Absent
+                    records.append({
+                        "Date": curr,
+                        "Employee No": emp["id"],
+                        "Employee Name": emp["name"],
+                        "Business Unit": emp["bu"],
+                        "Department": emp["dept"],
+                        "Reporting Manager": emp["mgr"],
+                        "Attendance Type": "Absent",
+                        "Status": "A",
+                        "Quantity": 1.0,
+                        "First In": "",
+                        "Last Out": "",
+                        "Total Duration": "00:00",
+                        "Exceptions": "Unplanned Absence",
+                        "Applied On": "",
+                    })
+        curr += timedelta(days=1)
 
     df = pd.DataFrame(records)
     snap = create_snapshot(df, dataset_id="enterprise_demo_dataset")
@@ -103,6 +237,7 @@ def load_enterprise_demo_snapshot():
     
     # Warm bridge foundation & cubes
     workforce_bridge.invalidate_cache()
+    workforce_bridge.get_workforce_metrics()
     workforce_bridge.get_trend_intelligence("missing_swipe_rate")
 
     t_elapsed = round((time.perf_counter() - t0) * 1000, 2)
@@ -111,7 +246,7 @@ def load_enterprise_demo_snapshot():
         "dataset_id": snap.dataset_id,
         "row_count": len(df),
         "execution_time_ms": t_elapsed,
-        "message": "Enterprise demo dataset loaded successfully.",
+        "message": "Realistic enterprise workforce dataset loaded successfully across all attendance categories.",
     }
 
 

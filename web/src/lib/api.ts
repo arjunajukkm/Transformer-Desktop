@@ -21,6 +21,7 @@ import {
   KekaSyncResponse,
   SchedulerStatusResponse,
   SchedulerConfigPayload,
+  ExecutiveOverviewBundle,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
@@ -124,6 +125,37 @@ export async function queryTrendIntelligence(payload: {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Calculation failed" }));
     throw new Error(err.detail || "Failed to query trend intelligence");
+  }
+  return await res.json();
+}
+
+export async function fetchExecutiveOverview(params: {
+  business_unit?: string | null;
+  department?: string | null;
+  manager?: string | null;
+  employee?: string | null;
+}): Promise<ExecutiveOverviewBundle> {
+  const query = new URLSearchParams();
+  if (params.business_unit && params.business_unit !== "All Business Units") {
+    query.append("business_unit", params.business_unit);
+  }
+  if (params.department && params.department !== "All Departments") {
+    query.append("department", params.department);
+  }
+  if (params.manager && params.manager !== "All Reporting Managers") {
+    query.append("manager", params.manager);
+  }
+  if (params.employee && params.employee !== "All Employees") {
+    query.append("employee", params.employee);
+  }
+
+  const res = await fetch(`${API_BASE}/analytics/overview?${query.toString()}`, {
+    cache: "no-store",
+    headers: { "X-Persona-Id": _activePersonaId },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to load executive overview" }));
+    throw new Error(err.detail || "Failed to load executive overview");
   }
   return await res.json();
 }

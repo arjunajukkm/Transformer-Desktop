@@ -20,6 +20,7 @@ interface FilterBarProps {
   selectedEmployee: string;
   onSelectEmployee: (emp: string) => void;
   theme?: "dark" | "light";
+  hideMetricSelector?: boolean;
 }
 
 export function FilterBar({
@@ -38,6 +39,7 @@ export function FilterBar({
   selectedEmployee,
   onSelectEmployee,
   theme = "dark",
+  hideMetricSelector = false,
 }: FilterBarProps) {
   const currentMetric = metrics.find((m) => m.id === selectedMetricId);
   const categories = ["Attendance", "Working Time", "Compliance", "Approval"] as const;
@@ -65,76 +67,90 @@ export function FilterBar({
     >
       {/* ── Single-Row Top Control: Target Metric + Benchmark Mode + Reset ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-2.5 mb-2.5 border-b border-inherit">
-        {/* Metric Selector with Category Color Dot */}
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5 text-xs font-mono font-bold text-cyan-400 uppercase">
-            <Target className="h-3.5 w-3.5" />
-            <span>Target Metric:</span>
-          </span>
-
-          <div className="relative min-w-[220px]">
-            <select
-              value={selectedMetricId}
-              onChange={(e) => onSelectMetric(e.target.value)}
-              className={`w-full appearance-none rounded-lg px-3 py-1.5 pr-8 text-xs font-medium border focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer font-mono ${
-                theme === "dark"
-                  ? "bg-[#070b10] border-slate-700 text-white"
-                  : "bg-slate-50 border-slate-300 text-slate-900"
-              }`}
-            >
-              {categories.map((cat) => (
-                <optgroup key={cat} label={`── ${cat.toUpperCase()} ──`}>
-                  {metrics
-                    .filter((m) => m.category === cat)
-                    .map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.label} ({m.format})
-                      </option>
-                    ))}
-                </optgroup>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cyan-400 pointer-events-none" />
-          </div>
-
-          {currentMetric && (
-            <span
-              className={`hidden xl:inline-block text-[11px] px-2 py-0.5 rounded truncate max-w-xs ${
-                theme === "dark"
-                  ? "bg-slate-800/60 text-slate-400 border border-slate-700/50"
-                  : "bg-slate-100 text-slate-600 border border-slate-200"
-              }`}
-            >
-              {currentMetric.description}
+        {hideMetricSelector ? (
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1.5 text-xs font-mono font-bold text-cyan-400 uppercase">
+              <Layers className="h-3.5 w-3.5" />
+              <span>Dimensional Scope Filters:</span>
             </span>
-          )}
-        </div>
+            <span className={`text-[11px] font-mono px-2 py-0.5 rounded ${theme === "dark" ? "bg-slate-800 text-slate-300" : "bg-slate-100 text-slate-700"}`}>
+              {selectedBU} • {selectedDept} • {selectedManager}
+            </span>
+          </div>
+        ) : (
+          /* Metric Selector with Category Color Dot */
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1.5 text-xs font-mono font-bold text-cyan-400 uppercase">
+              <Target className="h-3.5 w-3.5" />
+              <span>Target Metric:</span>
+            </span>
+
+            <div className="relative min-w-[220px]">
+              <select
+                value={selectedMetricId}
+                onChange={(e) => onSelectMetric(e.target.value)}
+                className={`w-full appearance-none rounded-lg px-3 py-1.5 pr-8 text-xs font-medium border focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer font-mono ${
+                  theme === "dark"
+                    ? "bg-[#070b10] border-slate-700 text-white"
+                    : "bg-slate-50 border-slate-300 text-slate-900"
+                }`}
+              >
+                {categories.map((cat) => (
+                  <optgroup key={cat} label={`── ${cat.toUpperCase()} ──`}>
+                    {metrics
+                      .filter((m) => m.category === cat)
+                      .map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.label} ({m.format})
+                        </option>
+                      ))}
+                  </optgroup>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cyan-400 pointer-events-none" />
+            </div>
+
+            {currentMetric && (
+              <span
+                className={`hidden xl:inline-block text-[11px] px-2 py-0.5 rounded truncate max-w-xs ${
+                  theme === "dark"
+                    ? "bg-slate-800/60 text-slate-400 border border-slate-700/50"
+                    : "bg-slate-100 text-slate-600 border border-slate-200"
+                }`}
+              >
+                {currentMetric.description}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Benchmark Baseline Selector & Reset */}
         <div className="flex items-center gap-2">
-          <div
-            className={`flex rounded-lg p-0.5 border text-xs font-mono ${
-              theme === "dark" ? "bg-[#070b10] border-slate-800" : "bg-slate-100 border-slate-200"
-            }`}
-          >
-            {[
-              { id: "ORGANIZATION", label: "Organisation" },
-              { id: "HISTORICAL", label: "Historical" },
-              { id: "PEER", label: "Peer BU" },
-            ].map((btn) => (
-              <button
-                key={btn.id}
-                onClick={() => onSelectBenchmarkType(btn.id)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
-                  benchmarkType === btn.id
-                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold shadow-sm"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
-              >
-                {btn.label}
-              </button>
-            ))}
-          </div>
+          {!hideMetricSelector && (
+            <div
+              className={`flex rounded-lg p-0.5 border text-xs font-mono ${
+                theme === "dark" ? "bg-[#070b10] border-slate-800" : "bg-slate-100 border-slate-200"
+              }`}
+            >
+              {[
+                { id: "ORGANIZATION", label: "Organisation" },
+                { id: "HISTORICAL", label: "Historical" },
+                { id: "PEER", label: "Peer BU" },
+              ].map((btn) => (
+                <button
+                  key={btn.id}
+                  onClick={() => onSelectBenchmarkType(btn.id)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                    benchmarkType === btn.id
+                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold shadow-sm"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {isFiltered && (
             <button

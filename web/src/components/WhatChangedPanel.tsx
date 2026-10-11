@@ -63,9 +63,13 @@ export function WhatChangedPanel({ decomposition, theme = "dark" }: WhatChangedP
                     {isIncrease ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                   </div>
                   <div className="truncate">
-                    <span className="font-semibold text-xs">{driver.entity}</span>
-                    <span className="text-[10px] text-slate-400 ml-1.5 font-mono">({driver.dimension})</span>
-                    <p className="text-[11px] text-slate-400 truncate mt-0.5">{driver.summary}</p>
+                    <span className="font-semibold text-xs">
+                      {driver.entity || driver.dimension || "Organization Cohort"}
+                    </span>
+                    {driver.dimension && driver.dimension !== driver.entity && (
+                      <span className="text-[10px] text-slate-400 ml-1.5 font-mono">({driver.dimension})</span>
+                    )}
+                    {driver.summary && <p className="text-[11px] text-slate-400 truncate mt-0.5">{driver.summary}</p>}
                   </div>
                 </div>
 
