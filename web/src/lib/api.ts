@@ -19,6 +19,8 @@ import {
   KekaConfigPayload,
   SlackConfigPayload,
   KekaSyncResponse,
+  SchedulerStatusResponse,
+  SchedulerConfigPayload,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
@@ -288,5 +290,55 @@ export async function dispatchSlackAlert(
     body: JSON.stringify({ channel, alert_type: alertType, title, message }),
   });
   if (!res.ok) throw new Error("Failed to dispatch alert to Slack");
+  return await res.json();
+}
+
+/* ── Automated Background Pipeline & Digest APIs ─────────────────── */
+
+export async function fetchSchedulerStatus(): Promise<SchedulerStatusResponse> {
+  const res = await fetch(`${API_BASE}/connectors/scheduler/status`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to load scheduler status");
+  return await res.json();
+}
+
+export async function updateSchedulerConfig(config: SchedulerConfigPayload): Promise<SchedulerStatusResponse> {
+  const res = await fetch(`${API_BASE}/connectors/scheduler/config`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Persona-Id": _activePersonaId,
+    },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) throw new Error("Failed to update scheduler configuration");
+  return await res.json();
+}
+
+export async function triggerSchedulerSync(): Promise<any> {
+  const res = await fetch(`${API_BASE}/connectors/scheduler/trigger-sync`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Persona-Id": _activePersonaId,
+    },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error("Failed to trigger automated sync pipeline");
+  return await res.json();
+}
+
+export async function triggerSchedulerDigest(channel?: string): Promise<any> {
+  const url = channel
+    ? `${API_BASE}/connectors/scheduler/trigger-digest?channel=${encodeURIComponent(channel)}`
+    : `${API_BASE}/connectors/scheduler/trigger-digest`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Persona-Id": _activePersonaId,
+    },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error("Failed to trigger morning Slack digest");
   return await res.json();
 }

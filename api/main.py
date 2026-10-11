@@ -38,8 +38,22 @@ async def lifespan(app: FastAPI):
             logger.info("Enterprise demo dataset pre-warmed successfully.")
         except Exception as e:
             logger.warning(f"Demo pre-warming encountered an error: {e}")
+    # Start automated background CDC and Slack digest scheduler
+    try:
+        from api.services.scheduler import workforce_scheduler
+        workforce_scheduler.start()
+        logger.info("Automated background pipeline and Slack digest scheduler started.")
+    except Exception as e:
+        logger.warning(f"Scheduler failed to start: {e}")
+
     yield
+
     logger.info("Shutting down Analytical Gateway...")
+    try:
+        from api.services.scheduler import workforce_scheduler
+        workforce_scheduler.stop()
+    except Exception as e:
+        logger.warning(f"Error stopping scheduler: {e}")
 
 
 app = FastAPI(

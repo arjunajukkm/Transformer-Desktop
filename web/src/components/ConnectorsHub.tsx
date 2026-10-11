@@ -15,8 +15,17 @@ import {
   Layers,
   Database,
   Terminal,
+  Clock,
+  Sparkles,
+  Bell,
 } from "lucide-react";
-import { ConnectorsStatusResponse, KekaConfigPayload, SlackConfigPayload } from "../lib/types";
+import {
+  ConnectorsStatusResponse,
+  KekaConfigPayload,
+  SlackConfigPayload,
+  SchedulerStatusResponse,
+  SchedulerConfigPayload,
+} from "../lib/types";
 import {
   fetchConnectorsStatus,
   testKekaConnection,
@@ -25,6 +34,10 @@ import {
   testSlackConnection,
   saveSlackConfig,
   dispatchSlackAlert,
+  fetchSchedulerStatus,
+  updateSchedulerConfig,
+  triggerSchedulerSync,
+  triggerSchedulerDigest,
 } from "../lib/api";
 
 interface ConnectorsHubProps {
@@ -59,6 +72,17 @@ export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
     "Lineage Engine: Ready to ingest streams from Keka HRMS & Slack Enterprise Grid.",
   ]);
 
+  // Background Scheduler & Slack Digest state
+  const [scheduler, setScheduler] = useState<SchedulerStatusResponse | null>(null);
+  const [schedEnabled, setSchedEnabled] = useState(true);
+  const [schedInterval, setSchedInterval] = useState(60);
+  const [digestEnabled, setDigestEnabled] = useState(true);
+  const [digestTime, setDigestTime] = useState("09:00");
+  const [digestChannel, setDigestChannel] = useState("#workforce-alerts");
+  const [savingSched, setSavingSched] = useState(false);
+  const [triggeringDigest, setTriggeringDigest] = useState(false);
+  const [digestFeedback, setDigestFeedback] = useState<string | null>(null);
+
   const loadStatus = async () => {
     try {
       const res = await fetchConnectorsStatus();
@@ -72,8 +96,58 @@ export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
     }
   };
 
+  const loadScheduler = async () => {
+    try {
+      const res = await fetchSchedulerStatus();
+      setScheduler(res);
+      setSchedEnabled(res.enabled);
+      setSchedInterval(res.sync_interval_minutes);
+      setDigestEnabled(res.digest_enabled);
+      setDigestTime(res.digest_target_time);
+      if (res.slack_channel) setDigestChannel(res.slack_channel);
+    } catch (err) {
+      console.error("Failed to load scheduler:", err);
+    }
+  };
+
+  const handleSaveScheduler = async () => {
+    setSavingSched(true);
+    try {
+      const res = await updateSchedulerConfig({
+        enabled: schedEnabled,
+        sync_interval_minutes: Number(schedInterval),
+        digest_enabled: digestEnabled,
+        digest_target_time: digestTime,
+        slack_channel: digestChannel,
+      });
+      setScheduler(res);
+      addLog(`Scheduler Rules Saved: sync every ${res.sync_interval_minutes}m, digest @ ${res.digest_target_time}`);
+    } catch (err: any) {
+      addLog(`Scheduler Save Error: ${err.message}`);
+    } finally {
+      setSavingSched(false);
+    }
+  };
+
+  const handleTriggerDigestNow = async () => {
+    setTriggeringDigest(true);
+    setDigestFeedback(null);
+    try {
+      const res = await triggerSchedulerDigest(digestChannel);
+      setDigestFeedback(`✓ Morning Digest dispatched to ${res.channel} (${res.digest?.execution_time_ms || 12} ms)`);
+      addLog(`Morning Digest Sent: Dispatched executive summary to ${res.channel}`);
+      loadScheduler();
+    } catch (err: any) {
+      setDigestFeedback(`✕ Digest Failed: ${err.message}`);
+      addLog(`Digest Error: ${err.message}`);
+    } finally {
+      setTriggeringDigest(false);
+    }
+  };
+
   useEffect(() => {
     loadStatus();
+    loadScheduler();
   }, []);
 
   const addLog = (msg: string) => {
@@ -481,6 +555,210 @@ export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* SECTION 2.5: AUTOMATED BACKGROUND PIPELINE & MORNING SLACK DIGEST */}
+      <div className="bg-[#070b10] border border-cyan-500/30 rounded-xl p-5 mb-6 relative overflow-hidden shadow-xl">
+        <div className="absolute top-0 right-0 w-80 h-40 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+
+        {/* Title bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400">
+              <Clock className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold font-mono tracking-wider text-slate-100 uppercase">
+                  Automated Background Ingestion &amp; Morning Executive Slack Digest
+                </h3>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-bold">
+                  {scheduler?.is_running ? "DAEMON ACTIVE" : "STANDBY"}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Continuously synchronizes Keka attendance logs into OLAP hypercubes and delivers daily morning workforce readiness digests to Slack.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleTriggerDigestNow}
+              disabled={triggeringDigest}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-mono font-bold rounded text-xs transition-all shadow-[0_0_12px_rgba(168,85,247,0.3)] disabled:opacity-50"
+            >
+              {triggeringDigest ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              Dispatch Morning Digest Now
+            </button>
+            <button
+              onClick={handleSaveScheduler}
+              disabled={savingSched}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-mono font-bold rounded text-xs transition-all disabled:opacity-50"
+            >
+              <Save className="w-3.5 h-3.5" />
+              Save Cadence
+            </button>
+          </div>
+        </div>
+
+        {/* Feedback message */}
+        {digestFeedback && (
+          <div className="mb-4 p-2.5 rounded bg-purple-950/40 border border-purple-800 text-xs font-mono text-purple-300 flex items-center gap-2">
+            <Bell className="w-4 h-4 text-purple-400" />
+            <span>{digestFeedback}</span>
+          </div>
+        )}
+
+        {/* Configuration Columns */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          {/* Automated Ingestion Cadence */}
+          <div className="bg-[#05080c] border border-slate-800/80 rounded-lg p-3.5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-mono font-bold text-slate-300 flex items-center gap-1.5">
+                <Database className="w-3.5 h-3.5 text-cyan-400" />
+                Automated Ingestion (CDC)
+              </span>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={schedEnabled}
+                  onChange={(e) => setSchedEnabled(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500" />
+              </label>
+            </div>
+            <div className="space-y-2 mt-3">
+              <div>
+                <label className="text-[10px] font-mono text-slate-400 uppercase">Sync Cadence</label>
+                <select
+                  value={schedInterval}
+                  onChange={(e) => setSchedInterval(Number(e.target.value))}
+                  className="w-full bg-[#0a0f16] border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 mt-1 focus:border-cyan-500 focus:outline-none font-mono"
+                >
+                  <option value={15}>Every 15 Minutes (Real-Time)</option>
+                  <option value={30}>Every 30 Minutes</option>
+                  <option value={60}>Every 60 Minutes (Hourly)</option>
+                  <option value={180}>Every 3 Hours</option>
+                  <option value={360}>Every 6 Hours</option>
+                  <option value={1440}>Daily (Every 24 Hours)</option>
+                </select>
+              </div>
+              <div className="text-[11px] font-mono text-slate-400 pt-1">
+                <span className="text-slate-500">Next Ingestion:</span>{" "}
+                <span className="text-cyan-300">
+                  {scheduler?.next_sync_time ? new Date(scheduler.next_sync_time).toLocaleTimeString() : "Pending"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Morning Slack Digest */}
+          <div className="bg-[#05080c] border border-slate-800/80 rounded-lg p-3.5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-mono font-bold text-slate-300 flex items-center gap-1.5">
+                <Send className="w-3.5 h-3.5 text-purple-400" />
+                Morning Slack Digest
+              </span>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={digestEnabled}
+                  onChange={(e) => setDigestEnabled(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-purple-500" />
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-3">
+              <div>
+                <label className="text-[10px] font-mono text-slate-400 uppercase">Target Time</label>
+                <input
+                  type="text"
+                  value={digestTime}
+                  onChange={(e) => setDigestTime(e.target.value)}
+                  placeholder="09:00"
+                  className="w-full bg-[#0a0f16] border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 mt-1 font-mono focus:border-purple-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-mono text-slate-400 uppercase">Channel</label>
+                <input
+                  type="text"
+                  value={digestChannel}
+                  onChange={(e) => setDigestChannel(e.target.value)}
+                  placeholder="#workforce-alerts"
+                  className="w-full bg-[#0a0f16] border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 mt-1 font-mono focus:border-purple-500 focus:outline-none"
+                />
+              </div>
+            </div>
+            <div className="text-[11px] font-mono text-slate-400 pt-2">
+              <span className="text-slate-500">Next Scheduled:</span>{" "}
+              <span className="text-purple-300">
+                {scheduler?.next_digest_time ? new Date(scheduler.next_digest_time).toLocaleString() : "Tomorrow 09:00"}
+              </span>
+            </div>
+          </div>
+
+          {/* Last Execution Telemetry */}
+          <div className="bg-[#05080c] border border-slate-800/80 rounded-lg p-3.5 flex flex-col justify-between">
+            <div>
+              <div className="text-xs font-mono font-bold text-slate-300 mb-2 flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                Live Engine Telemetry
+              </div>
+              <div className="text-[11px] font-mono text-slate-400 space-y-1">
+                <div>
+                  <span className="text-slate-500">Last Sync:</span>{" "}
+                  <span className="text-slate-200">{scheduler?.last_sync_status || "None"}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Last Digest:</span>{" "}
+                  <span className="text-slate-200">{scheduler?.last_digest_status || "None"}</span>
+                </div>
+              </div>
+            </div>
+            <div className="pt-2 border-t border-slate-900 text-[10px] font-mono text-slate-500">
+              Polars Vectorized Lakehouse Cache: Instantaneous Warm Up
+            </div>
+          </div>
+        </div>
+
+        {/* Execution History Table */}
+        {scheduler?.execution_history && scheduler.execution_history.length > 0 && (
+          <div className="mt-3 bg-[#030507] border border-slate-800/80 rounded-lg p-3 font-mono">
+            <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold mb-2 uppercase">
+              <span>Recent Automated Daemon Executions</span>
+              <span className="text-[10px] text-slate-500">Auto-Refreshed by Engine</span>
+            </div>
+            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+              {scheduler.execution_history.slice(-5).reverse().map((item, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between gap-3 text-xs p-1.5 rounded bg-slate-900/40 border border-slate-800/50 hover:border-slate-700 transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                        item.status === "SUCCESS"
+                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                          : "bg-red-500/20 text-red-300 border border-red-500/30"
+                      }`}
+                    >
+                      {item.action}
+                    </span>
+                    <span className="text-slate-300 truncate text-[11px]">{item.details}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-slate-500 shrink-0">
+                    <span>{new Date(item.timestamp).toLocaleTimeString()}</span>
+                    <span className="text-cyan-400/80">{item.execution_time_ms} ms</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* SECTION 3: LINEAGE & AUDIT LOG TERMINAL */}

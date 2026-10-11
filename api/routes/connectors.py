@@ -186,15 +186,12 @@ def save_keka_configuration(config: KekaConfig, user: UserPersona = Depends(get_
     }
 
 
-@router.post("/keka/sync")
-def sync_keka_pipeline(user: UserPersona = Depends(get_current_user)):
+def execute_keka_sync_pipeline() -> Dict[str, Any]:
     """
     Execute full automated Keka Data Sync Pipeline.
     Extracts live workforce records, builds Polars OLAP Hypercubes, and warms decision models.
+    Can be invoked by HTTP routes or background scheduler workers.
     """
-    if not user.can_manage_connectors:
-        raise HTTPException(status_code=403, detail="Forbidden: Super Admin privileges required.")
-
     t0 = time.perf_counter()
     _SYNC_STATE["sync_in_progress"] = True
 
@@ -304,6 +301,17 @@ def sync_keka_pipeline(user: UserPersona = Depends(get_current_user)):
         _SYNC_STATE["sync_in_progress"] = False
 
 
+@router.post("/keka/sync")
+def sync_keka_pipeline(user: UserPersona = Depends(get_current_user)):
+    """
+    Execute full automated Keka Data Sync Pipeline.
+    Extracts live workforce records, builds Polars OLAP Hypercubes, and warms decision models.
+    """
+    if not user.can_manage_connectors:
+        raise HTTPException(status_code=403, detail="Forbidden: Super Admin privileges required.")
+    return execute_keka_sync_pipeline()
+
+
 @router.post("/slack/test")
 def test_slack_connection(config: SlackConfig, user: UserPersona = Depends(get_current_user)):
     """Test connection to Slack Workspace using provided Bot User Token."""
@@ -355,34 +363,108 @@ def save_slack_configuration(config: SlackConfig, user: UserPersona = Depends(ge
     }
 
 
-@router.post("/slack/notify")
-def dispatch_slack_alert(req: SlackAlertRequest, user: UserPersona = Depends(get_current_user)):
-    """Dispatch real-time decision intelligence alert to Slack channel."""
+def dispatch_slack_message_blocks(
+    channel: str,
+    alert_type: str,
+    title: str,
+    text: str,
+    blocks: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Helper to dispatch Slack alerts with optional BlockKit layout."""
     t0 = time.perf_counter()
     token = os.getenv("SLACK_BOT_TOKEN", "")
 
-    # If live token, send actual Slack chat.postMessage
     sent = False
     if token and token.startswith("xoxb-"):
         try:
             from slack_sdk import WebClient
             client = WebClient(token=token, timeout=8)
-            client.chat_postMessage(
-                channel=req.channel,
-                text=f":rotating_light: *[{req.alert_type}]* {req.title}\n{req.message}",
-            )
+            payload: Dict[str, Any] = {
+                "channel": channel,
+                "text": f":rotating_light: *[{alert_type}]* {title}\n{text}",
+            }
+            if blocks:
+                payload["blocks"] = blocks
+            client.chat_postMessage(**payload)
             sent = True
         except Exception as e:
             logger.warning(f"Live Slack alert dispatch failed: {e}")
 
-    _SYNC_STATE["slack_last_event"] = f"{req.alert_type}: {req.title} ({datetime.now().strftime('%H:%M:%S')})"
+    _SYNC_STATE["slack_last_event"] = f"{alert_type}: {title} ({datetime.now().strftime('%H:%M:%S')})"
     t_elapsed = round((time.perf_counter() - t0) * 1000 + (12.0 if not sent else 0), 2)
 
     return {
         "status": "dispatched",
-        "channel": req.channel,
+        "channel": channel,
         "sent_to_live_api": sent,
-        "alert_type": req.alert_type,
+        "alert_type": alert_type,
         "execution_time_ms": t_elapsed,
         "timestamp": datetime.now().isoformat(),
     }
+
+
+@router.post("/slack/notify")
+def dispatch_slack_alert(req: SlackAlertRequest, user: UserPersona = Depends(get_current_user)):
+    """Dispatch real-time decision intelligence alert to Slack channel."""
+    return dispatch_slack_message_blocks(
+        channel=req.channel,
+        alert_type=req.alert_type,
+        title=req.title,
+        text=req.message,
+    )
+
+
+# ── Background Scheduler & CDC Control Endpoints ──────────────────────────────
+
+class SchedulerConfigPayload(BaseModel):
+    enabled: Optional[bool] = None
+    sync_interval_minutes: Optional[int] = None
+    digest_enabled: Optional[bool] = None
+    digest_target_time: Optional[str] = None
+    slack_channel: Optional[str] = None
+
+
+@router.get("/scheduler/status")
+def get_scheduler_status():
+    """Retrieve live background scheduler telemetry and upcoming triggers."""
+    from api.services.scheduler import workforce_scheduler
+    return workforce_scheduler.get_status()
+
+
+@router.post("/scheduler/config")
+def update_scheduler_config(
+    payload: SchedulerConfigPayload,
+    user: UserPersona = Depends(get_current_user),
+):
+    """Update background scheduler cadence, digests, and target channels."""
+    if not user.can_manage_connectors:
+        raise HTTPException(status_code=403, detail="Forbidden: Super Admin privileges required.")
+    from api.services.scheduler import workforce_scheduler
+    return workforce_scheduler.update_config(
+        enabled=payload.enabled,
+        sync_interval_minutes=payload.sync_interval_minutes,
+        digest_enabled=payload.digest_enabled,
+        digest_target_time=payload.digest_target_time,
+        slack_channel=payload.slack_channel,
+    )
+
+
+@router.post("/scheduler/trigger-sync")
+async def trigger_scheduler_sync(user: UserPersona = Depends(get_current_user)):
+    """Manually invoke the automated data sync pipeline."""
+    if not user.can_manage_connectors:
+        raise HTTPException(status_code=403, detail="Forbidden: Super Admin privileges required.")
+    from api.services.scheduler import workforce_scheduler
+    return await workforce_scheduler.trigger_sync_now()
+
+
+@router.post("/scheduler/trigger-digest")
+async def trigger_scheduler_digest(
+    channel: Optional[str] = None,
+    user: UserPersona = Depends(get_current_user),
+):
+    """Manually trigger the formatted Morning Slack Executive Digest."""
+    if not user.can_manage_connectors:
+        raise HTTPException(status_code=403, detail="Forbidden: Super Admin privileges required.")
+    from api.services.scheduler import workforce_scheduler
+    return await workforce_scheduler.trigger_digest_now(target_channel=channel)

@@ -356,3 +356,36 @@ export interface KekaSyncResponse {
   business_units: string[];
   execution_time_ms: number;
 }
+
+export interface SchedulerExecutionItem {
+  timestamp: string;
+  action: string;
+  status: string;
+  details: string;
+  execution_time_ms: number;
+}
+
+export interface SchedulerStatusResponse {
+  is_running: boolean;
+  enabled: boolean;
+  sync_interval_minutes: number;
+  digest_enabled: boolean;
+  digest_target_time: string;
+  slack_channel: string;
+  last_sync_time?: string | null;
+  last_sync_status?: string | null;
+  next_sync_time?: string | null;
+  last_digest_time?: string | null;
+  last_digest_status?: string | null;
+  next_digest_time?: string | null;
+  execution_history: SchedulerExecutionItem[];
+}
+
+export interface SchedulerConfigPayload {
+  enabled?: boolean;
+  sync_interval_minutes?: number;
+  digest_enabled?: boolean;
+  digest_target_time?: string;
+  slack_channel?: string;
+}
+
