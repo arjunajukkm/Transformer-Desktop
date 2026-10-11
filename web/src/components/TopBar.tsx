@@ -82,15 +82,17 @@ export function TopBar({
       }`}
     >
       {/* ── Left: Section Title & Breadcrumb ── */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         <div className="flex items-center gap-1.5 text-xs font-mono text-slate-400">
           <span>Transformers</span>
           <ChevronRight className="h-3 w-3 text-slate-500" />
-          <span className="font-semibold text-slate-200">{activeTabTitle}</span>
+          <span className={`font-semibold ${theme === "dark" ? "text-slate-200" : "text-slate-800"}`}>
+            {activeTabTitle}
+          </span>
         </div>
 
         {scopeLabel && (
-          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-medium">
+          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 font-medium">
             <Shield className="h-3 w-3" />
             {scopeLabel}
           </span>
@@ -106,21 +108,18 @@ export function TopBar({
       )}
 
       {/* ── Right: Dataset Badge & Quick Actions ── */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2">
         {/* Active Lakehouse Dataset Badge */}
         <div
-          className={`hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-lg border text-xs font-mono ${
+          className={`hidden lg:flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-mono ${
             theme === "dark"
-              ? "bg-[#06090e] border-slate-800 text-slate-300"
+              ? "bg-[#06090e] border-slate-800/80 text-slate-300"
               : "bg-slate-50 border-slate-200 text-slate-700"
           }`}
           title="Active In-Memory Lakehouse"
         >
           <Database className="h-3.5 w-3.5 text-cyan-400" />
-          <span className="font-medium text-[11px] truncate max-w-[130px]">
-            {metadata?.dataset_id || "Live Lakehouse"}
-          </span>
-          <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded">
+          <span className="text-[11px] text-emerald-400 font-semibold font-mono">
             {metadata ? `${metadata.row_count} rows` : "Ready"}
           </span>
         </div>
@@ -131,8 +130,8 @@ export function TopBar({
           disabled={isLoading}
           className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-mono font-medium transition-all ${
             theme === "dark"
-              ? "bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-200"
-              : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800"
+              ? "bg-slate-900/80 hover:bg-slate-800 border-slate-800 text-slate-300 hover:text-white"
+              : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 hover:text-slate-900"
           }`}
           title="Reload Demo Dataset"
         >
@@ -142,7 +141,11 @@ export function TopBar({
 
         {/* Quick Upload */}
         <label
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-semibold text-xs font-mono transition-all shadow-[0_0_12px_rgba(6,182,212,0.3)] cursor-pointer"
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-mono font-medium transition-all cursor-pointer ${
+            theme === "dark"
+              ? "bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border-cyan-500/30"
+              : "bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border-cyan-200"
+          }`}
           title="Upload Excel or CSV Dataset"
         >
           <Upload className="h-3 w-3" />
@@ -160,11 +163,11 @@ export function TopBar({
         {onToggleCopilot && (
           <button
             onClick={onToggleCopilot}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono text-xs font-bold transition-all shadow-sm ${
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border font-mono text-xs font-medium transition-all ${
               copilotOpen
                 ? "bg-purple-600 text-white border-purple-500 shadow-[0_0_12px_rgba(168,85,247,0.4)]"
                 : theme === "dark"
-                ? "bg-purple-950/40 hover:bg-purple-900/40 text-purple-300 border-purple-700/50"
+                ? "bg-purple-950/30 hover:bg-purple-900/40 text-purple-300 border-purple-700/40"
                 : "bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200"
             }`}
             title="Toggle AI Decision Copilot"

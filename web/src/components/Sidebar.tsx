@@ -87,34 +87,28 @@ export function Sidebar({
           label: "Executive Overview",
           icon: LayoutDashboard,
           color: "text-emerald-400",
-          activeBg: theme === "dark" ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" : "bg-emerald-50 text-emerald-700 border-emerald-300",
-          badge: "15 KPIs",
-          badgeColor: "bg-emerald-500/20 text-emerald-400",
+          accentBorder: "border-l-emerald-400",
         },
         {
           id: "telemetry",
           label: "Telemetry & Trends",
           icon: Activity,
           color: "text-cyan-400",
-          activeBg: theme === "dark" ? "bg-cyan-500/15 text-cyan-300 border-cyan-500/30" : "bg-cyan-50 text-cyan-700 border-cyan-300",
-          badge: "Live",
-          badgeColor: "bg-cyan-500/20 text-cyan-400",
+          accentBorder: "border-l-cyan-400",
         },
         {
           id: "predictive",
           label: "AI Predictive Signals",
           icon: Sparkles,
           color: "text-purple-400",
-          activeBg: theme === "dark" ? "bg-purple-500/15 text-purple-300 border-purple-500/30" : "bg-purple-50 text-purple-700 border-purple-300",
-          badge: "ML Sentinel",
-          badgeColor: "bg-purple-500/20 text-purple-400",
+          accentBorder: "border-l-purple-400",
         },
         {
           id: "simulation",
           label: "Policy Simulation",
           icon: Sliders,
           color: "text-blue-400",
-          activeBg: theme === "dark" ? "bg-blue-500/15 text-blue-300 border-blue-500/30" : "bg-blue-50 text-blue-700 border-blue-300",
+          accentBorder: "border-l-blue-400",
         },
       ],
     },
@@ -126,16 +120,14 @@ export function Sidebar({
           label: "Connectors & CDC",
           icon: Plug,
           color: "text-emerald-400",
-          activeBg: theme === "dark" ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" : "bg-emerald-50 text-emerald-700 border-emerald-300",
-          badge: "Daemon",
-          badgeColor: "bg-emerald-500/20 text-emerald-400",
+          accentBorder: "border-l-emerald-400",
         },
         {
           id: "operations",
           label: "Operations Suite",
           icon: FileSpreadsheet,
           color: "text-amber-400",
-          activeBg: theme === "dark" ? "bg-amber-500/15 text-amber-300 border-amber-500/30" : "bg-amber-50 text-amber-700 border-amber-300",
+          accentBorder: "border-l-amber-400",
         },
       ],
     },
@@ -147,7 +139,7 @@ export function Sidebar({
           label: "Executive War Room",
           icon: LayoutGrid,
           color: "text-rose-400",
-          activeBg: theme === "dark" ? "bg-rose-500/15 text-rose-300 border-rose-500/30" : "bg-rose-50 text-rose-700 border-rose-300",
+          accentBorder: "border-l-rose-400",
         },
       ],
     },
@@ -210,22 +202,31 @@ export function Sidebar({
                   key={item.id}
                   onClick={() => onSelectTab(item.id)}
                   title={collapsed ? item.label : undefined}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all group relative border ${
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all group relative border ${
                     isActive
-                      ? `${item.activeBg} font-semibold shadow-sm`
+                      ? theme === "dark"
+                        ? "bg-slate-800/60 text-white font-semibold border-slate-700/60 shadow-xs"
+                        : "bg-slate-100 text-slate-900 font-semibold border-slate-200/80 shadow-xs"
                       : theme === "dark"
-                      ? "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
-                      : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
+                      ? "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-850/50"
+                      : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
                   }`}
                 >
-                  <Icon className={`h-4 w-4 shrink-0 ${isActive ? item.color : "text-slate-400 group-hover:" + item.color}`} />
-                  {!collapsed && (
-                    <span className="truncate text-left flex-1">{item.label}</span>
+                  {/* Subtle active left pill bar */}
+                  {isActive && (
+                    <span
+                      className={`absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full ${
+                        item.color.replace("text-", "bg-")
+                      }`}
+                    />
                   )}
-                  {!collapsed && item.badge && (
-                    <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-full font-bold ${item.badgeColor}`}>
-                      {item.badge}
-                    </span>
+                  <Icon
+                    className={`h-4 w-4 shrink-0 transition-colors ${
+                      isActive ? item.color : "text-slate-400 group-hover:" + item.color
+                    }`}
+                  />
+                  {!collapsed && (
+                    <span className="truncate text-left flex-1 font-medium">{item.label}</span>
                   )}
                 </button>
               );

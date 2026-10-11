@@ -196,13 +196,13 @@ export default function WorkforceIntelligenceDashboard() {
   const metricLabel = currentMetric?.label || "Missing Swipe Rate";
 
   const tabTitles: Record<ActiveTab, string> = {
-    overview: "Executive Overview (15 Primary KPIs & Reconciliation)",
-    telemetry: "Workforce Telemetry & Decision Trends",
-    predictive: "AI Predictive Signals & Retention Risk",
-    simulation: "What-If Policy Simulation Studio",
-    connectors: "Data Connection Hub (Keka & Slack)",
-    operations: "Desktop Operations Suite",
-    all: "Executive War Room (Composite Analytics)",
+    overview: "Executive Overview",
+    telemetry: "Telemetry & Trends",
+    predictive: "Predictive Signals",
+    simulation: "Policy Studio",
+    connectors: "Data Connectors",
+    operations: "Operations Suite",
+    all: "Executive War Room",
   };
 
   return (
