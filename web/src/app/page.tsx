@@ -10,6 +10,8 @@ import { BenchmarkTable } from "@/components/BenchmarkTable";
 import { WhatChangedPanel } from "@/components/WhatChangedPanel";
 import { EmergingPatternsPanel } from "@/components/EmergingPatternsPanel";
 import { WorkforceCopilot } from "@/components/WorkforceCopilot";
+import { PredictiveSignalsPanel } from "@/components/PredictiveSignalsPanel";
+import { PolicySimulationStudio } from "@/components/PolicySimulationStudio";
 import {
   fetchCascadedFilters,
   fetchHealth,
@@ -18,6 +20,9 @@ import {
   queryTrendIntelligence,
 } from "@/lib/api";
 import { CascadedFilters, MetricMetadata, SnapshotMetadata, TrendBundle } from "@/lib/types";
+import { Activity, Sparkles, Sliders, LayoutGrid } from "lucide-react";
+
+type ActiveTab = "telemetry" | "predictive" | "simulation" | "all";
 
 export default function WorkforceIntelligenceDashboard() {
   const [gatewayStatus, setGatewayStatus] = useState("checking");
@@ -25,6 +30,7 @@ export default function WorkforceIntelligenceDashboard() {
   const [metrics, setMetrics] = useState<MetricMetadata[]>([]);
   const [selectedMetricId, setSelectedMetricId] = useState("missing_swipe_rate");
   const [benchmarkType, setBenchmarkType] = useState("ORGANIZATION");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("telemetry");
 
   const [filters, setFilters] = useState<CascadedFilters>({
     business_units: ["All Business Units"],
@@ -57,7 +63,6 @@ export default function WorkforceIntelligenceDashboard() {
       setMetrics(metricsList);
       setMetadata(snapMeta);
 
-      // Load initial filter options
       const initialFilters = await fetchCascadedFilters({});
       setFilters(initialFilters);
     } catch (err) {
@@ -124,6 +129,57 @@ export default function WorkforceIntelligenceDashboard() {
 
       {/* Main Dashboard Canvas */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+        {/* Navigation Mode Segmented Controller */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6 bg-[#070b10] p-1.5 rounded-xl border border-slate-800 shadow-lg">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={() => setActiveTab("telemetry")}
+              className={`px-4 py-2 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-2 ${
+                activeTab === "telemetry"
+                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
+              }`}
+            >
+              <Activity className="w-4 h-4 text-cyan-400" />
+              Workforce Telemetry &amp; Trends
+            </button>
+            <button
+              onClick={() => setActiveTab("predictive")}
+              className={`px-4 py-2 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-2 ${
+                activeTab === "predictive"
+                  ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.25)]"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-purple-400" />
+              AI Predictive Signals &amp; Burnout
+            </button>
+            <button
+              onClick={() => setActiveTab("simulation")}
+              className={`px-4 py-2 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-2 ${
+                activeTab === "simulation"
+                  ? "bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-[0_0_12px_rgba(59,130,246,0.25)]"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
+              }`}
+            >
+              <Sliders className="w-4 h-4 text-blue-400" />
+              What-If Policy Simulation Studio
+            </button>
+          </div>
+
+          <button
+            onClick={() => setActiveTab("all")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all flex items-center gap-1.5 ${
+              activeTab === "all"
+                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.25)]"
+                : "text-slate-500 hover:text-slate-300"
+            }`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            Executive War Room (All)
+          </button>
+        </div>
+
         {/* Cascading Filter Bar */}
         <FilterBar
           metrics={metrics}
@@ -154,52 +210,76 @@ export default function WorkforceIntelligenceDashboard() {
           onSelectEmployee={setSelectedEmployee}
         />
 
-        {/* Executive Pulse KPI Cards */}
-        {bundle && (
-          <TrendPulseCards
-            cards={bundle.trend_pulse}
-            pulse={bundle.pulse}
-            metricLabel={metricLabel}
-          />
-        )}
+        {/* VIEW 1: WORKFORCE TELEMETRY & TRENDS */}
+        {(activeTab === "telemetry" || activeTab === "all") && (
+          <div className="space-y-6 mb-8">
+            {/* Executive Pulse KPI Cards */}
+            {bundle && (
+              <TrendPulseCards
+                cards={bundle.trend_pulse}
+                pulse={bundle.pulse}
+                metricLabel={metricLabel}
+              />
+            )}
 
-        {/* Primary Time-Series Trajectory Visualizer */}
-        {bundle && (
-          <MainTrendChart
-            points={bundle.chart.points}
-            metricName={bundle.chart.metric_name}
-            metricFormat={bundle.chart.format}
-            benchmarkLabel={bundle.benchmark_label}
-            entityLabel={bundle.chart.entity_label}
-            policyEffectiveDate={bundle.policy_effective_date}
-            unit={bundle.chart.unit}
-          />
-        )}
+            {/* Primary Time-Series Trajectory Visualizer */}
+            {bundle && (
+              <MainTrendChart
+                points={bundle.chart.points}
+                metricName={bundle.chart.metric_name}
+                metricFormat={bundle.chart.format}
+                benchmarkLabel={bundle.benchmark_label}
+                entityLabel={bundle.chart.entity_label}
+                policyEffectiveDate={bundle.policy_effective_date}
+                unit={bundle.chart.unit}
+              />
+            )}
 
-        {/* Deterministic Drivers & Emerging Exception Risk Dossiers */}
-        {bundle && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <WhatChangedPanel decomposition={bundle.what_changed} />
-            <EmergingPatternsPanel patterns={bundle.patterns} />
+            {/* Deterministic Drivers & Emerging Exception Risk Dossiers */}
+            {bundle && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <WhatChangedPanel decomposition={bundle.what_changed} />
+                <EmergingPatternsPanel patterns={bundle.patterns} />
+              </div>
+            )}
+
+            {/* Business Unit Matrix Heatmap */}
+            {bundle && (
+              <BusinessUnitHeatmap
+                months={bundle.heatmap.months}
+                rows={bundle.heatmap.rows}
+                metricLabel={metricLabel}
+              />
+            )}
+
+            {/* Multi-Dimension Benchmark Matrix Table */}
+            {bundle && (
+              <BenchmarkTable
+                rows={bundle.benchmark_table.rows}
+                total={bundle.benchmark_table.total}
+                metricLabel={metricLabel}
+              />
+            )}
           </div>
         )}
 
-        {/* Business Unit Matrix Heatmap */}
-        {bundle && (
-          <BusinessUnitHeatmap
-            months={bundle.heatmap.months}
-            rows={bundle.heatmap.rows}
-            metricLabel={metricLabel}
-          />
+        {/* VIEW 2: AI PREDICTIVE SIGNALS & BURNOUT */}
+        {(activeTab === "predictive" || activeTab === "all") && (
+          <div className="mb-8">
+            <PredictiveSignalsPanel
+              businessUnit={selectedBU}
+              department={selectedDept}
+            />
+          </div>
         )}
 
-        {/* Multi-Dimension Benchmark Matrix Table */}
-        {bundle && (
-          <BenchmarkTable
-            rows={bundle.benchmark_table.rows}
-            total={bundle.benchmark_table.total}
-            metricLabel={metricLabel}
-          />
+        {/* VIEW 3: WHAT-IF POLICY SIMULATION STUDIO */}
+        {(activeTab === "simulation" || activeTab === "all") && (
+          <div className="mb-8">
+            <PolicySimulationStudio
+              businessUnit={selectedBU}
+            />
+          </div>
         )}
       </main>
 

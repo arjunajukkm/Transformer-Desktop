@@ -10,6 +10,10 @@ import {
   MetricMetadata,
   SnapshotMetadata,
   TrendBundle,
+  AnomalyResponse,
+  BurnoutRiskResponse,
+  SimulationRequest,
+  SimulationOutcome,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
@@ -103,6 +107,41 @@ export async function queryTrendIntelligence(payload: {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Calculation failed" }));
     throw new Error(err.detail || "Failed to query trend intelligence");
+  }
+  return await res.json();
+}
+
+export async function fetchPunchAnomalies(bu?: string | null, dept?: string | null, limit: number = 40): Promise<AnomalyResponse> {
+  const params = new URLSearchParams();
+  if (bu && bu !== "All Business Units") params.append("business_unit", bu);
+  if (dept && dept !== "All Departments") params.append("department", dept);
+  params.append("limit", limit.toString());
+
+  const res = await fetch(`${API_BASE}/ml/anomalies?${params.toString()}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to load punch anomalies");
+  return await res.json();
+}
+
+export async function fetchBurnoutRisks(bu?: string | null, dept?: string | null, limit: number = 30): Promise<BurnoutRiskResponse> {
+  const params = new URLSearchParams();
+  if (bu && bu !== "All Business Units") params.append("business_unit", bu);
+  if (dept && dept !== "All Departments") params.append("department", dept);
+  params.append("limit", limit.toString());
+
+  const res = await fetch(`${API_BASE}/ml/burnout-risks?${params.toString()}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to load burnout risk indicators");
+  return await res.json();
+}
+
+export async function runPolicySimulation(payload: SimulationRequest): Promise<SimulationOutcome> {
+  const res = await fetch(`${API_BASE}/ml/simulate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Simulation execution failed" }));
+    throw new Error(err.detail || "Failed to execute policy simulation");
   }
   return await res.json();
 }

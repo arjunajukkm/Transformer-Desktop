@@ -574,6 +574,17 @@ class WorkforceIntelligenceBridge:
             )
         return None
 
+    def get_olap_engine(self) -> Optional[OLAPRollupEngine]:
+        """Return the initialized OLAP rollup engine for active snapshot."""
+        with self._lock:
+            if self._olap_engine is not None:
+                return self._olap_engine
+            snap = self.service.get_active_snapshot() if hasattr(self, "service") else None
+            if not snap or not snap.is_valid():
+                return None
+            self._ensure_dataset_foundation(snap.dataframe)
+            return self._olap_engine
+
     def _ensure_dataset_foundation(self, raw_df: pd.DataFrame) -> Tuple[pd.DataFrame, List[Dict[str, Any]], pd.DataFrame, List[str]]:
         """
         Compute or retrieve canonical evaluated org_eval_df, evaluated requests,

@@ -190,3 +190,96 @@ export interface SnapshotMetadata {
   managers_count: number;
   source_name?: string;
 }
+
+export interface PunchAnomaly {
+  employee_code: string;
+  employee_name: string;
+  business_unit: string;
+  department: string;
+  date: string;
+  anomaly_score: number;
+  severity: "CRITICAL" | "HIGH" | "MODERATE";
+  in_time: string;
+  out_time: string;
+  duration_hours: number;
+  reasons: string[];
+}
+
+export interface AnomalyResponse {
+  anomalies: PunchAnomaly[];
+  count: number;
+  execution_time_ms: number;
+}
+
+export interface EmployeeBurnoutProfile {
+  employee_code: string;
+  employee_name: string;
+  business_unit: string;
+  department: string;
+  burnout_score: number;
+  flight_risk_level: "CRITICAL" | "HIGH" | "ELEVATED" | "NOMINAL";
+  overtime_shifts_pct: number;
+  short_rest_turnarounds: number;
+  avg_shift_hours: number;
+  top_signals: string[];
+  recommended_intervention: string;
+}
+
+export interface CohortBurnoutRisk {
+  business_unit: string;
+  headcount: number;
+  avg_burnout_score: number;
+  high_risk_count: number;
+  high_risk_pct: number;
+  primary_stressor: string;
+}
+
+export interface BurnoutSummary {
+  total_workforce_analyzed: number;
+  critical_flight_risks: number;
+  high_flight_risks: number;
+  global_burnout_index: number;
+  at_risk_percentage: number;
+}
+
+export interface BurnoutRiskResponse {
+  employee_risks: EmployeeBurnoutProfile[];
+  cohort_risks: CohortBurnoutRisk[];
+  summary: BurnoutSummary;
+  execution_time_ms: number;
+}
+
+export interface SimulationRequest {
+  grace_period_mins: number;
+  ot_threshold_hours: number;
+  regularization_sla_hours: number;
+  wfh_weekly_allowance: number;
+  business_unit?: string;
+}
+
+export interface BUImpact {
+  business_unit: string;
+  late_instances_delta: number;
+  ot_hours_delta: number;
+  est_cost_delta: number;
+}
+
+export interface SimulationOutcome {
+  baseline_compliance_rate: number;
+  simulated_compliance_rate: number;
+  compliance_delta: number;
+  baseline_late_instances: number;
+  simulated_late_instances: number;
+  late_delta: number;
+  baseline_ot_hours: number;
+  simulated_ot_hours: number;
+  ot_hours_delta: number;
+  est_ot_cost_delta_usd: number;
+  friction_index_baseline: number;
+  friction_index_simulated: number;
+  friction_delta: number;
+  policy_health_score: number;
+  bu_impacts: BUImpact[];
+  recommendation: string;
+  execution_time_ms?: number;
+}
