@@ -14,9 +14,18 @@ import {
   BurnoutRiskResponse,
   SimulationRequest,
   SimulationOutcome,
+  UserPersona,
+  ConnectorsStatusResponse,
+  KekaConfigPayload,
+  SlackConfigPayload,
+  KekaSyncResponse,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+
+let _activePersonaId = "admin";
+export function setActivePersonaId(id: string) { _activePersonaId = id; }
+export function getActivePersonaId(): string { return _activePersonaId; }
 
 export async function fetchHealth(): Promise<{ status: string; engine: string; dataset_loaded: string; dataset_id: string }> {
   try {
@@ -79,7 +88,10 @@ export async function fetchCascadedFilters(params: {
     searchParams.append("manager", params.manager);
   }
 
-  const res = await fetch(`${API_BASE}/analytics/filters/cascaded?${searchParams.toString()}`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/analytics/filters/cascaded?${searchParams.toString()}`, {
+    cache: "no-store",
+    headers: { "X-Persona-Id": _activePersonaId },
+  });
   if (!res.ok) throw new Error("Failed to load cascaded filter options");
   return await res.json();
 }
@@ -94,7 +106,10 @@ export async function queryTrendIntelligence(payload: {
 }): Promise<TrendBundle> {
   const res = await fetch(`${API_BASE}/analytics/trends`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Persona-Id": _activePersonaId,
+    },
     body: JSON.stringify({
       metric_id: payload.metric_id,
       benchmark_type: payload.benchmark_type || "ORGANIZATION",
@@ -117,7 +132,10 @@ export async function fetchPunchAnomalies(bu?: string | null, dept?: string | nu
   if (dept && dept !== "All Departments") params.append("department", dept);
   params.append("limit", limit.toString());
 
-  const res = await fetch(`${API_BASE}/ml/anomalies?${params.toString()}`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/ml/anomalies?${params.toString()}`, {
+    cache: "no-store",
+    headers: { "X-Persona-Id": _activePersonaId },
+  });
   if (!res.ok) throw new Error("Failed to load punch anomalies");
   return await res.json();
 }
@@ -128,7 +146,10 @@ export async function fetchBurnoutRisks(bu?: string | null, dept?: string | null
   if (dept && dept !== "All Departments") params.append("department", dept);
   params.append("limit", limit.toString());
 
-  const res = await fetch(`${API_BASE}/ml/burnout-risks?${params.toString()}`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/ml/burnout-risks?${params.toString()}`, {
+    cache: "no-store",
+    headers: { "X-Persona-Id": _activePersonaId },
+  });
   if (!res.ok) throw new Error("Failed to load burnout risk indicators");
   return await res.json();
 }
@@ -136,12 +157,136 @@ export async function fetchBurnoutRisks(bu?: string | null, dept?: string | null
 export async function runPolicySimulation(payload: SimulationRequest): Promise<SimulationOutcome> {
   const res = await fetch(`${API_BASE}/ml/simulate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Persona-Id": _activePersonaId,
+    },
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Simulation execution failed" }));
     throw new Error(err.detail || "Failed to execute policy simulation");
   }
+  return await res.json();
+}
+
+/* ── Enterprise Governance & Persona APIs ─────────────────────────── */
+
+export async function fetchCurrentUser(): Promise<UserPersona> {
+  const res = await fetch(`${API_BASE}/auth/me`, {
+    cache: "no-store",
+    headers: { "X-Persona-Id": _activePersonaId },
+  });
+  if (!res.ok) throw new Error("Failed to load current persona");
+  return await res.json();
+}
+
+export async function fetchAvailablePersonas(): Promise<UserPersona[]> {
+  const res = await fetch(`${API_BASE}/auth/personas`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to load personas");
+  return await res.json();
+}
+
+export async function switchPersona(personaId: string): Promise<UserPersona> {
+  _activePersonaId = personaId;
+  const res = await fetch(`${API_BASE}/auth/switch/${personaId}`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to switch persona");
+  return await res.json();
+}
+
+/* ── Data Connection Hub (Keka & Slack) APIs ──────────────────────── */
+
+export async function fetchConnectorsStatus(): Promise<ConnectorsStatusResponse> {
+  const res = await fetch(`${API_BASE}/connectors/status`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to load connectors status");
+  return await res.json();
+}
+
+export async function testKekaConnection(config: KekaConfigPayload): Promise<{ success: boolean; message: string; latency_ms: number }> {
+  const res = await fetch(`${API_BASE}/connectors/keka/test`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Persona-Id": _activePersonaId,
+    },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Keka test failed" }));
+    throw new Error(err.detail || "Keka connection test failed");
+  }
+  return await res.json();
+}
+
+export async function saveKekaConfig(config: KekaConfigPayload): Promise<{ status: string; message: string }> {
+  const res = await fetch(`${API_BASE}/connectors/keka/save`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Persona-Id": _activePersonaId,
+    },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) throw new Error("Failed to persist Keka configuration");
+  return await res.json();
+}
+
+export async function syncKekaPipeline(): Promise<KekaSyncResponse> {
+  const res = await fetch(`${API_BASE}/connectors/keka/sync`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Persona-Id": _activePersonaId,
+    },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Keka sync pipeline failed" }));
+    throw new Error(err.detail || "Failed to trigger Keka sync pipeline");
+  }
+  return await res.json();
+}
+
+export async function testSlackConnection(config: SlackConfigPayload): Promise<{ success: boolean; message: string; bot_user?: string; latency_ms: number }> {
+  const res = await fetch(`${API_BASE}/connectors/slack/test`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Persona-Id": _activePersonaId,
+    },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) throw new Error("Slack test handshake failed");
+  return await res.json();
+}
+
+export async function saveSlackConfig(config: SlackConfigPayload): Promise<{ status: string; message: string }> {
+  const res = await fetch(`${API_BASE}/connectors/slack/save`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Persona-Id": _activePersonaId,
+    },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) throw new Error("Failed to persist Slack configuration");
+  return await res.json();
+}
+
+export async function dispatchSlackAlert(
+  channel: string,
+  alertType: string,
+  title: string,
+  message: string
+): Promise<{ status: string; channel: string; sent_to_live_api?: boolean; execution_time_ms: number }> {
+  const res = await fetch(`${API_BASE}/connectors/slack/notify`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Persona-Id": _activePersonaId,
+    },
+    body: JSON.stringify({ channel, alert_type: alertType, title, message }),
+  });
+  if (!res.ok) throw new Error("Failed to dispatch alert to Slack");
   return await res.json();
 }

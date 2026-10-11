@@ -283,3 +283,76 @@ export interface SimulationOutcome {
   recommendation: string;
   execution_time_ms?: number;
 }
+
+export interface UserPersona {
+  id: string;
+  name: string;
+  email: string;
+  role: "SUPER_ADMIN" | "BU_HEAD" | "MANAGER" | "AUDITOR";
+  role_label: string;
+  title: string;
+  allowed_business_units: string[];
+  allowed_departments: string[];
+  allowed_managers: string[];
+  can_manage_connectors: boolean;
+  can_simulate_policy: boolean;
+  can_view_financials: boolean;
+  avatar_initials: string;
+}
+
+export interface ConnectorKekaStatus {
+  connected: boolean;
+  status_message: string;
+  subdomain: string;
+  has_credentials: boolean;
+  last_sync: string;
+  total_records_synced: number;
+  employees_synced: number;
+}
+
+export interface ConnectorSlackStatus {
+  connected: boolean;
+  status_message: string;
+  bot_user?: string;
+  bot_id?: string;
+  has_token: boolean;
+  alert_channel: string;
+  last_event: string;
+}
+
+export interface LakehouseStatus {
+  active_dataset: string;
+  active_row_count: number;
+  last_materialized: string;
+}
+
+export interface ConnectorsStatusResponse {
+  keka: ConnectorKekaStatus;
+  slack: ConnectorSlackStatus;
+  lakehouse: LakehouseStatus;
+}
+
+export interface KekaConfigPayload {
+  subdomain: string;
+  client_id?: string;
+  client_secret?: string;
+  api_key?: string;
+  login_email?: string;
+  login_password?: string;
+}
+
+export interface SlackConfigPayload {
+  bot_token: string;
+  bot_id?: string;
+  alert_channel?: string;
+}
+
+export interface KekaSyncResponse {
+  status: string;
+  message: string;
+  dataset_id: string;
+  records_synced: number;
+  employees_synced: number;
+  business_units: string[];
+  execution_time_ms: number;
+}

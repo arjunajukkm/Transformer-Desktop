@@ -12,6 +12,8 @@ import { EmergingPatternsPanel } from "@/components/EmergingPatternsPanel";
 import { WorkforceCopilot } from "@/components/WorkforceCopilot";
 import { PredictiveSignalsPanel } from "@/components/PredictiveSignalsPanel";
 import { PolicySimulationStudio } from "@/components/PolicySimulationStudio";
+import { ConnectorsHub } from "@/components/ConnectorsHub";
+import { DesktopOperationsSuite } from "@/components/DesktopOperationsSuite";
 import {
   fetchCascadedFilters,
   fetchHealth,
@@ -20,9 +22,9 @@ import {
   queryTrendIntelligence,
 } from "@/lib/api";
 import { CascadedFilters, MetricMetadata, SnapshotMetadata, TrendBundle } from "@/lib/types";
-import { Activity, Sparkles, Sliders, LayoutGrid } from "lucide-react";
+import { Activity, Sparkles, Sliders, LayoutGrid, Plug, FileSpreadsheet } from "lucide-react";
 
-type ActiveTab = "telemetry" | "predictive" | "simulation" | "all";
+type ActiveTab = "telemetry" | "predictive" | "simulation" | "connectors" | "operations" | "all";
 
 export default function WorkforceIntelligenceDashboard() {
   const [gatewayStatus, setGatewayStatus] = useState("checking");
@@ -48,7 +50,7 @@ export default function WorkforceIntelligenceDashboard() {
   const [bundle, setBundle] = useState<TrendBundle | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 1. Initial Load: Check gateway, fetch metrics, active snapshot
+  // 1. Initial Load: Check gateway, fetch metrics, active snapshot, filters
   const loadInitialData = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -65,12 +67,19 @@ export default function WorkforceIntelligenceDashboard() {
 
       const initialFilters = await fetchCascadedFilters({});
       setFilters(initialFilters);
+
+      // If user's allowed business units is restricted (e.g. BU Head Lending), lock the selection
+      if (initialFilters.business_units.length === 1 && initialFilters.business_units[0] !== "All Business Units") {
+        setSelectedBU(initialFilters.business_units[0]);
+      } else if (!initialFilters.business_units.includes(selectedBU)) {
+        setSelectedBU(initialFilters.business_units[0] || "All Business Units");
+      }
     } catch (err) {
       console.error("Initial load failed:", err);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [selectedBU]);
 
   useEffect(() => {
     loadInitialData();
@@ -125,6 +134,7 @@ export default function WorkforceIntelligenceDashboard() {
         metadata={metadata}
         gatewayStatus={gatewayStatus}
         onRefresh={loadInitialData}
+        onPersonaChanged={loadInitialData}
       />
 
       {/* Main Dashboard Canvas */}
@@ -134,7 +144,7 @@ export default function WorkforceIntelligenceDashboard() {
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               onClick={() => setActiveTab("telemetry")}
-              className={`px-4 py-2 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-2 ${
+              className={`px-3.5 py-2 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-2 ${
                 activeTab === "telemetry"
                   ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
@@ -145,7 +155,7 @@ export default function WorkforceIntelligenceDashboard() {
             </button>
             <button
               onClick={() => setActiveTab("predictive")}
-              className={`px-4 py-2 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-2 ${
+              className={`px-3.5 py-2 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-2 ${
                 activeTab === "predictive"
                   ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.25)]"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
@@ -156,14 +166,36 @@ export default function WorkforceIntelligenceDashboard() {
             </button>
             <button
               onClick={() => setActiveTab("simulation")}
-              className={`px-4 py-2 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-2 ${
+              className={`px-3.5 py-2 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-2 ${
                 activeTab === "simulation"
                   ? "bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-[0_0_12px_rgba(59,130,246,0.25)]"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
               }`}
             >
               <Sliders className="w-4 h-4 text-blue-400" />
-              What-If Policy Simulation Studio
+              What-If Simulation Studio
+            </button>
+            <button
+              onClick={() => setActiveTab("connectors")}
+              className={`px-3.5 py-2 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-2 ${
+                activeTab === "connectors"
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-[0_0_12px_rgba(52,211,153,0.25)]"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
+              }`}
+            >
+              <Plug className="w-4 h-4 text-emerald-400" />
+              Data Connection Hub (Keka &amp; Slack)
+            </button>
+            <button
+              onClick={() => setActiveTab("operations")}
+              className={`px-3.5 py-2 rounded-lg text-xs font-mono font-medium transition-all flex items-center gap-2 ${
+                activeTab === "operations"
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.25)]"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/50"
+              }`}
+            >
+              <FileSpreadsheet className="w-4 h-4 text-amber-400" />
+              Desktop Operations Suite
             </button>
           </div>
 
@@ -181,34 +213,36 @@ export default function WorkforceIntelligenceDashboard() {
         </div>
 
         {/* Cascading Filter Bar */}
-        <FilterBar
-          metrics={metrics}
-          selectedMetricId={selectedMetricId}
-          onSelectMetric={setSelectedMetricId}
-          benchmarkType={benchmarkType}
-          onSelectBenchmarkType={setBenchmarkType}
-          filters={filters}
-          selectedBU={selectedBU}
-          onSelectBU={(bu) => {
-            setSelectedBU(bu);
-            setSelectedDept("All Departments");
-            setSelectedManager("All Reporting Managers");
-            setSelectedEmployee("All Employees");
-          }}
-          selectedDept={selectedDept}
-          onSelectDept={(dept) => {
-            setSelectedDept(dept);
-            setSelectedManager("All Reporting Managers");
-            setSelectedEmployee("All Employees");
-          }}
-          selectedManager={selectedManager}
-          onSelectManager={(mgr) => {
-            setSelectedManager(mgr);
-            setSelectedEmployee("All Employees");
-          }}
-          selectedEmployee={selectedEmployee}
-          onSelectEmployee={setSelectedEmployee}
-        />
+        {(activeTab === "telemetry" || activeTab === "all" || activeTab === "predictive") && (
+          <FilterBar
+            metrics={metrics}
+            selectedMetricId={selectedMetricId}
+            onSelectMetric={setSelectedMetricId}
+            benchmarkType={benchmarkType}
+            onSelectBenchmarkType={setBenchmarkType}
+            filters={filters}
+            selectedBU={selectedBU}
+            onSelectBU={(bu) => {
+              setSelectedBU(bu);
+              setSelectedDept("All Departments");
+              setSelectedManager("All Reporting Managers");
+              setSelectedEmployee("All Employees");
+            }}
+            selectedDept={selectedDept}
+            onSelectDept={(dept) => {
+              setSelectedDept(dept);
+              setSelectedManager("All Reporting Managers");
+              setSelectedEmployee("All Employees");
+            }}
+            selectedManager={selectedManager}
+            onSelectManager={(mgr) => {
+              setSelectedManager(mgr);
+              setSelectedEmployee("All Employees");
+            }}
+            selectedEmployee={selectedEmployee}
+            onSelectEmployee={setSelectedEmployee}
+          />
+        )}
 
         {/* VIEW 1: WORKFORCE TELEMETRY & TRENDS */}
         {(activeTab === "telemetry" || activeTab === "all") && (
@@ -279,6 +313,20 @@ export default function WorkforceIntelligenceDashboard() {
             <PolicySimulationStudio
               businessUnit={selectedBU}
             />
+          </div>
+        )}
+
+        {/* VIEW 4: DATA CONNECTION HUB (KEKA & SLACK) */}
+        {(activeTab === "connectors" || activeTab === "all") && (
+          <div className="mb-8">
+            <ConnectorsHub onSyncCompleted={loadInitialData} />
+          </div>
+        )}
+
+        {/* VIEW 5: DESKTOP OPERATIONS SUITE */}
+        {(activeTab === "operations" || activeTab === "all") && (
+          <div className="mb-8">
+            <DesktopOperationsSuite />
           </div>
         )}
       </main>

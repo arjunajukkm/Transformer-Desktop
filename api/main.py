@@ -14,6 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.routes.analytics import router as analytics_router
 from api.routes.snapshots import router as snapshots_router
 from api.routes.ml import router as ml_router
+from api.routes.auth import router as auth_router
+from api.routes.connectors import router as connectors_router
 from storage.cache_manager import snapshot_cache
 
 logging.basicConfig(
@@ -60,6 +62,8 @@ app.add_middleware(
 app.include_router(analytics_router, prefix="/api")
 app.include_router(snapshots_router, prefix="/api")
 app.include_router(ml_router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
+app.include_router(connectors_router, prefix="/api")
 
 
 @app.get("/health", tags=["System"])

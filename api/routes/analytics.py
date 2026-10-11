@@ -20,6 +20,8 @@ from api.schemas import (
 from storage.cache_manager import snapshot_cache
 from workforce_intelligence.snapshot_bridge import workforce_bridge
 from workforce_intelligence.trends import TREND_METRICS
+from api.auth import UserPersona, get_current_user
+from fastapi import Depends
 
 router = APIRouter(prefix="/analytics", tags=["Analytics & OLAP Engine"])
 
@@ -45,14 +47,23 @@ def get_cascaded_filters(
     business_unit: Optional[str] = Query(None, description="Selected Business Unit"),
     department: Optional[str] = Query(None, description="Selected Department"),
     manager: Optional[str] = Query(None, description="Selected Reporting Manager"),
+    user: UserPersona = Depends(get_current_user),
 ):
     """
     Sub-millisecond retrieval of dependent filter options from pre-indexed OLAP catalog.
-    Instantly returns matching departments, managers, and employee pairs.
+    Enforces Row-Level Security based on active user persona.
     """
     snap = snapshot_cache.get_active_snapshot()
     if not snap or not snap.is_valid():
         return CascadedFilterResponse()
+
+    # Apply persona boundary restrictions
+    if user.role == "BU_HEAD" and user.allowed_business_units != ["All"]:
+        business_unit = user.allowed_business_units[0]
+    elif user.role == "MANAGER" and user.allowed_business_units != ["All"]:
+        business_unit = user.allowed_business_units[0]
+        if user.allowed_managers != ["All"]:
+            manager = user.allowed_managers[0]
 
     # Fast-path OLAP cascade
     casc = workforce_bridge.get_cascaded_filter_options(
@@ -65,18 +76,30 @@ def get_cascaded_filters(
     if not all_bus and snap.olap_engine:
         all_bus = getattr(snap.olap_engine, "_all_bus", [])
 
+    # Scope visible business units by role
+    if user.role == "BU_HEAD" and user.allowed_business_units != ["All"]:
+        allowed_bu_list = user.allowed_business_units
+    elif user.role == "MANAGER" and user.allowed_business_units != ["All"]:
+        allowed_bu_list = user.allowed_business_units
+    else:
+        allowed_bu_list = ["All Business Units"] + [b for b in all_bus if b != "All Business Units"]
+
     if casc:
+        managers_list = casc.get("managers", ["All Reporting Managers"])
+        if user.role == "MANAGER" and user.allowed_managers != ["All"]:
+            managers_list = user.allowed_managers
+
         return CascadedFilterResponse(
-            business_units=["All Business Units"] + [b for b in all_bus if b != "All Business Units"],
+            business_units=allowed_bu_list,
             departments=casc.get("departments", ["All Departments"]),
-            managers=casc.get("managers", ["All Reporting Managers"]),
+            managers=managers_list,
             employees=casc.get("employees", ["All Employees"]),
             emp_pairs=casc.get("emp_pairs", []),
         )
 
     # Fallback to snapshot filter options
     return CascadedFilterResponse(
-        business_units=["All Business Units"] + all_bus,
+        business_units=allowed_bu_list,
         departments=["All Departments"] + snap.filter_options.get("departments", []),
         managers=["All Reporting Managers"] + snap.filter_options.get("managers", []),
         employees=["All Employees"],
@@ -85,11 +108,11 @@ def get_cascaded_filters(
 
 
 @router.post("/trends")
-def query_trend_intelligence(req: TrendQueryRequest):
+def query_trend_intelligence(req: TrendQueryRequest, user: UserPersona = Depends(get_current_user)):
     """
     Execute high-speed time-series trend calculation with benchmark comparisons,
     MoM changes, volume confidence status, and deterministic observations.
-    Sub-10ms response via multi-dimensional OLAP rollup hypercubes.
+    Sub-10ms response via multi-dimensional OLAP rollup hypercubes with Row-Level Security.
     """
     snap = snapshot_cache.get_active_snapshot()
     if not snap or not snap.is_valid():
@@ -97,6 +120,17 @@ def query_trend_intelligence(req: TrendQueryRequest):
             status_code=400,
             detail="No active workforce dataset loaded. Please upload a dataset or load demo data."
         )
+
+    # Row-Level Security Scope Override
+    effective_bu = req.business_unit
+    effective_mgr = req.manager
+
+    if user.role == "BU_HEAD" and user.allowed_business_units != ["All"]:
+        effective_bu = user.allowed_business_units[0]
+    elif user.role == "MANAGER" and user.allowed_business_units != ["All"]:
+        effective_bu = user.allowed_business_units[0]
+        if user.allowed_managers != ["All"]:
+            effective_mgr = user.allowed_managers[0]
 
     date_range = None
     if req.date_start and req.date_end:
@@ -106,9 +140,9 @@ def query_trend_intelligence(req: TrendQueryRequest):
     bundle = workforce_bridge.get_trend_intelligence(
         metric_id=req.metric_id,
         benchmark_type=req.benchmark_type,
-        business_unit=req.business_unit,
+        business_unit=effective_bu,
         department=req.department,
-        manager=req.manager,
+        manager=effective_mgr,
         employee=req.employee,
         date_range=date_range,
     )

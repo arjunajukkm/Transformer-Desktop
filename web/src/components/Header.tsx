@@ -4,14 +4,16 @@ import React, { useRef, useState } from "react";
 import { Activity, Database, RefreshCw, Upload, Cpu, CheckCircle2, AlertCircle } from "lucide-react";
 import { SnapshotMetadata } from "@/lib/types";
 import { loadDemoDataset, uploadDataset } from "@/lib/api";
+import { PersonaSwitcher } from "./PersonaSwitcher";
 
 interface HeaderProps {
   metadata: SnapshotMetadata | null;
   gatewayStatus: string;
   onRefresh: () => void;
+  onPersonaChanged?: () => void;
 }
 
-export function Header({ metadata, gatewayStatus, onRefresh }: HeaderProps) {
+export function Header({ metadata, gatewayStatus, onRefresh, onPersonaChanged }: HeaderProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -126,6 +128,9 @@ export function Header({ metadata, gatewayStatus, onRefresh }: HeaderProps) {
               className="hidden"
             />
           </label>
+
+          {/* Enterprise Persona Switcher */}
+          <PersonaSwitcher onPersonaChanged={onPersonaChanged || onRefresh} />
         </div>
       </div>
 
