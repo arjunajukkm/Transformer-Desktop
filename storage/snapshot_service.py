@@ -163,6 +163,8 @@ class LazyBreakdowns(dict):
         return super().get(key, default)
 
 
+
+
 def create_snapshot(
     file_path_or_df: Union[str, Path, pd.DataFrame],
     dataset_id: Optional[str] = None,
@@ -257,9 +259,9 @@ def create_snapshot(
         }
     )
 
-    # 5. Build Canonical Workforce Data Foundation
-    from workforce_intelligence.data_foundation import CanonicalWorkforceData
-    workforce_foundation = CanonicalWorkforceData.from_dataframe(
+    # 5. Build Canonical Workforce Data Foundation lazily (0ms overhead)
+    from workforce_intelligence.data_foundation import LazyWorkforceFoundation
+    workforce_foundation = LazyWorkforceFoundation(
         fact_df,
         source_file_name=raw_source,
     )
@@ -420,3 +422,4 @@ class TimeSeriesSnapshotService:
 
 # Global singleton service instance
 snapshot_service = TimeSeriesSnapshotService()
+get_active_snapshot = snapshot_service.get_active_snapshot
