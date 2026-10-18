@@ -17,6 +17,8 @@ interface BusinessUnitHeatmapProps {
   metricLabel: string;
   theme?: "dark" | "light";
   lowerIsBetter?: boolean;
+  metricId?: string;
+  metricDirection?: "higher_is_better" | "lower_is_better" | "neutral" | string;
   orgBenchmarks?: OrgBenchmarkItem[];
 }
 
@@ -118,6 +120,8 @@ export function BusinessUnitHeatmap({
   metricLabel,
   theme = "dark",
   lowerIsBetter = true,
+  metricId,
+  metricDirection,
   orgBenchmarks,
 }: BusinessUnitHeatmapProps) {
   const [showGuide, setShowGuide] = useState(false);
@@ -127,6 +131,21 @@ export function BusinessUnitHeatmap({
 
   const rawLatestMonth = months && months.length > 0 ? months[months.length - 1] : "Latest";
   const latestMonthFormatted = formatToMMMYY(rawLatestMonth);
+
+  // Metric Semantics Identification
+  const isArrivalMetric =
+    metricId?.includes("arrival") || metricLabel.toLowerCase().includes("arrival");
+  const isExitMetric =
+    metricId?.includes("exit") || metricLabel.toLowerCase().includes("exit");
+  const isComplianceTiming =
+    metricId?.includes("compliance") || metricLabel.toLowerCase().includes("compliance");
+  const isTurnaroundMetric =
+    metricId?.includes("turnaround") || metricLabel.toLowerCase().includes("turnaround") || metricId?.includes("age");
+  const isNeutralMetric =
+    metricDirection === "neutral" || isExitMetric;
+
+  // Effective direction: if arrival time, lower minutes from midnight is always better (earlier).
+  const effectiveLowerIsBetter = isNeutralMetric ? false : isArrivalMetric ? true : lowerIsBetter;
 
   // Helper to extract the org benchmark formatted value for a specific month column index
   const getOrgBenchmarkForMonth = (mIdx: number, monthName: string) => {
@@ -181,19 +200,37 @@ export function BusinessUnitHeatmap({
         : "Org Baseline";
 
     let isFavorable = false;
-    let isNeutral = deltaVal === null || deltaVal === 0;
+    let isNeutral = isNeutralMetric || deltaVal === null || deltaVal === 0 || delta?.formatted_delta === "At benchmark";
 
     if (!isNeutral && deltaVal !== null) {
-      isFavorable = lowerIsBetter ? deltaVal < 0 : deltaVal > 0;
+      isFavorable = effectiveLowerIsBetter ? deltaVal < 0 : deltaVal > 0;
     }
 
     const deltaDisplay = delta?.formatted_delta || (deltaVal !== null ? `${deltaVal > 0 ? "+" : ""}${deltaVal}` : "—");
-    const favorableText = isFavorable ? "Favorable · Beating Org" : "Adverse · Lagging Org";
-    const deltaSummary = isNeutral
-      ? "Matching the company average exactly."
+    const favorableText = isNeutral
+      ? (isNeutralMetric ? "Distribution Variance" : "At Org Benchmark")
       : isFavorable
-      ? `${buName} performed ${deltaDisplay} favorable vs the company average in ${monthDisplay}.`
-      : `${buName} performed ${deltaDisplay} adverse vs the company average in ${monthDisplay}.`;
+      ? "Favorable · Beating Org"
+      : "Adverse · Lagging Org";
+
+    let deltaSummary = "";
+    if (isNeutral) {
+      deltaSummary = isNeutralMetric
+        ? `${buName} recorded ${buFmt} vs company baseline of ${orgFmt} in ${monthDisplay}.`
+        : "Tracking exactly on par with the company benchmark.";
+    } else if (isArrivalMetric) {
+      deltaSummary = isFavorable
+        ? `${buName} arrived ${deltaDisplay} (punctual · favorable) compared to company average in ${monthDisplay}.`
+        : `${buName} arrived ${deltaDisplay} (late arrival · adverse) compared to company average in ${monthDisplay}.`;
+    } else if (isComplianceTiming) {
+      deltaSummary = isFavorable
+        ? `${buName} submitted requests ${deltaDisplay} (advance notice · favorable) compared to company average in ${monthDisplay}.`
+        : `${buName} submitted requests ${deltaDisplay} (late application · adverse) compared to company average in ${monthDisplay}.`;
+    } else {
+      deltaSummary = isFavorable
+        ? `${buName} outperformed the company average by ${deltaDisplay} (favorable) in ${monthDisplay}.`
+        : `${buName} lagged the company average by ${deltaDisplay} (adverse) in ${monthDisplay}.`;
+    }
 
     setActiveTooltip({
       x: rect.left + rect.width / 2,
@@ -207,11 +244,11 @@ export function BusinessUnitHeatmap({
         {
           label: "Delta vs Org",
           value: deltaDisplay,
-          color: isFavorable ? "#34d399" : isNeutral ? "#94a3b8" : "#fb7185",
+          color: isNeutral ? "#94a3b8" : isFavorable ? "#34d399" : "#fb7185",
         },
       ],
       statusBadge: {
-        text: isNeutral ? "On Par with Org" : favorableText,
+        text: favorableText,
         favorable: isFavorable,
         neutral: isNeutral,
       },
@@ -237,11 +274,17 @@ export function BusinessUnitHeatmap({
     const isIncreasing = dirUpper === "INCREASING";
     const isStable = dirUpper === "STABLE";
 
+    const isTrendFavorable = isImproving || (isDecreasing && effectiveLowerIsBetter) || (isIncreasing && !effectiveLowerIsBetter && !isNeutralMetric);
+
     let explanation = `Performance has remained steady within historical tolerance over the last 3 months.`;
     if (isImproving) {
-      explanation = `Performance has consistently improved over the last 3 months compared to this team's own history.`;
+      explanation = isArrivalMetric
+        ? `Morning arrival time has consistently moved earlier over the last 3 months.`
+        : `Performance has consistently improved over the last 3 months compared to this team's own history.`;
     } else if (isDeteriorating) {
-      explanation = `Performance has worsened over the last 3 months compared to this team's own history.`;
+      explanation = isArrivalMetric
+        ? `Morning arrival time has slipped later over the last 3 months (concerning trajectory).`
+        : `Performance has worsened over the last 3 months compared to this team's own history.`;
     } else if (isDecreasing) {
       explanation = `Rate has decreased over the last 3 months compared to this team's own history.`;
     } else if (isIncreasing) {
@@ -260,16 +303,16 @@ export function BusinessUnitHeatmap({
         {
           label: "Momentum",
           value: row.trend_direction,
-          color: isImproving || (isDecreasing && lowerIsBetter) || (isIncreasing && !lowerIsBetter)
+          color: isImproving || (isDecreasing && effectiveLowerIsBetter) || (isIncreasing && !effectiveLowerIsBetter && !isNeutralMetric)
             ? "#34d399"
-            : isDeteriorating || (isIncreasing && lowerIsBetter) || (isDecreasing && !lowerIsBetter)
+            : isDeteriorating || (isIncreasing && effectiveLowerIsBetter) || (isDecreasing && !effectiveLowerIsBetter && !isNeutralMetric)
             ? "#fb7185"
             : "#94a3b8",
         },
       ],
       statusBadge: {
         text: `${row.trend_direction} (vs Self)`,
-        favorable: isImproving || (isDecreasing && lowerIsBetter) || (isIncreasing && !lowerIsBetter),
+        favorable: isTrendFavorable,
         neutral: isStable,
       },
       explanation,
@@ -315,47 +358,81 @@ export function BusinessUnitHeatmap({
               </h3>
             </div>
             {/* Self-explanatory direction micro-pill */}
-            <span
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium tracking-tight whitespace-nowrap cursor-help ${
-                lowerIsBetter
-                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25"
-                  : "bg-cyan-500/10 text-cyan-300 border border-cyan-500/25"
-              }`}
-              title={
-                lowerIsBetter
-                  ? "Lower values represent better performance / fewer anomalies"
-                  : "Higher values represent better performance"
+            {(() => {
+              let pillText = effectiveLowerIsBetter ? "↓ Lower is better" : "↑ Higher is better";
+              let pillTitle = effectiveLowerIsBetter ? "Lower is Better" : "Higher is Better";
+              let pillExplanation = effectiveLowerIsBetter
+                ? `For ${metricLabel}, a lower value is favorable (e.g. fewer missing swipes or absences). 0 is ideal.`
+                : `For ${metricLabel}, a higher value is favorable (e.g. higher compliance, productive hours, or attendance).`;
+              let pillClasses = effectiveLowerIsBetter
+                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25"
+                : "bg-cyan-500/10 text-cyan-300 border border-cyan-500/25";
+
+              if (isNeutralMetric) {
+                pillText = "— Distribution Matrix (Neutral)";
+                pillTitle = "Distribution Matrix (Neutral)";
+                pillExplanation = `For ${metricLabel}, this is an observational distribution metric tracking temporal patterns without an intrinsic corporate target.`;
+                pillClasses = "bg-slate-800/60 text-slate-400 border border-slate-700/50";
+              } else if (isArrivalMetric) {
+                pillText = "↓ Earlier is better";
+                pillTitle = "Earlier is Better (Punctual)";
+                pillExplanation = `For ${metricLabel}, an earlier morning arrival time (lower minutes from midnight) is favorable and indicates promptness/punctuality. Late arrivals are adverse.`;
+                pillClasses = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25";
+              } else if (isComplianceTiming) {
+                pillText = "↓ Earlier is better (Advance)";
+                pillTitle = "Advance Application is Better";
+                pillExplanation = `For ${metricLabel}, applying days in advance (negative value / earlier) is compliant; applying after start date (positive / later) is late.`;
+                pillClasses = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25";
+              } else if (isTurnaroundMetric) {
+                pillText = "↓ Faster is better";
+                pillTitle = "Faster Turnaround is Better";
+                pillExplanation = `For ${metricLabel}, fewer turnaround days represents prompt processing and higher operational agility.`;
+                pillClasses = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25";
               }
-              onMouseEnter={(e) =>
-                handleHeaderMouseEnter(
-                  e,
-                  metricLabel,
-                  lowerIsBetter ? "Lower is Better" : "Higher is Better",
-                  lowerIsBetter
-                    ? `For ${metricLabel}, a lower value is favorable (e.g. fewer missing swipes or absences). 0 is ideal.`
-                    : `For ${metricLabel}, a higher value is favorable (e.g. higher compliance, productive hours, or attendance).`
-                )
-              }
-              onMouseLeave={() => setActiveTooltip(null)}
-            >
-              {lowerIsBetter ? "↓ Lower is better" : "↑ Higher is better"}
-            </span>
+
+              return (
+                <span
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium tracking-tight whitespace-nowrap cursor-help ${pillClasses}`}
+                  title={pillExplanation}
+                  onMouseEnter={(e) =>
+                    handleHeaderMouseEnter(
+                      e,
+                      metricLabel,
+                      pillTitle,
+                      pillExplanation
+                    )
+                  }
+                  onMouseLeave={() => setActiveTooltip(null)}
+                >
+                  {pillText}
+                </span>
+              );
+            })()}
           </div>
 
           {/* Right: Color Legend & Interactive Guide Toggle */}
           <div className="flex items-center gap-2.5 shrink-0">
             {/* Visual Micro-Legend */}
-            <div className="hidden sm:flex items-center gap-2 text-[10px] font-mono text-slate-400">
-              <span className="flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                <span className="text-emerald-400 font-semibold">Beating Org</span>
-              </span>
-              <span className="text-slate-600">·</span>
-              <span className="flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
-                <span className="text-rose-400 font-semibold">Lagging Org</span>
-              </span>
-            </div>
+            {isNeutralMetric ? (
+              <div className="hidden sm:flex items-center gap-2 text-[10px] font-mono text-slate-400">
+                <span className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                  <span className="text-slate-300 font-semibold">Distribution Variance</span>
+                </span>
+              </div>
+            ) : (
+              <div className="hidden sm:flex items-center gap-2 text-[10px] font-mono text-slate-400">
+                <span className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  <span className="text-emerald-400 font-semibold">Beating Org</span>
+                </span>
+                <span className="text-slate-600">·</span>
+                <span className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
+                  <span className="text-rose-400 font-semibold">Lagging Org</span>
+                </span>
+              </div>
+            )}
 
             {/* Quick Guide Trigger Button */}
             <button
@@ -536,12 +613,20 @@ export function BusinessUnitHeatmap({
                       }`}
                     >
                       {row.trend_direction === "IMPROVING" && (
-                        <TrendingDown className="h-3 w-3 text-emerald-400 shrink-0" />
+                        effectiveLowerIsBetter ? (
+                          <TrendingDown className="h-3 w-3 text-emerald-400 shrink-0" />
+                        ) : (
+                          <TrendingUp className="h-3 w-3 text-emerald-400 shrink-0" />
+                        )
                       )}
                       {(row.trend_direction === "WORSENING" ||
                         row.trend_direction === "DETERIORATING" ||
                         row.trend_direction === "REGRESSING") && (
-                        <TrendingUp className="h-3 w-3 text-rose-400 shrink-0" />
+                        effectiveLowerIsBetter ? (
+                          <TrendingUp className="h-3 w-3 text-rose-400 shrink-0" />
+                        ) : (
+                          <TrendingDown className="h-3 w-3 text-rose-400 shrink-0" />
+                        )
                       )}
                       {(row.trend_direction === "STABLE" ||
                         row.trend_direction === "DECREASING" ||
@@ -561,10 +646,10 @@ export function BusinessUnitHeatmap({
 
                     // Color evaluation
                     let isFavorable = false;
-                    let isNeutral = deltaNum === null || deltaNum === 0;
+                    let isNeutral = isNeutralMetric || deltaNum === null || deltaNum === 0 || delta?.formatted_delta === "At benchmark";
 
                     if (!isNeutral && deltaNum !== null) {
-                      isFavorable = lowerIsBetter ? deltaNum < 0 : deltaNum > 0;
+                      isFavorable = effectiveLowerIsBetter ? deltaNum < 0 : deltaNum > 0;
                     }
 
                     return (

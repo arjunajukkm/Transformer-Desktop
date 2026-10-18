@@ -152,7 +152,10 @@ def normalize_dataset_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         work_df["approval_turnaround_days"] = pd.Series([pd.NA] * len(work_df), dtype="Int64")
 
     # Precompute vectorized attendance indicators for high-performance sub-millisecond aggregation
-    qty_series = pd.to_numeric(work_df.get("Quantity", 1.0), errors="coerce").fillna(1.0)
+    if "Quantity" in work_df.columns:
+        qty_series = pd.to_numeric(work_df["Quantity"], errors="coerce").fillna(1.0)
+    else:
+        qty_series = pd.Series(1.0, index=work_df.index)
     qty_clean = np.where((qty_series > 0) & (qty_series <= 0.5), 0.5, np.where(qty_series > 0.5, 1.0, 1.0))
     work_df["_qty"] = qty_clean
 

@@ -189,6 +189,8 @@ export interface TrendBundle {
     months: string[];
     rows: HeatmapRow[];
     lower_is_better: boolean;
+    metric_id?: string;
+    metric_direction?: string;
     org_benchmarks?: { period: string; period_display: string; value: number | null; formatted_value: string }[];
   };
   benchmark_table: {

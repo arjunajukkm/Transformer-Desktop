@@ -2048,7 +2048,10 @@ class WorkforceIntelligenceBridge:
                         "delta_str": latest_p.get("gap_vs_dept_formatted", "—"),
                         "formatted_delta": latest_p.get("gap_vs_dept_formatted", "—"),
                         "contribution_str": f"Benchmark: {latest_p['dept_benchmark_formatted']}",
-                        "is_adverse": bool((latest_p.get("gap_vs_dept") or 0) > 0 if metric_def.direction == "lower_is_better" else (latest_p.get("gap_vs_dept") or 0) < 0),
+                        "is_adverse": bool(
+                            ((latest_p.get("gap_vs_dept") or 0) > 0 and metric_def.direction == "lower_is_better") or
+                            ((latest_p.get("gap_vs_dept") or 0) < 0 and metric_def.direction == "higher_is_better")
+                        ),
                         "type": "DEPT",
                     },
                     {
@@ -2058,7 +2061,10 @@ class WorkforceIntelligenceBridge:
                         "delta_str": latest_p.get("gap_vs_bu_formatted", "—"),
                         "formatted_delta": latest_p.get("gap_vs_bu_formatted", "—"),
                         "contribution_str": f"Benchmark: {latest_p['bu_benchmark_formatted']}",
-                        "is_adverse": bool((latest_p.get("gap_vs_bu") or 0) > 0 if metric_def.direction == "lower_is_better" else (latest_p.get("gap_vs_bu") or 0) < 0),
+                        "is_adverse": bool(
+                            ((latest_p.get("gap_vs_bu") or 0) > 0 and metric_def.direction == "lower_is_better") or
+                            ((latest_p.get("gap_vs_bu") or 0) < 0 and metric_def.direction == "higher_is_better")
+                        ),
                         "type": "BU",
                     },
                     {
@@ -2068,7 +2074,10 @@ class WorkforceIntelligenceBridge:
                         "delta_str": latest_p.get("gap_vs_org_formatted", "—"),
                         "formatted_delta": latest_p.get("gap_vs_org_formatted", "—"),
                         "contribution_str": f"Benchmark: {latest_p['org_benchmark_formatted']}",
-                        "is_adverse": bool((latest_p.get("gap_vs_org") or 0) > 0 if metric_def.direction == "lower_is_better" else (latest_p.get("gap_vs_org") or 0) < 0),
+                        "is_adverse": bool(
+                            ((latest_p.get("gap_vs_org") or 0) > 0 and metric_def.direction == "lower_is_better") or
+                            ((latest_p.get("gap_vs_org") or 0) < 0 and metric_def.direction == "higher_is_better")
+                        ),
                         "type": "ORG",
                     },
                 ]
@@ -2428,7 +2437,11 @@ class WorkforceIntelligenceBridge:
                     "value": mom_change_fmt,
                     "sub": "vs last month" if mom_change is not None else "Baseline",
                     "note": f"Previous: {scope_trend.get('previous_value_formatted', '—')}",
-                    "color": "#F43F5E" if (mom_change and mom_change > 0 and metric_def.direction == "lower_is_better") else ("#10B981" if mom_change and mom_change < 0 and metric_def.direction == "lower_is_better" else None),
+                    "color": (
+                        "#F43F5E" if (mom_change and ((mom_change > 0 and metric_def.direction == "lower_is_better") or (mom_change < 0 and metric_def.direction == "higher_is_better")))
+                        else ("#10B981" if (mom_change and ((mom_change < 0 and metric_def.direction == "lower_is_better") or (mom_change > 0 and metric_def.direction == "higher_is_better")))
+                        else None)
+                    ),
                 },
                 {
                     "title": "3-Month Trend",
@@ -2442,7 +2455,11 @@ class WorkforceIntelligenceBridge:
                     "value": gap_fmt,
                     "sub": f"vs {bench_label} ({current_bench_fmt})",
                     "note": f"Benchmark: {bench_label}",
-                    "color": "#F43F5E" if (gap_val and gap_val > 0 and metric_def.direction == "lower_is_better") else ("#10B981" if gap_val and gap_val < 0 and metric_def.direction == "lower_is_better" else None),
+                    "color": (
+                        "#F43F5E" if (gap_val and ((gap_val > 0 and metric_def.direction == "lower_is_better") or (gap_val < 0 and metric_def.direction == "higher_is_better")))
+                        else ("#10B981" if (gap_val and ((gap_val < 0 and metric_def.direction == "lower_is_better") or (gap_val > 0 and metric_def.direction == "higher_is_better")))
+                        else None)
+                    ),
                 },
                 {
                     "title": "Data Confidence",
@@ -2547,12 +2564,16 @@ class WorkforceIntelligenceBridge:
             "heatmap": {
                 "months": heatmap_months,
                 "rows": heatmap_rows,
+                "metric_id": metric_id,
+                "metric_direction": metric_def.direction,
                 "lower_is_better": metric_def.direction == "lower_is_better",
                 "org_benchmarks": org_benchmarks,
             },
             "bu_heatmap": {
                 "months": heatmap_months,
                 "rows": heatmap_rows,
+                "metric_id": metric_id,
+                "metric_direction": metric_def.direction,
                 "lower_is_better": metric_def.direction == "lower_is_better",
                 "org_benchmarks": org_benchmarks,
             },

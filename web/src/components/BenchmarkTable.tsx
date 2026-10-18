@@ -13,6 +13,9 @@ interface BenchmarkTableProps {
   dimensionLabel?: string;
   theme?: "dark" | "light";
   collapsible?: boolean;
+  lowerIsBetter?: boolean;
+  metricDirection?: string;
+  metricId?: string;
 }
 
 export function BenchmarkTable({
@@ -24,11 +27,22 @@ export function BenchmarkTable({
   dimensionLabel = "Business Unit",
   theme = "dark",
   collapsible = true,
+  lowerIsBetter = true,
+  metricDirection,
+  metricId,
 }: BenchmarkTableProps) {
   const [activeDimension, setActiveDimension] = useState<"bu" | "dept">(
     dimensionLabel.toLowerCase().includes("dept") ? "dept" : "bu"
   );
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const isArrivalMetric =
+    metricId?.includes("arrival") || metricLabel.toLowerCase().includes("arrival");
+  const isExitMetric =
+    metricId?.includes("exit") || metricLabel.toLowerCase().includes("exit");
+  const isNeutralMetric =
+    metricDirection === "neutral" || isExitMetric;
+  const effectiveLowerIsBetter = isNeutralMetric ? false : isArrivalMetric ? true : lowerIsBetter;
 
   // Determine effective rows based on active dimension tab
   const activeRows =
@@ -161,7 +175,27 @@ export function BenchmarkTable({
               }`}
             >
               {activeRows.map((row) => {
-                const isPositiveGap = row.gap_val !== null && row.gap_val !== undefined && row.gap_val > 0;
+                const rawGap = row.gap_formatted || row.gap;
+                const isAtBenchmark =
+                  !rawGap ||
+                  rawGap === "—" ||
+                  rawGap === "At benchmark" ||
+                  row.gap_val === 0 ||
+                  row.gap_val === null ||
+                  row.gap_val === undefined;
+
+                let isFavorable = false;
+                let isAdverse = false;
+                if (!isAtBenchmark && !isNeutralMetric && row.gap_val !== null && row.gap_val !== undefined) {
+                  if (effectiveLowerIsBetter) {
+                    isFavorable = row.gap_val < 0;
+                    isAdverse = row.gap_val > 0;
+                  } else {
+                    isFavorable = row.gap_val > 0;
+                    isAdverse = row.gap_val < 0;
+                  }
+                }
+
                 return (
                   <tr
                     key={row.business_unit}
@@ -203,18 +237,20 @@ export function BenchmarkTable({
                     <td className="py-2.5 px-3 text-right font-bold whitespace-nowrap">
                       <span
                         className={`inline-block px-1.5 py-0.5 rounded text-[11px] ${
-                          (row.gap_formatted || row.gap) === "—"
-                            ? "text-slate-400"
-                            : isPositiveGap
+                          isAtBenchmark || isNeutralMetric
+                            ? "text-slate-400 bg-slate-800/40"
+                            : isAdverse
                             ? theme === "dark"
-                              ? "text-rose-400 bg-rose-500/10"
-                              : "text-rose-700 bg-rose-50"
-                            : theme === "dark"
-                            ? "text-emerald-400 bg-emerald-500/10"
-                            : "text-emerald-700 bg-emerald-50"
+                              ? "text-rose-400 bg-rose-500/10 border border-rose-500/20"
+                              : "text-rose-700 bg-rose-50 border border-rose-200"
+                            : isFavorable
+                            ? theme === "dark"
+                              ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
+                              : "text-emerald-700 bg-emerald-50 border border-emerald-200"
+                            : "text-slate-400"
                         }`}
                       >
-                        {row.gap_formatted || row.gap}
+                        {rawGap}
                       </span>
                     </td>
                     <td className="py-2.5 px-3 text-center whitespace-nowrap">
@@ -234,8 +270,20 @@ export function BenchmarkTable({
                                 : "bg-slate-100 text-slate-600 border border-slate-200"
                             }`}
                           >
-                            {isImp && <TrendingDown className="h-3 w-3 text-emerald-400" />}
-                            {isDet && <TrendingUp className="h-3 w-3 text-rose-400" />}
+                            {isImp && (
+                              effectiveLowerIsBetter ? (
+                                <TrendingDown className="h-3 w-3 text-emerald-400" />
+                              ) : (
+                                <TrendingUp className="h-3 w-3 text-emerald-400" />
+                              )
+                            )}
+                            {isDet && (
+                              effectiveLowerIsBetter ? (
+                                <TrendingUp className="h-3 w-3 text-rose-400" />
+                              ) : (
+                                <TrendingDown className="h-3 w-3 text-rose-400" />
+                              )
+                            )}
                             {!isImp && !isDet && <Minus className="h-3 w-3 text-slate-400" />}
                             <span>{traj}</span>
                           </span>
@@ -287,8 +335,20 @@ export function BenchmarkTable({
                               : "bg-slate-800/60 text-slate-300 border border-slate-700/60"
                           }`}
                         >
-                          {isImp && <TrendingDown className="h-3 w-3 text-emerald-400" />}
-                          {isDet && <TrendingUp className="h-3 w-3 text-rose-400" />}
+                          {isImp && (
+                            effectiveLowerIsBetter ? (
+                              <TrendingDown className="h-3 w-3 text-emerald-400" />
+                            ) : (
+                              <TrendingUp className="h-3 w-3 text-emerald-400" />
+                            )
+                          )}
+                          {isDet && (
+                            effectiveLowerIsBetter ? (
+                              <TrendingUp className="h-3 w-3 text-rose-400" />
+                            ) : (
+                              <TrendingDown className="h-3 w-3 text-rose-400" />
+                            )
+                          )}
                           {!isImp && !isDet && <Minus className="h-3 w-3 text-slate-400" />}
                           <span>{totalTraj}</span>
                         </span>

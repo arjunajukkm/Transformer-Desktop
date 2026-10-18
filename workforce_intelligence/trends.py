@@ -124,7 +124,7 @@ TREND_METRICS: Dict[str, TrendMetricDefinition] = {
         label="Average Effective Hours",
         category="Working Time",
         format="duration",
-        direction="neutral",
+        direction="higher_is_better",
         description="Average effective working hours per valid working day.",
     ),
     "median_effective_hours": TrendMetricDefinition(
@@ -132,7 +132,7 @@ TREND_METRICS: Dict[str, TrendMetricDefinition] = {
         label="Median Effective Hours",
         category="Working Time",
         format="duration",
-        direction="neutral",
+        direction="higher_is_better",
         description="Median effective working hours per valid working day.",
     ),
     "average_arrival_time": TrendMetricDefinition(
@@ -140,7 +140,7 @@ TREND_METRICS: Dict[str, TrendMetricDefinition] = {
         label="Average Arrival Time",
         category="Working Time",
         format="time",
-        direction="neutral",
+        direction="lower_is_better",
         description="Average morning arrival time for valid working days.",
     ),
     "median_arrival_time": TrendMetricDefinition(
@@ -148,7 +148,7 @@ TREND_METRICS: Dict[str, TrendMetricDefinition] = {
         label="Median Arrival Time",
         category="Working Time",
         format="time",
-        direction="neutral",
+        direction="lower_is_better",
         description="Median morning arrival time for valid working days.",
     ),
     "average_exit_time": TrendMetricDefinition(

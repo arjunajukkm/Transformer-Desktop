@@ -448,6 +448,8 @@ export default function WorkforceIntelligenceDashboard() {
                       rows={bundle.heatmap.rows}
                       metricLabel={metricLabel}
                       lowerIsBetter={bundle.heatmap.lower_is_better}
+                      metricId={bundle.heatmap.metric_id || bundle.chart.metric_id}
+                      metricDirection={bundle.heatmap.metric_direction || bundle.chart.direction}
                       orgBenchmarks={bundle.heatmap.org_benchmarks}
                     />
                   </div>
@@ -475,6 +477,9 @@ export default function WorkforceIntelligenceDashboard() {
                     total={bundle.benchmark_table.total}
                     metricLabel={metricLabel}
                     collapsible={true}
+                    lowerIsBetter={bundle.heatmap.lower_is_better ?? bundle.chart.lower_is_better}
+                    metricDirection={bundle.heatmap.metric_direction || bundle.chart.direction}
+                    metricId={bundle.heatmap.metric_id || bundle.chart.metric_id}
                   />
                 </div>
               )}

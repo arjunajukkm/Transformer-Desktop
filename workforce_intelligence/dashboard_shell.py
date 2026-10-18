@@ -2421,6 +2421,7 @@ class BusinessUnitHeatmapWidget(ctk.CTkFrame):
         months = self._heatmap_data.get("months", [])
         rows = self._heatmap_data.get("rows", [])
         lower_is_better = self._heatmap_data.get("lower_is_better", True)
+        metric_direction = self._heatmap_data.get("metric_direction", "")
 
         if not rows or not months:
             ctk.CTkLabel(
@@ -2504,6 +2505,9 @@ class BusinessUnitHeatmapWidget(ctk.CTkFrame):
                 if d_val is None:
                     cell_bg = "transparent"
                     cell_fg = ui.COLOR_TEXT_DIM
+                elif metric_direction == "neutral":
+                    cell_bg = "#1E293B"
+                    cell_fg = ui.COLOR_TEXT_SEC
                 elif lower_is_better:
                     if d_val > 0.5:
                         cell_bg = "#3A141D"  # Unfavorable red
