@@ -36,6 +36,8 @@ export interface TrendChartPoint {
   benchmark_formatted: string;
   historical: number | null;
   historical_formatted: string;
+  peer_comparison?: number | null;
+  peer_comparison_formatted?: string;
   gap_vs_dept: number | null;
   gap_vs_dept_formatted: string;
   gap_vs_bu: number | null;
@@ -46,6 +48,14 @@ export interface TrendChartPoint {
   is_regression: boolean;
   is_post_policy: boolean;
   evaluable: number;
+  leave_mgr?: number | null;
+  leave_mgr_formatted?: string;
+  leave_admin?: number | null;
+  leave_admin_formatted?: string;
+  wfh_mgr?: number | null;
+  wfh_mgr_formatted?: string;
+  wfh_admin?: number | null;
+  wfh_admin_formatted?: string;
 }
 
 export interface TrendPulseCard {
@@ -90,10 +100,13 @@ export interface BenchmarkTableRow {
   current_val: number | null;
   three_month_avg: string;
   org_benchmark: string;
+  org_baseline?: string;
   historical: string;
   gap: string;
   gap_val: number | null;
+  gap_formatted?: string;
   trend: string;
+  trajectory?: string;
   volume: string;
   evaluable: number;
 }
@@ -108,6 +121,8 @@ export interface EmergingPattern {
   strength: string;
   explanation: string;
   scope: string;
+  business_unit?: string;
+  department?: string;
   persistence: string;
   volume: string;
   why_detected: string;
@@ -115,15 +130,22 @@ export interface EmergingPattern {
 }
 
 export interface WhatChangedDriver {
-  entity: string;
-  dimension: string;
-  direction: "increased" | "decreased";
-  previous_value: number;
-  current_value: number;
+  entity?: string;
+  driver?: string;
+  name?: string;
+  dimension?: string;
+  direction?: "increased" | "decreased";
+  previous_value?: number;
+  current_value?: number;
   delta: number;
   delta_pp?: number;
-  contribution_pct: number;
-  summary: string;
+  delta_str?: string;
+  formatted_delta?: string;
+  contribution_pct?: number;
+  contribution_str?: string;
+  is_adverse?: boolean;
+  summary?: string;
+  type?: string;
 }
 
 export interface WhatChangedDecomposition {
@@ -156,10 +178,12 @@ export interface TrendBundle {
     direction: string;
     lower_is_better: boolean;
     reference_range: [number, number] | null;
+    comparison_mode?: string;
     entity_label: string;
     dept_label: string;
     bu_label: string;
     org_label: string;
+    peer_label?: string;
   };
   heatmap: {
     months: string[];
@@ -167,6 +191,11 @@ export interface TrendBundle {
     lower_is_better: boolean;
   };
   benchmark_table: {
+    columns: [string, string, number, string][];
+    rows: BenchmarkTableRow[];
+    total: BenchmarkTableRow;
+  };
+  dept_benchmark_table?: {
     columns: [string, string, number, string][];
     rows: BenchmarkTableRow[];
     total: BenchmarkTableRow;
@@ -430,20 +459,22 @@ export interface BUAttendanceComparisonRow {
   business_unit: string;
   observed_headcount: number;
   recorded_employee_days: number;
+  total_days?: number;
+  calendar_days?: number;
   present_days: number;
   present_pct: number;
   leave_days: number;
   leave_pct: number;
-  wfh_days: number;
-  wfh_pct: number;
   od_days?: number;
   od_pct?: number;
+  wfh_days: number;
+  wfh_pct: number;
   holiday_days?: number;
   holiday_pct?: number;
-  week_off_days?: number;
-  week_off_pct?: number;
   absent_days: number;
   absent_pct: number;
+  week_off_days?: number;
+  week_off_pct?: number;
   exception_days: number;
   exception_rate_pct: number;
   missing_swipe_days: number;
@@ -469,6 +500,7 @@ export interface ExecutiveOverviewBundle {
     department: string;
     manager: string;
     employee: string;
+    month?: string;
   };
   kpi_cards: ExecutiveKPICardData[];
   reconciliation: ReconciliationData;
@@ -477,10 +509,151 @@ export interface ExecutiveOverviewBundle {
   daily_attendance_trend: DailyAttendanceRecord[];
   bu_attendance_comparison: BUAttendanceComparisonRow[];
   bu_comparison_total: BUAttendanceComparisonRow;
+  dept_attendance_comparison?: DeptAttendanceComparisonRow[];
+  emp_attendance_comparison?: EmpAttendanceComparisonRow[];
   data_quality: {
     status: string;
     conflicts_count: number;
     unclassified_count: number;
   };
 }
+
+export interface DeptAttendanceComparisonRow {
+  department: string;
+  business_unit: string;
+  observed_headcount: number;
+  recorded_employee_days: number;
+  total_days?: number;
+  calendar_days?: number;
+  present_days: number;
+  present_pct: number;
+  leave_days: number;
+  leave_pct: number;
+  od_days?: number;
+  od_pct?: number;
+  wfh_days: number;
+  wfh_pct: number;
+  holiday_days?: number;
+  holiday_pct?: number;
+  absent_days: number;
+  absent_pct: number;
+  week_off_days?: number;
+  week_off_pct?: number;
+  exception_days: number;
+  exception_rate_pct: number;
+}
+
+export interface EmpAttendanceComparisonRow {
+  employee_id: string;
+  employee_name: string;
+  department: string;
+  business_unit: string;
+  recorded_employee_days: number;
+  total_days?: number;
+  calendar_days?: number;
+  present_days: number;
+  present_pct: number;
+  leave_days: number;
+  leave_pct: number;
+  od_days?: number;
+  od_pct?: number;
+  wfh_days: number;
+  wfh_pct: number;
+  holiday_days?: number;
+  holiday_pct?: number;
+  absent_days: number;
+  absent_pct: number;
+  week_off_days?: number;
+  week_off_pct?: number;
+  exception_days: number;
+  avg_working_hours: string;
+}
+
+export interface AvailableSyncMonth {
+  month_key?: string;
+  display_name?: string;
+  record_count?: number;
+  headcount?: number;
+  is_current?: boolean;
+  is_active?: boolean;
+  last_synced?: string;
+  key?: string;
+  label?: string;
+  records?: number;
+}
+
+export interface AvailableSyncMonthsResponse {
+  active_synced_month: string;
+  all_option: {
+    month_key: string;
+    display_name: string;
+    record_count: number;
+    headcount?: number;
+    key?: string;
+    label?: string;
+    total_records?: number;
+  };
+  months: AvailableSyncMonth[];
+}
+
+export interface DiffSummary {
+  total_previous_records: number;
+  total_new_records: number;
+  records_modified: number;
+  records_added: number;
+  records_unchanged: number;
+  absences_resolved: number;
+  leaves_updated: number;
+  wfh_updated: number;
+  half_days_updated?: number;
+  regularizations_applied: number;
+  headcount_delta: number;
+}
+
+export interface DiffRecord {
+  employee_id: string;
+  employee_name: string;
+  department: string;
+  business_unit: string;
+  date: string;
+  change_type: "STATUS_CONVERTED" | "PUNCH_UPDATED" | "NEW_RECORD" | "HALF_DAY";
+  quantity?: number;
+  old_quantity?: number;
+  new_quantity?: number;
+  old_status: string;
+  new_status: string;
+  old_att_type: string;
+  new_att_type: string;
+  old_hours: string;
+  new_hours: string;
+  in_time: string;
+  out_time: string;
+  summary_badge: string;
+  badge_color: "emerald" | "purple" | "blue" | "cyan" | "rose" | "amber";
+}
+
+export interface DiffPayload {
+  month_key: string;
+  display_name: string;
+  synced_at: string;
+  summary: DiffSummary;
+  records: DiffRecord[];
+}
+
+export interface SyncJobStatus {
+  job_id: string;
+  month: string;
+  status: "running" | "completed" | "failed";
+  progress: number;
+  current_step: string;
+  detail: string;
+  started_at: string;
+  diff_summary: DiffSummary | null;
+  diff_records: DiffRecord[];
+  error?: string | null;
+  total_records?: number;
+  headcount?: number;
+  synced_months?: string[];
+}
+
 

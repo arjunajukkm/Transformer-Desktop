@@ -39,7 +39,7 @@ class WorkforceSchedulerService:
         self._last_sync_status: str = "Never executed"
         self._last_digest_time: Optional[datetime] = None
         self._last_digest_status: str = "Never executed"
-        self._last_digest_date: Optional[date] = None
+        self._last_digest_date: Optional[date] = date.today()
 
         self._next_sync_time: datetime = datetime.now() + timedelta(minutes=self.sync_interval_minutes)
         self._execution_history: List[Dict[str, Any]] = []

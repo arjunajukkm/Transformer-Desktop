@@ -121,8 +121,10 @@ class PolicySimulator:
             )
 
         df = _normalize_facts(facts_table)
-        if business_unit and business_unit != "All":
-            df = df.filter(pl.col("business_unit") == business_unit)
+        if business_unit:
+            bu_clean = str(business_unit).strip().lower()
+            if bu_clean not in ("all", "all business units", "all business unit", "all departments", "all managers", "none", "", "null"):
+                df = df.filter(pl.col("business_unit").str.to_lowercase() == bu_clean)
 
         if df.is_empty():
             return SimulationOutcome(

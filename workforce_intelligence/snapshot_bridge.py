@@ -176,16 +176,19 @@ def _filter_workforce_df(
     # 5. Date Range (Vectorized)
     if date_range and len(date_range) == 2:
         raw_start, raw_end = date_range
-        if raw_start is not None and raw_end is not None:
-            start_d = raw_start.date() if isinstance(raw_start, datetime) else raw_start
-            end_d = raw_end.date() if isinstance(raw_end, datetime) else raw_end
+        start_d = (raw_start.date() if isinstance(raw_start, datetime) else raw_start) if raw_start is not None else None
+        end_d = (raw_end.date() if isinstance(raw_end, datetime) else raw_end) if raw_end is not None else None
+        d_col = "_date" if "_date" in filtered.columns else ("Date" if "Date" in filtered.columns else None)
+        if d_col and not filtered.empty:
+            d_series = pd.to_datetime(filtered[d_col], errors="coerce").dt.date
             if isinstance(start_d, date) and isinstance(end_d, date):
                 if start_d > end_d:
                     return filtered.iloc[0:0].copy()
-                d_col = "_date" if "_date" in filtered.columns else ("Date" if "Date" in filtered.columns else None)
-                if d_col and not filtered.empty:
-                    d_series = pd.to_datetime(filtered[d_col], errors="coerce").dt.date
-                    filtered = filtered[(d_series >= start_d) & (d_series <= end_d)]
+                filtered = filtered[(d_series >= start_d) & (d_series <= end_d)]
+            elif isinstance(start_d, date):
+                filtered = filtered[d_series >= start_d]
+            elif isinstance(end_d, date):
+                filtered = filtered[d_series <= end_d]
 
     return filtered
 
@@ -493,22 +496,90 @@ class WorkforceIntelligenceBridge:
             self._pattern_computing_keys.clear()
             self._last_dataset_id = None
 
-    def _format_pattern_results(self, pattern_results: List[Any]) -> List[Dict[str, Any]]:
-        """Format PatternResult domain objects into UI presentation dictionary contracts."""
+    def _format_pattern_results(
+        self,
+        pattern_results: List[Any],
+        org_df: Optional[pd.DataFrame] = None,
+    ) -> List[Dict[str, Any]]:
+        """Format PatternResult domain objects into UI presentation dictionary contracts with entity metadata."""
         pattern_items = []
-        for p in pattern_results[:5]:
+        emp_meta: Dict[str, Dict[str, str]] = {}
+        name_meta: Dict[str, Dict[str, str]] = {}
+        mgr_meta: Dict[str, Dict[str, str]] = {}
+        if org_df is not None and not org_df.empty:
+            cols = org_df.columns
+            emp_col = "Employee Number" if "Employee Number" in cols else ("_emp_num" if "_emp_num" in cols else None)
+            name_col = "Employee Name" if "Employee Name" in cols else ("_emp_name" if "_emp_name" in cols else None)
+            bu_col = "_eff_bu" if "_eff_bu" in cols else ("Business Unit" if "Business Unit" in cols else ("_bu" if "_bu" in cols else None))
+            dept_col = "Department" if "Department" in cols else ("_dept" if "_dept" in cols else None)
+            rm_col = "Reporting Manager" if "Reporting Manager" in cols else ("_rm" if "_rm" in cols else None)
+
+            if emp_col:
+                sub_cols = [c for c in [emp_col, name_col, bu_col, dept_col, rm_col] if c]
+                sub_df = org_df[sub_cols].drop_duplicates(subset=[emp_col])
+                for _, row in sub_df.iterrows():
+                    eid = str(row[emp_col]).strip().lower()
+                    ename = str(row[name_col]).strip().lower() if name_col and pd.notna(row[name_col]) else ""
+                    m_data = {
+                        "employee_name": str(row[name_col]).strip() if name_col and pd.notna(row[name_col]) else "",
+                        "business_unit": str(row[bu_col]).strip() if bu_col and pd.notna(row[bu_col]) else "",
+                        "department": str(row[dept_col]).strip() if dept_col and pd.notna(row[dept_col]) else "",
+                        "reporting_manager": str(row[rm_col]).strip() if rm_col and pd.notna(row[rm_col]) else "",
+                    }
+                    if eid:
+                        emp_meta[eid] = m_data
+                    if ename:
+                        name_meta[ename] = m_data
+
+            if rm_col and (bu_col or dept_col):
+                rm_sub_cols = [c for c in [rm_col, bu_col, dept_col] if c]
+                rm_sub_df = org_df[rm_sub_cols].dropna(subset=[rm_col])
+                for rm_val, rm_grp in rm_sub_df.groupby(rm_col):
+                    rm_str = str(rm_val).strip().lower()
+                    if rm_str and rm_str != "nan":
+                        top_bu = rm_grp[bu_col].dropna().astype(str).str.strip().mode() if bu_col in rm_grp.columns else pd.Series(dtype=str)
+                        top_dept = rm_grp[dept_col].dropna().astype(str).str.strip().mode() if dept_col in rm_grp.columns else pd.Series(dtype=str)
+                        mgr_meta[rm_str] = {
+                            "business_unit": str(top_bu.iloc[0]) if not top_bu.empty else "",
+                            "department": str(top_dept.iloc[0]) if not top_dept.empty else "",
+                            "reporting_manager": str(rm_val).strip(),
+                        }
+
+        for p in pattern_results:
             p_title = getattr(p, "pattern_title", getattr(p, "pattern_name", getattr(p, "pattern_type", "Governance Pattern")))
             p_desc = getattr(p, "description", getattr(p, "why_detected", "Recurring behavioral or process pattern observed."))
             p_why = getattr(p, "why_detected", p_desc)
             p_scope = getattr(p, "entity_name", getattr(p, "entity_id", "Organisation"))
-            e_type = getattr(p, "entity_type", "EMPLOYEE")
-            if hasattr(e_type, "replace"):
-                scope_str = f"{e_type.replace('_', ' ').title()}: {p_scope}"
-            else:
-                scope_str = f"Scope: {p_scope}"
+            e_type = str(getattr(p, "entity_type", "EMPLOYEE")).upper()
+            scope_str = f"{e_type.replace('_', ' ').title()}: {p_scope}" if hasattr(e_type, "replace") else f"Scope: {p_scope}"
             pers = str(getattr(p, "persistence", "Single Period")).replace("_", " ").title()
             ev_cnt = getattr(p, "event_count", len(getattr(p, "evidence_items", [])))
             d_mo = getattr(p, "distinct_months", 1)
+
+            eid_raw = str(getattr(p, "entity_id", "")).strip()
+            ename_raw = str(getattr(p, "entity_name", "")).strip()
+            meta = (
+                emp_meta.get(eid_raw.lower())
+                or name_meta.get(ename_raw.lower())
+                or mgr_meta.get(eid_raw.lower())
+                or mgr_meta.get(ename_raw.lower())
+                or {}
+            )
+
+            bu_val = meta.get("business_unit") or ""
+            dept_val = meta.get("department") or ""
+            rm_val = meta.get("reporting_manager") or ""
+
+            if e_type == "BUSINESS_UNIT":
+                bu_val = ename_raw or bu_val
+            elif e_type == "DEPARTMENT":
+                dept_val = ename_raw or dept_val
+            elif e_type in ("REPORTING_MANAGER", "MANAGER"):
+                rm_val = ename_raw or rm_val
+                if not bu_val and ename_raw.lower() in mgr_meta:
+                    bu_val = mgr_meta[ename_raw.lower()].get("business_unit", "")
+                if not dept_val and ename_raw.lower() in mgr_meta:
+                    dept_val = mgr_meta[ename_raw.lower()].get("department", "")
 
             pattern_items.append({
                 "id": getattr(p, "pattern_id", "pat_item"),
@@ -525,8 +596,113 @@ class WorkforceIntelligenceBridge:
                 "volume": f"{ev_cnt} events ({d_mo} mo)",
                 "why_detected": p_why,
                 "score": getattr(p, "pattern_score", 50.0),
+                "entity_id": eid_raw,
+                "entity_name": ename_raw or meta.get("employee_name", ""),
+                "entity_type": e_type,
+                "business_unit": bu_val,
+                "department": dept_val,
+                "reporting_manager": rm_val,
+                "months_active": list(getattr(p, "months_active", [])),
             })
         return pattern_items
+
+    def get_scoped_patterns(
+        self,
+        business_unit: Optional[str] = None,
+        department: Optional[str] = None,
+        manager: Optional[str] = None,
+        employee: Optional[str] = None,
+        month: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Deterministic, sub-millisecond pattern retrieval with multi-dimensional scoping.
+        - If no filter: returns all patterns across the entire organization.
+        - If business_unit: filters only patterns active for that BU.
+        - If department: filters only patterns active for that Department.
+        - If manager: filters only patterns active for that Reporting Manager.
+        - If employee: filters only patterns active for that Employee.
+        - If month: filters only patterns active in that month.
+        """
+        snap = self.service.get_active_snapshot()
+        if not snap or not snap.is_valid():
+            return []
+
+        self._sync_dataset_state(snap)
+
+        bu_key = _norm_str(business_unit)
+        dept_key = _norm_str(department)
+        mgr_key = _norm_str(manager)
+        emp_key = _norm_emp(employee)
+        month_key = _norm_str(month)
+        if month_key and month_key in ("all", "all months", "none"):
+            month_key = None
+        elif month_key and len(month_key) > 7:
+            month_key = month_key[:7]
+
+        # Ensure global pattern pool is populated
+        with self._lock:
+            pool_ready = bool(self._global_pattern_pool)
+
+        if not pool_ready:
+            raw_df = snap.fact_df
+            if raw_df is not None and not raw_df.empty:
+                org_eval_df, org_eval_reqs, org_facts, _ = self._ensure_dataset_foundation(raw_df)
+                try:
+                    from workforce_intelligence.patterns import detect_patterns
+                    _, p_results = detect_patterns(org_eval_df, org_eval_reqs, employee_day_facts=org_facts)
+                    items = self._format_pattern_results(p_results, org_df=org_eval_df)
+                    with self._lock:
+                        self._global_pattern_pool = items
+                except Exception:
+                    with self._lock:
+                        if not self._global_pattern_pool:
+                            self._global_pattern_pool = []
+
+        with self._lock:
+            pool = list(self._global_pattern_pool)
+
+        is_global = not any([bu_key, dept_key, mgr_key, emp_key, month_key])
+        if is_global:
+            return pool
+
+        filtered_patterns = []
+        for p in pool:
+            p_bu = str(p.get("business_unit") or "").strip().lower()
+            p_dept = str(p.get("department") or "").strip().lower()
+            p_rm = str(p.get("reporting_manager") or "").strip().lower()
+            p_eid = str(p.get("entity_id") or "").strip().lower()
+            p_ename = str(p.get("entity_name") or "").strip().lower()
+            p_scope = str(p.get("scope") or "").strip().lower()
+
+            # 1. Business Unit Filter
+            if bu_key:
+                if bu_key != p_bu and bu_key not in p_bu and bu_key not in p_scope:
+                    continue
+
+            # 2. Department Filter
+            if dept_key:
+                if dept_key != p_dept and dept_key not in p_dept and dept_key not in p_scope:
+                    continue
+
+            # 3. Reporting Manager Filter
+            if mgr_key:
+                if mgr_key != p_rm and mgr_key not in p_rm and mgr_key != p_ename and mgr_key not in p_scope:
+                    continue
+
+            # 4. Employee Filter
+            if emp_key:
+                if emp_key != p_eid and emp_key != p_ename and emp_key not in p_eid and emp_key not in p_ename and emp_key not in p_scope:
+                    continue
+
+            # 5. Month Filter
+            if month_key and month_key != "all":
+                p_mos = p.get("months_active", [])
+                if p_mos and not any(str(m).startswith(month_key) for m in p_mos):
+                    continue
+
+            filtered_patterns.append(p)
+
+        return filtered_patterns
 
     def _trigger_background_pattern_detection(
         self,
@@ -548,7 +724,9 @@ class WorkforceIntelligenceBridge:
                 items = self._format_pattern_results(results)
                 with self._lock:
                     self._pattern_cache[pat_cache_key] = items
-                    if pat_cache_key == ("all", "all", "all", "all", "all"):
+                    # Store as global pattern pool if no specific scope filters were applied
+                    is_global_k = all(k is None or str(k).lower() == "all" for k in pat_cache_key)
+                    if is_global_k:
                         self._global_pattern_pool = items
             except Exception:
                 pass
@@ -607,29 +785,49 @@ class WorkforceIntelligenceBridge:
             all_bus = sorted(list(set(raw_bus)))
 
             # Pre-partition BU slices for ultra-fast heatmap and peer benchmarks
+            eff_bu_s = (
+                org_eval_df["_eff_bu"].fillna(org_eval_df.get("_bu", ""))
+                .astype(str).str.strip().str.lower()
+                if "_eff_bu" in org_eval_df.columns
+                else org_eval_df.get("_bu", pd.Series([], dtype=str)).astype(str).str.strip().str.lower()
+            )
+            facts_bu_s = (
+                org_facts["Business Unit"].astype(str).str.strip().str.lower()
+                if (not org_facts.empty and "Business Unit" in org_facts.columns)
+                else None
+            )
+
+            # Fast mapping of request_id to BU sets
+            req_to_bus: Dict[str, Set[str]] = {}
+            if "request_id" in org_eval_df.columns:
+                valid_req_mask = org_eval_df["request_id"].notna()
+                if valid_req_mask.any():
+                    for rid, bu_val in zip(org_eval_df.loc[valid_req_mask, "request_id"], eff_bu_s[valid_req_mask]):
+                        req_to_bus.setdefault(rid, set()).add(bu_val)
+
             bu_eval_dfs = {}
             bu_facts = {}
-            bu_reqs = {}
+            bu_reqs = {b: [] for b in all_bus}
+
+            for r in org_eval_reqs:
+                rid = r.get("request_id")
+                if rid and rid in req_to_bus:
+                    target_bus = req_to_bus[rid]
+                    for b_name in all_bus:
+                        if b_name.strip().lower() in target_bus:
+                            bu_reqs[b_name].append(r)
+
             for bu_name in all_bus:
                 b_clean = bu_name.strip().lower()
                 if b_clean in ("unknown", "unknown / unassigned", "unassigned"):
-                    bu_mask = org_eval_df["_eff_bu"].astype(str).str.strip().str.lower().isin(("unknown / unassigned", "unknown", "unassigned", "", "nan", "none"))
+                    bu_mask = eff_bu_s.isin(("unknown / unassigned", "unknown", "unassigned", "", "nan", "none"))
                 else:
-                    bu_mask = (org_eval_df["_eff_bu"].astype(str).str.strip().str.lower() == b_clean) | (org_eval_df.get("_bu", pd.Series([], dtype=str)).astype(str).str.strip().str.lower() == b_clean)
+                    bu_mask = (eff_bu_s == b_clean)
                 b_df = org_eval_df[bu_mask]
                 bu_eval_dfs[bu_name] = b_df
-                
-                # Partition requests
-                if not b_df.empty and "request_id" in b_df.columns:
-                    b_req_ids = set(b_df["request_id"].dropna().unique())
-                    bu_reqs[bu_name] = [r for r in org_eval_reqs if r.get("request_id") in b_req_ids]
-                else:
-                    bu_reqs[bu_name] = []
 
-                # Partition employee day facts
-                if not org_facts.empty and "Business Unit" in org_facts.columns:
-                    b_f_mask = org_facts["Business Unit"].astype(str).str.strip().str.lower() == b_clean
-                    bu_facts[bu_name] = org_facts[b_f_mask]
+                if facts_bu_s is not None:
+                    bu_facts[bu_name] = org_facts[facts_bu_s == b_clean]
                 else:
                     bu_facts[bu_name] = org_facts.iloc[0:0].copy()
 
@@ -896,8 +1094,11 @@ class WorkforceIntelligenceBridge:
         department: Optional[str] = None,
         manager: Optional[str] = None,
         employee: Optional[str] = None,
-        date_range: Optional[Tuple[date, date]] = None,
+        date_range: Optional[Tuple[Optional[date], Optional[date]]] = None,
         analysis_as_of_date: Optional[Union[date, datetime]] = None,
+        month: Optional[str] = None,
+        peer_bu: Optional[str] = None,
+        peer_department: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Retrieve complete deterministic Workforce Trend Intelligence bundle:
@@ -908,6 +1109,7 @@ class WorkforceIntelligenceBridge:
         - Contextual What Changed? driver narrative.
         - Top 3-5 Emerging Patterns from patterns.py.
         - Multi-dimension benchmark table.
+        - Optional peer BU or peer Department comparison line.
         """
         snap = self.service.get_active_snapshot()
         if not snap or not snap.is_valid():
@@ -935,9 +1137,17 @@ class WorkforceIntelligenceBridge:
         mgr_key = _norm_str(manager)
         emp_key = _norm_emp(employee)
         dr_key = (date_range[0], date_range[1]) if date_range and len(date_range) == 2 else None
+        month_key = _norm_str(month)
+        if month_key and month_key in ("all", "all months", "none"):
+            month_key = None
+        elif month_key and len(month_key) > 7:
+            month_key = month_key[:7]
+
+        peer_bu_key = _norm_str(peer_bu)
+        peer_dept_key = _norm_str(peer_department)
 
         cache_key = (
-            "TREND_INTEL_V5",
+            "TREND_INTEL_V7",
             metric_id,
             bench_mode,
             bu_key,
@@ -945,12 +1155,23 @@ class WorkforceIntelligenceBridge:
             mgr_key,
             emp_key,
             dr_key,
+            month_key,
+            peer_bu_key,
+            peer_dept_key,
         )
 
         with self._lock:
             if cache_key in self._cache:
                 self._cache.move_to_end(cache_key)
-                return _defensive_copy_dict(self._cache[cache_key])
+                cached_res = _defensive_copy_dict(self._cache[cache_key])
+                cached_res["patterns"] = self.get_scoped_patterns(
+                    business_unit=business_unit,
+                    department=department,
+                    manager=manager,
+                    employee=employee,
+                    month=month,
+                )
+                return cached_res
 
         raw_df = snap.fact_df
         if raw_df is None or len(raw_df) == 0:
@@ -977,7 +1198,7 @@ class WorkforceIntelligenceBridge:
         )
 
         # 1. Scoped Dataset slice
-        is_global_scope = (bu_key is None and dept_key is None and mgr_key is None and emp_key is None and dr_key is None)
+        is_global_scope = (bu_key is None and dept_key is None and mgr_key is None and emp_key is None and dr_key is None and month_key is None)
         if is_global_scope:
             scoped_eval_df = org_eval_df
             scoped_eval_reqs = org_eval_reqs
@@ -1228,6 +1449,15 @@ class WorkforceIntelligenceBridge:
 
         # 5. Peer Benchmark & Historical Baseline Series
         periods = [p["period"] for p in org_series]
+        if month_key and month_key != "all":
+            trimmed_periods = []
+            for p in periods:
+                trimmed_periods.append(p)
+                if p.startswith(month_key) or p == month_key:
+                    break
+            periods = trimmed_periods
+            scope_series = [p for p in scope_series if p.get("period") in periods]
+
         peer_points: List[Dict[str, Any]] = []
         hist_points: List[Dict[str, Any]] = []
 
@@ -1236,6 +1466,33 @@ class WorkforceIntelligenceBridge:
         org_pt_map = {p["period"]: p for p in org_series}
         dept_pt_map = {p["period"]: p for p in dept_trend.get("time_series", [])}
         bu_bench_pt_map = {p["period"]: p for p in bu_benchmark_trend.get("time_series", [])}
+
+        # Specific user-selected Peer BU or Department comparison
+        user_peer_trend: Dict[str, Any] = {"time_series": []}
+        user_peer_label = None
+
+        if peer_dept_key:
+            user_peer_label = f"Peer: {peer_department}"
+            if self._olap_engine is not None:
+                user_peer_trend = self._olap_engine.query_trend_response(metric_id, department=peer_department, business_unit=peer_bu)
+            else:
+                p_df = _filter_workforce_df(org_eval_df, department=peer_department, business_unit=peer_bu, date_range=date_range)
+                p_f = _filter_workforce_df(org_facts, department=peer_department, business_unit=peer_bu, date_range=date_range)
+                p_r_ids = set(p_df["request_id"].dropna().unique()) if "request_id" in p_df.columns else None
+                p_r = [r for r in org_eval_reqs if r.get("request_id") in p_r_ids] if p_r_ids is not None else org_eval_reqs
+                user_peer_trend = calculate_time_series_trends(p_df, p_r, employee_day_facts=p_f, metric_id=metric_id, analysis_as_of_date=analysis_as_of_date)
+        elif peer_bu_key:
+            user_peer_label = f"Peer: {peer_bu}"
+            if self._olap_engine is not None:
+                user_peer_trend = self._olap_engine.query_trend_response(metric_id, business_unit=peer_bu)
+            else:
+                p_df = _filter_workforce_df(org_eval_df, business_unit=peer_bu, date_range=date_range)
+                p_f = _filter_workforce_df(org_facts, business_unit=peer_bu, date_range=date_range)
+                p_r_ids = set(p_df["request_id"].dropna().unique()) if "request_id" in p_df.columns else None
+                p_r = [r for r in org_eval_reqs if r.get("request_id") in p_r_ids] if p_r_ids is not None else org_eval_reqs
+                user_peer_trend = calculate_time_series_trends(p_df, p_r, employee_day_facts=p_f, metric_id=metric_id, analysis_as_of_date=analysis_as_of_date)
+
+        user_peer_pt_map = {p["period"]: p for p in user_peer_trend.get("time_series", [])}
 
         # Calculate Peer Benchmark per period (median of peer BUs)
         for p_idx, period_str in enumerate(periods):
@@ -1302,7 +1559,38 @@ class WorkforceIntelligenceBridge:
             current_bench_fmt = peer_points[-1]["formatted_value"] if peer_points else "—"
 
         # 7. Gap vs Benchmark Calculation
-        curr_val = scope_trend.get("current_value")
+        valid_scope_pts = [p for p in scope_series if p.get("value") is not None and not pd.isna(p.get("value"))]
+        target_idx = -1
+        if month_key and month_key != "all":
+            for idx, p in enumerate(valid_scope_pts):
+                p_per = str(p.get("period", ""))
+                if p_per.startswith(month_key) or p_per == month_key:
+                    target_idx = idx
+                    break
+
+        if target_idx >= 0:
+            target_scope_pt = valid_scope_pts[target_idx]
+            prev_scope_pt = valid_scope_pts[target_idx - 1] if target_idx >= 1 else None
+            curr_val = target_scope_pt.get("value")
+            curr_val_fmt = target_scope_pt.get("formatted_value") or "—"
+            curr_period_disp = target_scope_pt.get("period_display") or "Current"
+            if prev_scope_pt and prev_scope_pt.get("value") is not None and curr_val is not None:
+                mom_change = round(curr_val - prev_scope_pt["value"], 2)
+                prev_val_fmt = prev_scope_pt.get("formatted_value") or "—"
+            else:
+                mom_change = None
+                prev_val_fmt = "—"
+            valid_obs = _safe_point_volume(target_scope_pt)
+        else:
+            target_scope_pt = valid_scope_pts[-1] if valid_scope_pts else {}
+            prev_scope_pt = valid_scope_pts[-2] if len(valid_scope_pts) >= 2 else None
+            curr_val = scope_trend.get("current_value")
+            curr_val_fmt = scope_trend.get("current_value_formatted", "—")
+            curr_period_disp = scope_trend.get("current_period_display", "Current")
+            mom_change = scope_trend.get("mom_change")
+            prev_val_fmt = scope_trend.get("previous_value_formatted", "—")
+            valid_obs = _safe_point_volume(scope_series[-1]) if scope_series else 0
+
         if curr_val is not None and current_bench_val is not None:
             gap_val = round(curr_val - current_bench_val, 2)
             gap_fmt = format_benchmark_diff(gap_val, metric_def.format, metric_id)
@@ -1311,7 +1599,6 @@ class WorkforceIntelligenceBridge:
             gap_fmt = "—"
 
         # 8. MoM Change Formatted
-        mom_change = scope_trend.get("mom_change")
         if mom_change is not None:
             sign_str = "+" if mom_change > 0 else ""
             if metric_def.format == "percentage":
@@ -1327,9 +1614,6 @@ class WorkforceIntelligenceBridge:
         else:
             mom_change_fmt = "Baseline (First Month)"
 
-        valid_obs = 0
-        if scope_series:
-            valid_obs = _safe_point_volume(scope_series[-1])
         vol_status = scope_trend.get("volume_status") or ("HIGH" if valid_obs >= 50 else ("MODERATE" if valid_obs >= 10 else "LOW"))
         conf_label = f"{vol_status.capitalize()} confidence · {valid_obs:,} observations" if valid_obs > 0 else "Low confidence · 0 observations"
 
@@ -1363,6 +1647,16 @@ class WorkforceIntelligenceBridge:
             if v_bu is not None:
                 all_chart_vals.append(v_bu)
 
+            # Include approval breakdown values in chart bounds
+            for k in ("leave_mgr", "leave_admin", "wfh_mgr", "wfh_admin"):
+                sub_v = sc_p.get(k)
+                if sub_v is not None and not pd.isna(sub_v):
+                    all_chart_vals.append(sub_v)
+
+            v_peer_user = user_peer_pt_map.get(period_str, {}).get("value")
+            if v_peer_user is not None:
+                all_chart_vals.append(v_peer_user)
+
             p_dt = pd.to_datetime(period_str, errors="coerce")
             pol_dt = pd.to_datetime(POLICY_EFFECTIVE_DATE_STR, errors="coerce")
             is_post_pol = bool(pd.notna(p_dt) and pd.notna(pol_dt) and p_dt.date() >= pol_dt.date())
@@ -1387,6 +1681,8 @@ class WorkforceIntelligenceBridge:
                 "benchmark_formatted": og_p.get("formatted_value") if comparison_mode in ("EMPLOYEE", "MANAGER") else (bn_p.get("formatted_value") or "—"),
                 "historical": v_hs,
                 "historical_formatted": hs_p.get("formatted_value") or "—",
+                "peer_comparison": v_peer_user,
+                "peer_comparison_formatted": user_peer_pt_map.get(period_str, {}).get("formatted_value") or "—",
                 "gap_vs_dept": g_dept,
                 "gap_vs_dept_formatted": format_benchmark_diff(g_dept, metric_def.format, metric_id),
                 "gap_vs_bu": g_bu,
@@ -1397,14 +1693,32 @@ class WorkforceIntelligenceBridge:
                 "is_regression": False,
                 "is_post_policy": is_post_pol,
                 "evaluable": sc_p.get("evaluable") or sc_p.get("valid_observation_count") or 0,
+                "leave_mgr": sc_p.get("leave_mgr"),
+                "leave_mgr_formatted": sc_p.get("leave_mgr_formatted") or "—",
+                "leave_admin": sc_p.get("leave_admin"),
+                "leave_admin_formatted": sc_p.get("leave_admin_formatted") or "—",
+                "wfh_mgr": sc_p.get("wfh_mgr"),
+                "wfh_mgr_formatted": sc_p.get("wfh_mgr_formatted") or "—",
+                "wfh_admin": sc_p.get("wfh_admin"),
+                "wfh_admin_formatted": sc_p.get("wfh_admin_formatted") or "—",
             })
 
         # Mark regression on chart if detected
         if scope_trend.get("regression_detected") and len(chart_points) >= 1:
             chart_points[-1]["is_regression"] = True
 
-        # Reference Range
-        if all_chart_vals:
+        # Reference Range (Normal Policy SLA / Operational Tolerance Corridor Band)
+        if metric_def.id == "missing_swipe_rate":
+            ref_range = (0.0, 3.0)  # Policy normal range 0-3%
+        elif metric_def.id == "unnotified_absenteeism_rate":
+            ref_range = (0.0, 2.0)  # Tolerance SLA 0-2%
+        elif metric_def.id in ("median_approval_turnaround", "average_approval_turnaround"):
+            ref_range = (0.0, 2.0)  # Expected SLA 0-2 days
+        elif metric_def.id == "pending_approval_count":
+            ref_range = (0.0, 5.0)  # Normal pending SLA 0-5
+        elif metric_def.id in ("leave_application_compliance", "wfh_application_compliance"):
+            ref_range = (-14.0, 0.0) # Advance application corridor: 0 to 14 days before
+        elif all_chart_vals:
             ref_min = max(0.0, float(np.percentile(all_chart_vals, 10)))
             ref_max = float(np.percentile(all_chart_vals, 90))
             ref_range = (round(ref_min, 1), round(ref_max, 1))
@@ -1531,7 +1845,8 @@ class WorkforceIntelligenceBridge:
         avg3m_gap_bu = round(avg3m_act - avg3m_bu, 2) if avg3m_act is not None and avg3m_bu is not None else None
         avg3m_gap_og = round(avg3m_act - avg3m_og, 2) if avg3m_act is not None and avg3m_og is not None else None
 
-        latest_pt = chart_points[-1] if chart_points else {}
+        chart_target_pts = [p for p in chart_points if p.get("period", "").startswith(month_key) or p.get("period") == month_key] if month_key else []
+        latest_pt = chart_target_pts[0] if chart_target_pts else (chart_points[-1] if chart_points else {})
 
         contextual_comparison = {
             "entity_name": entity_label,
@@ -1654,26 +1969,49 @@ class WorkforceIntelligenceBridge:
             ]
             table_rows = comp_table_rows
 
-        # 11. What Changed? Narrative
-        if comparison_mode in ("EMPLOYEE", "MANAGER"):
+        # 11. What Changed? Narrative & Hierarchical Driver Attribution
+        is_emp_selected = (emp_key is not None and emp_key != "all")
+        is_mgr_selected = (mgr_key is not None and mgr_key != "all") and not is_emp_selected
+        is_dept_selected = (dept_key is not None and dept_key != "all") and not is_mgr_selected and not is_emp_selected
+        is_bu_selected = (bu_key is not None and bu_key != "all") and not is_dept_selected and not is_mgr_selected and not is_emp_selected
+
+        if is_emp_selected:
             valid_pts = [p for p in chart_points if p.get("actual") is not None and not pd.isna(p.get("actual"))]
-            if len(valid_pts) >= 2:
-                latest_p = valid_pts[-1]
-                prev_p = valid_pts[-2]
+            target_idx = -1
+            if month_key and month_key != "all":
+                for idx, pt in enumerate(valid_pts):
+                    p_per = str(pt.get("period", ""))
+                    if p_per.startswith(month_key) or p_per == month_key:
+                        target_idx = idx
+                        break
+
+            if target_idx >= 0:
+                latest_p = valid_pts[target_idx]
+                prev_p = valid_pts[target_idx - 1] if target_idx >= 1 else None
+            else:
+                latest_p = valid_pts[-1] if valid_pts else None
+                prev_p = valid_pts[-2] if len(valid_pts) >= 2 else None
+
+            if latest_p and prev_p and latest_p.get("actual") is not None and prev_p.get("actual") is not None:
                 tot_delta = round(latest_p["actual"] - prev_p["actual"], 2)
                 dir_w = "increased" if tot_delta > 0 else ("decreased" if tot_delta < 0 else "remained stable")
                 sign_s = "+" if tot_delta > 0 else ""
 
                 if metric_def.format == "percentage":
                     tot_chg_str = f"{sign_s}{tot_delta:.1f} pp"
+                    delta_unit_txt = f"{abs(tot_delta):.1f} pp"
                 elif metric_def.format == "days":
                     tot_chg_str = f"{sign_s}{tot_delta:.1f} d"
+                    delta_unit_txt = f"{abs(tot_delta):.1f} days"
                 elif metric_def.format in ("duration", "time"):
                     tot_chg_str = f"{sign_s}{abs(tot_delta):.0f}m"
+                    delta_unit_txt = f"{abs(tot_delta):.0f} minutes"
                 elif metric_def.format == "integer":
                     tot_chg_str = f"{sign_s}{int(round(tot_delta))}"
+                    delta_unit_txt = f"{int(round(abs(tot_delta)))}"
                 else:
                     tot_chg_str = f"{sign_s}{tot_delta:.1f}"
+                    delta_unit_txt = f"{abs(tot_delta):.1f}"
 
                 g_dp = latest_p.get("gap_vs_dept")
                 if g_dp is not None:
@@ -1686,21 +2024,7 @@ class WorkforceIntelligenceBridge:
                 else:
                     dp_eval = f"tracking in {dept_label}"
 
-                prefix = f"{entity_label}'s" if comparison_mode == "EMPLOYEE" else f"{entity_label}'s team"
-                if comparison_mode == "MANAGER" and is_approval_metric:
-                    prefix = f"{entity_label}'s"
-
-                if metric_def.format == "percentage":
-                    delta_unit_txt = f"{abs(tot_delta):.1f} pp"
-                elif metric_def.format == "days":
-                    delta_unit_txt = f"{abs(tot_delta):.1f} days"
-                elif metric_def.format in ("duration", "time"):
-                    delta_unit_txt = f"{abs(tot_delta):.0f} minutes"
-                elif metric_def.format == "integer":
-                    delta_unit_txt = f"{int(round(abs(tot_delta)))}"
-                else:
-                    delta_unit_txt = f"{abs(tot_delta):.1f}"
-
+                prefix = f"{entity_label}'s"
                 headline = f"{prefix} {metric_def.label} {dir_w} by {delta_unit_txt} in {latest_p['period_display']} (from {prev_p['actual_formatted']} to {latest_p['actual_formatted']}), {dp_eval}."
                 summary = f"{prefix} recorded {latest_p['actual_formatted']} in {latest_p['period_display']}. Department ({dept_label}) benchmark is {latest_p['dept_benchmark_formatted']} ({latest_p.get('gap_vs_dept_formatted', '—')}), Business Unit ({bu_label}) is {latest_p['bu_benchmark_formatted']} ({latest_p.get('gap_vs_bu_formatted', '—')}), and Organisation average is {latest_p['org_benchmark_formatted']} ({latest_p.get('gap_vs_org_formatted', '—')})."
 
@@ -1750,7 +2074,7 @@ class WorkforceIntelligenceBridge:
                 }
             else:
                 latest_p = valid_pts[0] if valid_pts else (chart_points[0] if chart_points else {})
-                prefix = f"{entity_label}" if comparison_mode == "EMPLOYEE" else f"{entity_label}'s team"
+                prefix = f"{entity_label}'s"
                 headline = f"Baseline established for {prefix} at {latest_p.get('actual_formatted', '—')} in {latest_p.get('period_display', 'Current')}. Compared against {dept_label} ({latest_p.get('dept_benchmark_formatted', '—')}) and {bu_label} ({latest_p.get('bu_benchmark_formatted', '—')})."
                 summary = f"{prefix} recorded {latest_p.get('actual_formatted', '—')} for {latest_p.get('period_display', 'Current')}. Department benchmark is {latest_p.get('dept_benchmark_formatted', '—')}, BU benchmark is {latest_p.get('bu_benchmark_formatted', '—')}, and Organisation benchmark is {latest_p.get('org_benchmark_formatted', '—')}."
                 what_changed_data = {
@@ -1765,11 +2089,24 @@ class WorkforceIntelligenceBridge:
                     "drivers": [],
                 }
         else:
-            # Standard Global / Scope What Changed Driver Decomposition
+            # Hierarchical Driver Decomposition for Manager, Department, Business Unit, and Global scopes
             valid_pts = [p for p in scope_series if p.get("value") is not None and not pd.isna(p.get("value"))]
-            if len(valid_pts) >= 2:
-                latest_p = valid_pts[-1]
-                prev_p = valid_pts[-2]
+            target_idx = -1
+            if month_key and month_key != "all":
+                for idx, pt in enumerate(valid_pts):
+                    p_per = str(pt.get("period", ""))
+                    if p_per.startswith(month_key) or p_per == month_key:
+                        target_idx = idx
+                        break
+
+            if target_idx >= 0:
+                latest_p = valid_pts[target_idx]
+                prev_p = valid_pts[target_idx - 1] if target_idx >= 1 else None
+            else:
+                latest_p = valid_pts[-1] if valid_pts else None
+                prev_p = valid_pts[-2] if len(valid_pts) >= 2 else None
+
+            if latest_p and prev_p and latest_p.get("value") is not None and prev_p.get("value") is not None:
                 tot_delta = round(latest_p["value"] - prev_p["value"], 2)
                 dir_w = "increased" if tot_delta > 0 else ("decreased" if tot_delta < 0 else "remained stable")
                 sign_s = "+" if tot_delta > 0 else ""
@@ -1790,59 +2127,176 @@ class WorkforceIntelligenceBridge:
                     u_txt = " units"
                     tot_chg_str = f"{sign_s}{tot_delta:.1f}"
 
-                what_summary = f"{metric_def.label} {dir_w} by {abs(tot_delta):.1f}{u_txt} in {latest_p['period_display']} (from {prev_p['formatted_value']} to {latest_p['formatted_value']})."
+                # Narrative Headline prefix based on entity scope
+                if is_mgr_selected:
+                    entity_prefix = f"{entity_label}'s team"
+                elif is_dept_selected:
+                    entity_prefix = f"{dept_label}"
+                elif is_bu_selected:
+                    entity_prefix = f"{bu_label}"
+                else:
+                    entity_prefix = "Organisation-wide"
+
+                what_summary = f"{entity_prefix} {metric_def.label} {dir_w} by {abs(tot_delta):.1f}{u_txt} in {latest_p['period_display']} (from {prev_p['formatted_value']} to {latest_p['formatted_value']})."
 
                 drivers = []
-                bu_deltas = []
+                sub_deltas = []
                 tot_eval_curr = latest_p.get("evaluable") or latest_p.get("valid_observation_count") or 1
+                latest_period = latest_p["period"]
+                prev_period = prev_p["period"]
 
-                for bu_name in all_bus:
-                    b_tr = bu_trends.get(bu_name, {})
-                    b_pts = {pt["period"]: pt for pt in b_tr.get("time_series", [])}
-                    if latest_p["period"] in b_pts and prev_p["period"] in b_pts:
-                        bv_curr = b_pts[latest_p["period"]].get("value")
-                        bv_prev = b_pts[prev_p["period"]].get("value")
-                        bu_ev = b_pts[latest_p["period"]].get("evaluable") or b_pts[latest_p["period"]].get("valid_observation_count") or 0
-                        if bv_curr is not None and bv_prev is not None and not pd.isna(bv_curr) and not pd.isna(bv_prev):
-                            d_bu = round(bv_curr - bv_prev, 2)
-                            weight = bu_ev / max(1, tot_eval_curr)
-                            contrib = round(d_bu * weight, 2)
-                            bu_deltas.append((bu_name, d_bu, contrib))
+                if is_mgr_selected:
+                    # Manager level: Decompose into individual Employees in manager's team
+                    emp_pairs = []
+                    if "_emp_num" in scoped_eval_df.columns and "_emp_name" in scoped_eval_df.columns:
+                        uniq = scoped_eval_df[["_emp_num", "_emp_name"]].drop_duplicates()
+                        for row in uniq.itertuples(index=False):
+                            num_str = str(row[0]).strip() if pd.notna(row[0]) else ""
+                            name_str = str(row[1]).strip() if pd.notna(row[1]) else ""
+                            if num_str and num_str not in ("", "none", "nan", "unknown"):
+                                disp = name_str if name_str and name_str != num_str else num_str
+                                emp_pairs.append((num_str, disp))
 
-                bu_deltas.sort(key=lambda x: (abs(x[1]), abs(x[2])), reverse=True)
-                top_bus = bu_deltas[:4]
-                for bu_name, d_bu, contrib in top_bus:
-                    if abs(d_bu) >= 0.05:
-                        sign_b = "+" if d_bu > 0 else ""
-                        is_adv = bool((d_bu > 0 and metric_def.direction == "lower_is_better") or (d_bu < 0 and metric_def.direction == "higher_is_better"))
-                        fmt_d = format_benchmark_diff(d_bu, metric_def.format, metric_id)
+                    sub_entity_label = "Team Members"
+                    sub_entity_type = "EMP"
+                    for e_num, e_disp in emp_pairs:
+                        if self._olap_engine is not None:
+                            pts = self._olap_engine.query_time_series(metric_id, employee=e_num)
+                            pt_map = {p.period: p for p in pts}
+                            p_curr = pt_map.get(latest_period)
+                            p_prev = pt_map.get(prev_period)
+                            v_curr = p_curr.value if p_curr else None
+                            v_prev = p_prev.value if p_prev else None
+                            ev = p_curr.evaluable if p_curr else 0
+                        else:
+                            df_sub = scoped_eval_df[scoped_eval_df["_emp_num"].astype(str).str.strip().str.lower() == e_num.lower()]
+                            tr = calculate_time_series_trends(df_sub, scoped_eval_reqs, employee_day_facts=scoped_facts, metric_id=metric_id)
+                            pt_map = {p["period"]: p for p in tr.get("time_series", [])}
+                            p_curr = pt_map.get(latest_period, {})
+                            p_prev = pt_map.get(prev_period, {})
+                            v_curr = p_curr.get("value")
+                            v_prev = p_prev.get("value")
+                            ev = p_curr.get("evaluable", 0)
+
+                        if v_curr is not None and v_prev is not None and not pd.isna(v_curr) and not pd.isna(v_prev):
+                            d_val = round(v_curr - v_prev, 2)
+                            weight = ev / max(1, tot_eval_curr)
+                            contrib = round(d_val * weight, 2)
+                            sub_deltas.append((e_disp, d_val, contrib, "EMP"))
+
+                elif is_dept_selected:
+                    # Department level: Decompose into Reporting Managers within this Department
+                    mgr_col = "_rm" if "_rm" in scoped_eval_df.columns else "Reporting Manager"
+                    mgr_names = [m for m in scoped_eval_df[mgr_col].dropna().unique() if str(m).strip() not in ("", "none", "nan", "unknown")]
+                    sub_entity_label = "Reporting Managers"
+                    sub_entity_type = "MGR"
+                    for m_name in mgr_names:
+                        if self._olap_engine is not None:
+                            pts = self._olap_engine.query_time_series(metric_id, business_unit=business_unit, department=department, manager=m_name)
+                            pt_map = {p.period: p for p in pts}
+                            p_curr = pt_map.get(latest_period)
+                            p_prev = pt_map.get(prev_period)
+                            v_curr = p_curr.value if p_curr else None
+                            v_prev = p_prev.value if p_prev else None
+                            ev = p_curr.evaluable if p_curr else 0
+                        else:
+                            df_sub = scoped_eval_df[scoped_eval_df[mgr_col].astype(str).str.strip().str.lower() == m_name.lower()]
+                            tr = calculate_time_series_trends(df_sub, scoped_eval_reqs, employee_day_facts=scoped_facts, metric_id=metric_id)
+                            pt_map = {p["period"]: p for p in tr.get("time_series", [])}
+                            p_curr = pt_map.get(latest_period, {})
+                            p_prev = pt_map.get(prev_period, {})
+                            v_curr = p_curr.get("value")
+                            v_prev = p_prev.get("value")
+                            ev = p_curr.get("evaluable", 0)
+
+                        if v_curr is not None and v_prev is not None and not pd.isna(v_curr) and not pd.isna(v_prev):
+                            d_val = round(v_curr - v_prev, 2)
+                            weight = ev / max(1, tot_eval_curr)
+                            contrib = round(d_val * weight, 2)
+                            sub_deltas.append((m_name, d_val, contrib, "MGR"))
+
+                elif is_bu_selected:
+                    # Business Unit level: Decompose into Departments within this Business Unit
+                    dept_names = [d for d in scoped_eval_df["_dept"].dropna().unique() if str(d).strip() not in ("", "none", "nan", "unknown")]
+                    sub_entity_label = "Departments"
+                    sub_entity_type = "DEPT"
+                    for d_name in dept_names:
+                        if self._olap_engine is not None:
+                            pts = self._olap_engine.query_time_series(metric_id, business_unit=business_unit, department=d_name)
+                            pt_map = {p.period: p for p in pts}
+                            p_curr = pt_map.get(latest_period)
+                            p_prev = pt_map.get(prev_period)
+                            v_curr = p_curr.value if p_curr else None
+                            v_prev = p_prev.value if p_prev else None
+                            ev = p_curr.evaluable if p_curr else 0
+                        else:
+                            df_sub = scoped_eval_df[scoped_eval_df["_dept"].astype(str).str.strip().str.lower() == d_name.lower()]
+                            tr = calculate_time_series_trends(df_sub, scoped_eval_reqs, employee_day_facts=scoped_facts, metric_id=metric_id)
+                            pt_map = {p["period"]: p for p in tr.get("time_series", [])}
+                            p_curr = pt_map.get(latest_period, {})
+                            p_prev = pt_map.get(prev_period, {})
+                            v_curr = p_curr.get("value")
+                            v_prev = p_prev.get("value")
+                            ev = p_curr.get("evaluable", 0)
+
+                        if v_curr is not None and v_prev is not None and not pd.isna(v_curr) and not pd.isna(v_prev):
+                            d_val = round(v_curr - v_prev, 2)
+                            weight = ev / max(1, tot_eval_curr)
+                            contrib = round(d_val * weight, 2)
+                            sub_deltas.append((d_name, d_val, contrib, "DEPT"))
+
+                else:
+                    # Global level: Decompose into Business Units
+                    sub_entity_label = "Business Units"
+                    sub_entity_type = "BU"
+                    for bu_name in all_bus:
+                        b_tr = bu_trends.get(bu_name, {})
+                        b_pts = {pt["period"]: pt for pt in b_tr.get("time_series", [])}
+                        if latest_period in b_pts and prev_period in b_pts:
+                            bv_curr = b_pts[latest_period].get("value")
+                            bv_prev = b_pts[prev_period].get("value")
+                            bu_ev = b_pts[latest_period].get("evaluable") or b_pts[latest_period].get("valid_observation_count") or 0
+                            if bv_curr is not None and bv_prev is not None and not pd.isna(bv_curr) and not pd.isna(bv_prev):
+                                d_bu = round(bv_curr - bv_prev, 2)
+                                weight = bu_ev / max(1, tot_eval_curr)
+                                contrib = round(d_bu * weight, 2)
+                                sub_deltas.append((bu_name, d_bu, contrib, "BU"))
+
+                sub_deltas.sort(key=lambda x: (abs(x[1]), abs(x[2])), reverse=True)
+                top_subs = sub_deltas[:4]
+                for name, d_val, contrib, d_type in top_subs:
+                    if abs(d_val) >= 0.05:
+                        sign_b = "+" if d_val > 0 else ""
+                        is_adv = bool((d_val > 0 and metric_def.direction == "lower_is_better") or (d_val < 0 and metric_def.direction == "higher_is_better"))
+                        fmt_d = format_benchmark_diff(d_val, metric_def.format, metric_id)
                         c_str = f"{format_benchmark_diff(contrib, metric_def.format, metric_id)} contribution"
 
                         drivers.append({
-                            "driver": bu_name,
-                            "name": bu_name,
-                            "delta": d_bu,
+                            "driver": name,
+                            "name": name,
+                            "delta": d_val,
                             "delta_str": fmt_d,
                             "formatted_delta": fmt_d,
                             "contribution_str": c_str,
                             "is_adverse": is_adv,
-                            "type": "BU",
+                            "type": d_type,
                         })
 
-                if len(bu_deltas) > 4:
-                    other_contrib = round(sum(x[2] for x in bu_deltas[4:]), 2)
+                if len(sub_deltas) > 4:
+                    other_contrib = round(sum(x[2] for x in sub_deltas[4:]), 2)
                     if abs(other_contrib) >= 0.05:
                         sign_o = "+" if other_contrib > 0 else ""
                         fmt_o = format_benchmark_diff(other_contrib, metric_def.format, metric_id)
+                        other_label = f"Other {sub_entity_label}"
                         drivers.append({
-                            "driver": "Other Business Units",
-                            "name": "Other Business Units",
+                            "driver": other_label,
+                            "name": other_label,
                             "delta": other_contrib,
                             "delta_str": fmt_o,
                             "formatted_delta": fmt_o,
                             "contribution_str": f"{sign_o}{other_contrib:.1f} net contribution",
                             "is_adverse": bool(other_contrib > 0 if metric_def.direction == "lower_is_better" else other_contrib < 0),
-                            "type": "BU",
+                            "type": sub_entity_type,
                         })
 
                 what_changed_data = {
@@ -1857,8 +2311,8 @@ class WorkforceIntelligenceBridge:
                     "drivers": drivers,
                 }
             else:
-                single_lbl = valid_pts[0]["period_display"] if valid_pts else (scope_series[0]["period_display"] if scope_series else "Current period")
-                single_val = valid_pts[0]["formatted_value"] if valid_pts else (scope_series[0]["formatted_value"] if scope_series else "—")
+                single_lbl = latest_p["period_display"] if latest_p else (scope_series[0]["period_display"] if scope_series else "Current period")
+                single_val = latest_p["formatted_value"] if latest_p else (scope_series[0]["formatted_value"] if scope_series else "—")
                 what_changed_data = {
                     "has_change": False,
                     "has_movement": False,
@@ -1871,40 +2325,14 @@ class WorkforceIntelligenceBridge:
                     "drivers": [],
                 }
 
-        # 12. Emerging Patterns (< 0.1ms retrieval, non-blocking background mining)
-        pat_cache_key = (bu_key, dept_key, mgr_key, emp_key, dr_key)
-        with self._lock:
-            pattern_items = self._pattern_cache.get(pat_cache_key)
-
-        if pattern_items is None:
-            if self._global_pattern_pool:
-                matched = []
-                for p_dict in self._global_pattern_pool:
-                    p_scope = str(p_dict.get("scope", "")).lower()
-                    if emp_key != "all" and str(emp_key).lower() in p_scope:
-                        matched.append(p_dict)
-                    elif dept_key != "all" and str(dept_key).lower() in p_scope:
-                        matched.append(p_dict)
-                    elif bu_key != "all" and str(bu_key).lower() in p_scope:
-                        matched.append(p_dict)
-                pattern_items = matched[:5] if matched else self._global_pattern_pool[:5]
-                with self._lock:
-                    self._pattern_cache[pat_cache_key] = pattern_items
-                self._trigger_background_pattern_detection(pat_cache_key, scoped_eval_df, scoped_eval_reqs, scoped_facts)
-            else:
-                if len(scoped_eval_df) <= 2000:
-                    try:
-                        _, pattern_results = detect_patterns(scoped_eval_df, scoped_eval_reqs, employee_day_facts=scoped_facts)
-                    except Exception:
-                        pattern_results = []
-                    pattern_items = self._format_pattern_results(pattern_results)
-                    with self._lock:
-                        self._pattern_cache[pat_cache_key] = pattern_items
-                        if pat_cache_key == ("all", "all", "all", "all", "all"):
-                            self._global_pattern_pool = pattern_items
-                else:
-                    pattern_items = []
-                    self._trigger_background_pattern_detection(pat_cache_key, scoped_eval_df, scoped_eval_reqs, scoped_facts)
+        # 12. Emerging Patterns (< 0.1ms retrieval, strictly scoped by BU, Department, Manager, Employee, Month)
+        pattern_items = self.get_scoped_patterns(
+            business_unit=business_unit,
+            department=department,
+            manager=manager,
+            employee=employee,
+            month=month,
+        )
 
         # Trend Pulse: 5 Contextual Cards in Comparison Mode, else standard
         if comparison_mode in ("EMPLOYEE", "MANAGER"):
@@ -2102,6 +2530,7 @@ class WorkforceIntelligenceBridge:
                 "dept_label": dept_label,
                 "bu_label": bu_label,
                 "org_label": org_label,
+                "peer_label": user_peer_label,
             },
             "heatmap": {
                 "months": heatmap_months,

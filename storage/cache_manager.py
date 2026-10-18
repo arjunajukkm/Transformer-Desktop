@@ -105,9 +105,9 @@ class AnalyticalSnapshot:
         self.row_count = len(fact_df) if fact_df is not None else 0
 
         # Precomputed standard results (stored internally)
-        self.standard_metrics = metrics or {}
+        self.standard_metrics = metrics if metrics is not None else {}
         self.metrics = self.standard_metrics  # Backward-compatibility alias
-        self.standard_breakdowns = breakdowns or {}
+        self.standard_breakdowns = breakdowns if breakdowns is not None else {}
         self.breakdowns = self.standard_breakdowns  # Backward-compatibility alias
 
         # Filter options and metadata
@@ -123,6 +123,11 @@ class AnalyticalSnapshot:
         self._filter_metrics_cache: OrderedDict[Tuple[Optional[str], Optional[str], Optional[str]], Dict[str, Any]] = OrderedDict()
         self._filter_breakdown_cache: OrderedDict[Tuple[str, Optional[str], Optional[str], Optional[str]], List[Dict[str, Any]]] = OrderedDict()
         self._lock = threading.RLock()
+
+    @property
+    def dataframe(self) -> Optional[pd.DataFrame]:
+        """Backward-compatibility alias for fact_df."""
+        return self.fact_df
 
     def get_olap_engine(self) -> Any:
         """

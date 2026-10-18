@@ -416,6 +416,15 @@ class TrendPoint:
     count_employee: Optional[int] = None
     count_admin: Optional[int] = None
     count_unknown: Optional[int] = None
+    # Approval breakdown (Leave & WFH by Manager & Admin)
+    leave_mgr: Optional[float] = None
+    leave_mgr_formatted: Optional[str] = None
+    leave_admin: Optional[float] = None
+    leave_admin_formatted: Optional[str] = None
+    wfh_mgr: Optional[float] = None
+    wfh_mgr_formatted: Optional[str] = None
+    wfh_admin: Optional[float] = None
+    wfh_admin_formatted: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -777,6 +786,30 @@ def calculate_monthly_approvals(
                 val = None
                 valid_obs = 0
 
+        # Approval breakdown calculations (Leave vs WFH by Manager vs Admin)
+        att_series = approved_rows["Attendance Type"].astype(str).str.lower() if "Attendance Type" in approved_rows.columns else pd.Series([], dtype=str)
+        apr_by_series = approved_rows["Approved By"].astype(str).str.lower() if "Approved By" in approved_rows.columns else pd.Series([], dtype=str)
+
+        is_leave = att_series.str.contains("leave")
+        is_wfh = att_series.str.contains("wfh|work from home")
+        is_mgr = apr_by_series.str.contains("manager")
+        is_adm = apr_by_series.str.contains("admin|management")
+
+        def _calc_sub_val(mask):
+            common_idx = valid_turnarounds.index.intersection(mask[mask].index)
+            sub_t = valid_turnarounds.loc[common_idx] if not common_idx.empty else pd.Series([], dtype=float)
+            if sub_t.empty:
+                return None
+            if metric_id == "median_approval_turnaround":
+                return round(float(sub_t.median()), 2)
+            else:
+                return round(float(sub_t.mean()), 2)
+
+        lm_val = _calc_sub_val(is_leave & is_mgr)
+        la_val = _calc_sub_val(is_leave & is_adm)
+        wm_val = _calc_sub_val(is_wfh & is_mgr)
+        wa_val = _calc_sub_val(is_wfh & is_adm)
+
         vol_st = classify_volume_status(valid_obs)
         vol_lbl = f"Volume: {vol_st.capitalize()} · {valid_obs} observation{'s' if valid_obs != 1 else ''}"
 
@@ -790,6 +823,14 @@ def calculate_monthly_approvals(
             denominator=valid_obs,
             volume_status=vol_st,
             volume_label=vol_lbl,
+            leave_mgr=lm_val,
+            leave_mgr_formatted=format_metric_value(lm_val, fmt_type, metric_id) if lm_val is not None else "—",
+            leave_admin=la_val,
+            leave_admin_formatted=format_metric_value(la_val, fmt_type, metric_id) if la_val is not None else "—",
+            wfh_mgr=wm_val,
+            wfh_mgr_formatted=format_metric_value(wm_val, fmt_type, metric_id) if wm_val is not None else "—",
+            wfh_admin=wa_val,
+            wfh_admin_formatted=format_metric_value(wa_val, fmt_type, metric_id) if wa_val is not None else "—",
         ))
 
     return points

@@ -18,33 +18,38 @@ import {
   Clock,
   Sparkles,
   Bell,
+  Eye,
+  EyeOff,
+  ChevronDown,
+  ChevronUp,
+  ArrowRight,
+  Sliders,
 } from "lucide-react";
 import {
   ConnectorsStatusResponse,
-  KekaConfigPayload,
-  SlackConfigPayload,
   SchedulerStatusResponse,
-  SchedulerConfigPayload,
 } from "../lib/types";
 import {
   fetchConnectorsStatus,
   testKekaConnection,
   saveKekaConfig,
-  syncKekaPipeline,
   testSlackConnection,
   saveSlackConfig,
   dispatchSlackAlert,
   fetchSchedulerStatus,
   updateSchedulerConfig,
-  triggerSchedulerSync,
   triggerSchedulerDigest,
 } from "../lib/api";
+import { CyberneticOrbitalCore } from "./WorkforceLoadingExperience";
 
 interface ConnectorsHubProps {
   onSyncCompleted?: () => void;
+  theme?: "dark" | "light";
 }
 
-export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
+export function ConnectorsHub({ onSyncCompleted, theme = "dark" }: ConnectorsHubProps) {
+  const isDark = theme === "dark";
+
   const [status, setStatus] = useState<ConnectorsStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -53,26 +58,23 @@ export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
   const [kekaClientId, setKekaClientId] = useState("");
   const [kekaClientSecret, setKekaClientSecret] = useState("");
   const [kekaApiKey, setKekaApiKey] = useState("");
-  const [kekaTestResult, setKekaTestResult] = useState<string | null>(null);
+  const [showKekaSecret, setShowKekaSecret] = useState(false);
+  const [kekaTestResult, setKekaTestResult] = useState<{ msg: string; success: boolean } | null>(null);
   const [kekaTesting, setKekaTesting] = useState(false);
-  const [kekaSyncing, setKekaSyncing] = useState(false);
-  const [kekaSyncMessage, setKekaSyncMessage] = useState<string | null>(null);
+  const [kekaSaving, setKekaSaving] = useState(false);
 
   // Slack form state
   const [slackBotToken, setSlackBotToken] = useState("");
   const [slackBotId, setSlackBotId] = useState("");
   const [slackChannel, setSlackChannel] = useState("#workforce-alerts");
-  const [slackTestResult, setSlackTestResult] = useState<string | null>(null);
+  const [showSlackToken, setShowSlackToken] = useState(false);
+  const [slackTestResult, setSlackTestResult] = useState<{ msg: string; success: boolean } | null>(null);
   const [slackTesting, setSlackTesting] = useState(false);
+  const [slackSaving, setSlackSaving] = useState(false);
   const [slackDispatching, setSlackDispatching] = useState(false);
-  const [slackDispatchMessage, setSlackDispatchMessage] = useState<string | null>(null);
+  const [slackDispatchResult, setSlackDispatchResult] = useState<{ msg: string; success: boolean } | null>(null);
 
-  // Audit Lineage Logs
-  const [auditLogs, setAuditLogs] = useState<string[]>([
-    "Lineage Engine: Ready to ingest streams from Keka HRMS & Slack Enterprise Grid.",
-  ]);
-
-  // Background Scheduler & Slack Digest state
+  // Scheduler state
   const [scheduler, setScheduler] = useState<SchedulerStatusResponse | null>(null);
   const [schedEnabled, setSchedEnabled] = useState(true);
   const [schedInterval, setSchedInterval] = useState(60);
@@ -81,9 +83,21 @@ export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
   const [digestChannel, setDigestChannel] = useState("#workforce-alerts");
   const [savingSched, setSavingSched] = useState(false);
   const [triggeringDigest, setTriggeringDigest] = useState(false);
-  const [digestFeedback, setDigestFeedback] = useState<string | null>(null);
+  const [schedFeedback, setSchedFeedback] = useState<{ msg: string; success: boolean } | null>(null);
+
+  // Collapsible Logs & Advanced
+  const [showLogs, setShowLogs] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<string[]>([
+    "Lineage Engine: Ready to ingest streams from Keka HRMS & Slack Enterprise Grid.",
+  ]);
+
+  const addLog = (msg: string) => {
+    const time = new Date().toLocaleTimeString();
+    setAuditLogs((prev) => [`[${time}] ${msg}`, ...prev.slice(0, 19)]);
+  };
 
   const loadStatus = async () => {
+    setLoading(true);
     try {
       const res = await fetchConnectorsStatus();
       setStatus(res);
@@ -110,51 +124,12 @@ export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
     }
   };
 
-  const handleSaveScheduler = async () => {
-    setSavingSched(true);
-    try {
-      const res = await updateSchedulerConfig({
-        enabled: schedEnabled,
-        sync_interval_minutes: Number(schedInterval),
-        digest_enabled: digestEnabled,
-        digest_target_time: digestTime,
-        slack_channel: digestChannel,
-      });
-      setScheduler(res);
-      addLog(`Scheduler Rules Saved: sync every ${res.sync_interval_minutes}m, digest @ ${res.digest_target_time}`);
-    } catch (err: any) {
-      addLog(`Scheduler Save Error: ${err.message}`);
-    } finally {
-      setSavingSched(false);
-    }
-  };
-
-  const handleTriggerDigestNow = async () => {
-    setTriggeringDigest(true);
-    setDigestFeedback(null);
-    try {
-      const res = await triggerSchedulerDigest(digestChannel);
-      setDigestFeedback(`✓ Morning Digest dispatched to ${res.channel} (${res.digest?.execution_time_ms || 12} ms)`);
-      addLog(`Morning Digest Sent: Dispatched executive summary to ${res.channel}`);
-      loadScheduler();
-    } catch (err: any) {
-      setDigestFeedback(`✕ Digest Failed: ${err.message}`);
-      addLog(`Digest Error: ${err.message}`);
-    } finally {
-      setTriggeringDigest(false);
-    }
-  };
-
   useEffect(() => {
     loadStatus();
     loadScheduler();
   }, []);
 
-  const addLog = (msg: string) => {
-    const time = new Date().toLocaleTimeString();
-    setAuditLogs((prev) => [`[${time}] ${msg}`, ...prev.slice(0, 19)]);
-  };
-
+  // Handlers
   const handleTestKeka = async () => {
     setKekaTesting(true);
     setKekaTestResult(null);
@@ -165,11 +140,11 @@ export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
         client_secret: kekaClientSecret,
         api_key: kekaApiKey,
       });
-      setKekaTestResult(`✓ ${res.message} (${res.latency_ms} ms)`);
+      setKekaTestResult({ msg: `${res.message} (${res.latency_ms} ms)`, success: true });
       addLog(`Keka Handshake: ${res.message} (${res.latency_ms}ms)`);
       loadStatus();
     } catch (err: any) {
-      setKekaTestResult(`✕ Connection Failed: ${err.message}`);
+      setKekaTestResult({ msg: `Connection failed: ${err.message}`, success: false });
       addLog(`Keka Error: ${err.message}`);
     } finally {
       setKekaTesting(false);
@@ -177,6 +152,7 @@ export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
   };
 
   const handleSaveKeka = async () => {
+    setKekaSaving(true);
     try {
       await saveKekaConfig({
         subdomain: kekaSubdomain,
@@ -184,29 +160,13 @@ export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
         client_secret: kekaClientSecret,
         api_key: kekaApiKey,
       });
+      setKekaTestResult({ msg: "Credentials saved securely.", success: true });
       addLog(`Keka credentials saved for '${kekaSubdomain}.keka.com'.`);
-      setKekaTestResult("Credentials persisted to secure vault.");
       loadStatus();
     } catch (err: any) {
-      setKekaTestResult(`Failed to save: ${err.message}`);
-    }
-  };
-
-  const handleSyncKeka = async () => {
-    setKekaSyncing(true);
-    setKekaSyncMessage(null);
-    addLog(`Initiating Keka Data Sync pipeline for '${kekaSubdomain}'...`);
-    try {
-      const res = await syncKekaPipeline();
-      setKekaSyncMessage(`✓ ${res.message} (${res.execution_time_ms} ms)`);
-      addLog(`Sync Complete: Ingested ${res.records_synced} records across ${res.business_units.length} BUs. Materialized in ${res.execution_time_ms}ms.`);
-      loadStatus();
-      if (onSyncCompleted) onSyncCompleted();
-    } catch (err: any) {
-      setKekaSyncMessage(`✕ Sync failed: ${err.message}`);
-      addLog(`Sync Error: ${err.message}`);
+      setKekaTestResult({ msg: `Failed to save: ${err.message}`, success: false });
     } finally {
-      setKekaSyncing(false);
+      setKekaSaving(false);
     }
   };
 
@@ -219,11 +179,11 @@ export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
         bot_id: slackBotId,
         alert_channel: slackChannel,
       });
-      setSlackTestResult(`✓ ${res.message} (${res.latency_ms} ms)`);
-      addLog(`Slack Auth Test: ${res.message} (${res.latency_ms}ms)`);
+      setSlackTestResult({ msg: `${res.message} (${res.latency_ms} ms)`, success: true });
+      addLog(`Slack Handshake: ${res.message} (${res.latency_ms}ms)`);
       loadStatus();
     } catch (err: any) {
-      setSlackTestResult(`✕ Slack test failed: ${err.message}`);
+      setSlackTestResult({ msg: `Slack test failed: ${err.message}`, success: false });
       addLog(`Slack Error: ${err.message}`);
     } finally {
       setSlackTesting(false);
@@ -231,23 +191,26 @@ export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
   };
 
   const handleSaveSlack = async () => {
+    setSlackSaving(true);
     try {
       await saveSlackConfig({
         bot_token: slackBotToken,
         bot_id: slackBotId,
         alert_channel: slackChannel,
       });
-      addLog(`Slack configuration saved. Target: ${slackChannel}`);
-      setSlackTestResult("Slack configuration persisted.");
+      setSlackTestResult({ msg: "Slack configuration persisted.", success: true });
+      addLog(`Slack configuration saved for ${slackChannel}.`);
       loadStatus();
     } catch (err: any) {
-      setSlackTestResult(`Failed to save: ${err.message}`);
+      setSlackTestResult({ msg: `Failed to save: ${err.message}`, success: false });
+    } finally {
+      setSlackSaving(false);
     }
   };
 
   const handleDispatchSlackAlert = async () => {
     setSlackDispatching(true);
-    setSlackDispatchMessage(null);
+    setSlackDispatchResult(null);
     try {
       const res = await dispatchSlackAlert(
         slackChannel,
@@ -255,329 +218,601 @@ export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
         "Isolation Forest Shift Outlier Detected",
         "High variance recorded in Lending Operations: Employee KEKA-105 deviated by 60 mins from typical arrival."
       );
-      setSlackDispatchMessage(`✓ Alert dispatched to ${res.channel} (${res.execution_time_ms} ms)`);
+      setSlackDispatchResult({ msg: `Dispatched to ${res.channel} (${res.execution_time_ms} ms)`, success: true });
       addLog(`Alert Dispatched: Sent Critical Anomaly Alert to ${res.channel}.`);
       loadStatus();
     } catch (err: any) {
-      setSlackDispatchMessage(`✕ Failed to dispatch: ${err.message}`);
+      setSlackDispatchResult({ msg: `Failed to dispatch: ${err.message}`, success: false });
       addLog(`Dispatch Error: ${err.message}`);
     } finally {
       setSlackDispatching(false);
     }
   };
 
-  return (
-    <div className="bg-[#0b1017] border border-cyan-500/20 rounded-xl shadow-2xl p-6 backdrop-blur-md relative overflow-hidden">
-      {/* Background ambient lighting */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+  const handleSaveScheduler = async () => {
+    setSavingSched(true);
+    setSchedFeedback(null);
+    try {
+      const res = await updateSchedulerConfig({
+        enabled: schedEnabled,
+        sync_interval_minutes: Number(schedInterval),
+        digest_enabled: digestEnabled,
+        digest_target_time: digestTime,
+        slack_channel: digestChannel,
+      });
+      setScheduler(res);
+      setSchedFeedback({
+        msg: `Rules updated: CDC every ${res.sync_interval_minutes}m, digest @ ${res.digest_target_time}`,
+        success: true,
+      });
+      addLog(`Scheduler Rules Saved: sync every ${res.sync_interval_minutes}m, digest @ ${res.digest_target_time}`);
+    } catch (err: any) {
+      setSchedFeedback({ msg: `Scheduler save error: ${err.message}`, success: false });
+      addLog(`Scheduler Save Error: ${err.message}`);
+    } finally {
+      setSavingSched(false);
+    }
+  };
 
-      {/* Header telemetry */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-5 mb-6">
+  const handleTriggerDigestNow = async () => {
+    setTriggeringDigest(true);
+    setSchedFeedback(null);
+    try {
+      const res = await triggerSchedulerDigest(digestChannel);
+      setSchedFeedback({
+        msg: `Morning Digest sent to ${res.channel} (${res.digest?.execution_time_ms || 12} ms)`,
+        success: true,
+      });
+      addLog(`Morning Digest Sent to ${res.channel}`);
+      loadScheduler();
+    } catch (err: any) {
+      setSchedFeedback({ msg: `Digest failed: ${err.message}`, success: false });
+      addLog(`Digest Error: ${err.message}`);
+    } finally {
+      setTriggeringDigest(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* ── Top Header ── */}
+      <div
+        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b ${
+          isDark ? "border-slate-800" : "border-slate-200"
+        }`}
+      >
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" />
-            <h2 className="text-lg font-bold tracking-wider text-slate-100 uppercase flex items-center gap-2 font-mono">
-              <Plug className="w-5 h-5 text-cyan-400" />
-              Data Connection Hub &amp; Foundry Pipeline Lineage
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
+            <h2 className={`text-base font-bold font-mono tracking-wide uppercase ${isDark ? "text-slate-100" : "text-slate-900"}`}>
+              Connectors &amp; CDC Engine
             </h2>
           </div>
-          <p className="text-xs text-slate-400">
-            Connect enterprise HRMS and messaging platforms to stream attendance facts, profile photos, and automated alert dispatchers.
+          <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+            Manage HRMS credentials, messaging endpoints, and background change-data-capture cadences.
           </p>
         </div>
 
         <button
-          onClick={loadStatus}
-          className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-xs font-mono text-slate-300 transition-colors self-start md:self-auto"
+          onClick={() => {
+            loadStatus();
+            loadScheduler();
+          }}
+          disabled={loading}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono transition-all self-start sm:self-auto border ${
+            isDark
+              ? "bg-slate-900/80 hover:bg-slate-800 text-slate-300 border-slate-700/80"
+              : "bg-white hover:bg-slate-50 text-slate-700 border-slate-300 shadow-sm"
+          }`}
         >
-          <RefreshCw className="w-3.5 h-3.5" />
-          Refresh Lineage Status
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-cyan-400" : ""}`} />
+          Refresh Status
         </button>
       </div>
 
-      {/* Top 3 Live Status Cards */}
-      {status && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {/* Keka Status */}
-          <div className="bg-[#070b10] border border-slate-800 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-mono font-bold text-slate-300 uppercase">Keka HRMS Pipeline</span>
-              <span
-                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+      {/* ── Minimalist Status Bar ── */}
+      {loading && !status ? (
+        <div className="h-44 flex flex-col items-center justify-center gap-3 text-slate-400">
+          <CyberneticOrbitalCore size="md" />
+          <span className="text-xs font-mono tracking-wider">Establishing connection pipeline with active endpoints...</span>
+        </div>
+      ) : status && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Keka */}
+          <div
+            className={`p-3.5 rounded-xl border flex items-center justify-between transition-all ${
+              isDark ? "bg-[#0b1222]/80 border-slate-800/80" : "bg-white border-slate-200 shadow-sm"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <div
+                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
                   status.keka.connected
-                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 shadow-[0_0_8px_rgba(52,211,153,0.2)]"
-                    : "bg-slate-800 text-slate-400 border-slate-700"
+                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                    : isDark
+                    ? "bg-slate-800 text-slate-400"
+                    : "bg-slate-100 text-slate-500"
                 }`}
               >
-                {status.keka.connected ? "CONNECTED" : "STANDBY"}
-              </span>
+                <Database className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-xs font-bold font-mono ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+                    Keka HRMS
+                  </span>
+                  <span
+                    className={`text-[9px] font-mono px-1.5 py-0.2 rounded-full font-semibold border ${
+                      status.keka.connected
+                        ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                        : "bg-slate-800 text-slate-400 border-slate-700"
+                    }`}
+                  >
+                    {status.keka.connected ? "CONNECTED" : "STANDBY"}
+                  </span>
+                </div>
+                <div className={`text-[11px] font-mono truncate max-w-[170px] ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  {status.keka.subdomain ? `${status.keka.subdomain}.keka.com` : "Not configured"}
+                </div>
+              </div>
             </div>
-            <div className="text-xs text-slate-300 font-mono mb-2">{status.keka.status_message}</div>
-            <div className="flex justify-between text-[11px] font-mono text-slate-500 border-t border-slate-900 pt-2">
-              <span>Last Sync: {status.keka.last_sync}</span>
-              <span className="text-cyan-400">{status.keka.total_records_synced} rows</span>
+            <div className="text-right shrink-0">
+              <div className="text-xs font-bold font-mono text-cyan-400">
+                {status.keka.total_records_synced.toLocaleString()}
+              </div>
+              <div className={`text-[10px] font-mono ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                Records
+              </div>
             </div>
           </div>
 
-          {/* Slack Status */}
-          <div className="bg-[#070b10] border border-slate-800 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-mono font-bold text-slate-300 uppercase">Slack Enterprise Grid</span>
-              <span
-                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+          {/* Slack */}
+          <div
+            className={`p-3.5 rounded-xl border flex items-center justify-between transition-all ${
+              isDark ? "bg-[#0b1222]/80 border-slate-800/80" : "bg-white border-slate-200 shadow-sm"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <div
+                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
                   status.slack.connected
-                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 shadow-[0_0_8px_rgba(52,211,153,0.2)]"
-                    : "bg-slate-800 text-slate-400 border-slate-700"
+                    ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                    : isDark
+                    ? "bg-slate-800 text-slate-400"
+                    : "bg-slate-100 text-slate-500"
                 }`}
               >
-                {status.slack.connected ? "ACTIVE" : "STANDBY"}
-              </span>
+                <Layers className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-xs font-bold font-mono ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+                    Slack Grid
+                  </span>
+                  <span
+                    className={`text-[9px] font-mono px-1.5 py-0.2 rounded-full font-semibold border ${
+                      status.slack.connected
+                        ? "bg-purple-500/15 text-purple-400 border-purple-500/30"
+                        : "bg-slate-800 text-slate-400 border-slate-700"
+                    }`}
+                  >
+                    {status.slack.connected ? "ACTIVE" : "STANDBY"}
+                  </span>
+                </div>
+                <div className={`text-[11px] font-mono truncate max-w-[170px] ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  {status.slack.alert_channel || "#workforce-alerts"}
+                </div>
+              </div>
             </div>
-            <div className="text-xs text-slate-300 font-mono mb-2">{status.slack.status_message}</div>
-            <div className="flex justify-between text-[11px] font-mono text-slate-500 border-t border-slate-900 pt-2">
-              <span>Channel: {status.slack.alert_channel}</span>
-              <span className="text-purple-400">{status.slack.bot_id || "No Bot ID"}</span>
+            <div className="text-right shrink-0">
+              <div className="text-xs font-bold font-mono text-purple-400">
+                {status.slack.bot_id || "Bot Ready"}
+              </div>
+              <div className={`text-[10px] font-mono ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                Dispatch Bot
+              </div>
             </div>
           </div>
 
-          {/* Analytical Lakehouse */}
-          <div className="bg-[#070b10] border border-slate-800 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-mono font-bold text-slate-300 uppercase">OLAP Hypercube Lakehouse</span>
-              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-                IN-MEMORY
-              </span>
+          {/* Lakehouse */}
+          <div
+            className={`p-3.5 rounded-xl border flex items-center justify-between transition-all ${
+              isDark ? "bg-[#0b1222]/80 border-slate-800/80" : "bg-white border-slate-200 shadow-sm"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shrink-0">
+                <Server className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-xs font-bold font-mono ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+                    OLAP Engine
+                  </span>
+                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full font-semibold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                    IN-MEMORY
+                  </span>
+                </div>
+                <div className={`text-[11px] font-mono truncate max-w-[170px] ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  Polars Hypercube
+                </div>
+              </div>
             </div>
-            <div className="text-xs text-slate-300 font-mono mb-2 truncate">
-              Dataset: {status.lakehouse.active_dataset}
-            </div>
-            <div className="flex justify-between text-[11px] font-mono text-slate-500 border-t border-slate-900 pt-2">
-              <span>Live Fact Records</span>
-              <span className="text-emerald-400 font-bold">{status.lakehouse.active_row_count} rows</span>
+            <div className="text-right shrink-0">
+              <div className="text-xs font-bold font-mono text-emerald-400">
+                {status.lakehouse.active_row_count.toLocaleString()}
+              </div>
+              <div className={`text-[10px] font-mono ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                Live Rows
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Main Form Grids: KEKA & SLACK */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      {/* ── 2 Main Connector Configuration Cards ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* CARD 1: KEKA HRMS PIPELINE */}
-        <div className="bg-[#070c12] border border-slate-800 rounded-lg p-5 flex flex-col justify-between">
+        <div
+          className={`rounded-2xl border p-5 flex flex-col justify-between transition-all ${
+            isDark
+              ? "bg-[#090f1e] border-slate-800/90 shadow-[0_4px_24px_rgba(0,0,0,0.4)]"
+              : "bg-white border-slate-200 shadow-sm"
+          }`}
+        >
           <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Database className="w-4 h-4 text-cyan-400" />
-              <h3 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">
-                Keka HRMS Connector
-              </h3>
+            <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-800/50">
+              <div className="flex items-center gap-2">
+                <Database className="w-4 h-4 text-cyan-400" />
+                <h3 className={`text-xs font-mono font-bold uppercase tracking-wider ${isDark ? "text-slate-200" : "text-slate-900"}`}>
+                  Keka HRMS Pipeline
+                </h3>
+              </div>
+              <span className={`text-[11px] font-mono ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                OAuth2 / REST API
+              </span>
             </div>
-            <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-              Connect to your organization&apos;s Keka tenant. Ingests Employee Master, OD/WFH requests, and attendance status codes into the Polars engine.
-            </p>
 
-            <div className="space-y-3 font-mono text-xs mb-4">
+            <div className="space-y-3.5 text-xs font-mono mb-4">
+              {/* Subdomain */}
               <div>
-                <label className="text-slate-400 block mb-1">Subdomain Slug</label>
+                <label className={`block mb-1 text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                  Tenant Subdomain
+                </label>
                 <div className="flex items-center">
                   <input
                     type="text"
                     value={kekaSubdomain}
                     onChange={(e) => setKekaSubdomain(e.target.value)}
-                    placeholder="e.g. moshpit or finbox"
-                    className="w-full bg-[#04070a] border border-slate-800 rounded-l px-3 py-1.5 text-slate-200 focus:border-cyan-500 outline-none"
+                    placeholder="moshpit"
+                    className={`w-full border rounded-l-lg px-3 py-2 text-xs font-mono focus:border-cyan-500 focus:outline-none transition-colors ${
+                      isDark
+                        ? "bg-[#040810] border-slate-800 text-slate-100 placeholder-slate-600"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400"
+                    }`}
                   />
-                  <span className="bg-slate-900 border border-l-0 border-slate-800 px-3 py-1.5 text-slate-500 rounded-r text-[11px]">
+                  <span
+                    className={`border border-l-0 px-3 py-2 rounded-r-lg text-xs font-mono select-none ${
+                      isDark ? "bg-slate-900 border-slate-800 text-slate-400" : "bg-slate-100 border-slate-300 text-slate-600 font-semibold"
+                    }`}
+                  >
                     .keka.com
                   </span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              {/* Client ID & Secret in 2-cols */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-slate-400 block mb-1">Client ID</label>
+                  <label className={`block mb-1 text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                    Client ID
+                  </label>
                   <input
                     type="text"
                     value={kekaClientId}
                     onChange={(e) => setKekaClientId(e.target.value)}
                     placeholder="OAuth2 Client ID"
-                    className="w-full bg-[#04070a] border border-slate-800 rounded px-3 py-1.5 text-slate-200 focus:border-cyan-500 outline-none"
+                    className={`w-full border rounded-lg px-3 py-2 text-xs font-mono focus:border-cyan-500 focus:outline-none transition-colors ${
+                      isDark
+                        ? "bg-[#040810] border-slate-800 text-slate-100 placeholder-slate-600"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400"
+                    }`}
                   />
                 </div>
                 <div>
-                  <label className="text-slate-400 block mb-1">Client Secret</label>
-                  <input
-                    type="password"
-                    value={kekaClientSecret}
-                    onChange={(e) => setKekaClientSecret(e.target.value)}
-                    placeholder="••••••••••••••••"
-                    className="w-full bg-[#04070a] border border-slate-800 rounded px-3 py-1.5 text-slate-200 focus:border-cyan-500 outline-none"
-                  />
+                  <label className={`block mb-1 text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                    Client Secret
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showKekaSecret ? "text" : "password"}
+                      value={kekaClientSecret}
+                      onChange={(e) => setKekaClientSecret(e.target.value)}
+                      placeholder="••••••••••••••••"
+                      className={`w-full border rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:border-cyan-500 focus:outline-none transition-colors ${
+                        isDark
+                          ? "bg-[#040810] border-slate-800 text-slate-100 placeholder-slate-600"
+                          : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400"
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowKekaSecret(!showKekaSecret)}
+                      className="absolute right-2.5 top-2.5 text-slate-500 hover:text-slate-300 transition-colors"
+                    >
+                      {showKekaSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
+              {/* Optional API Key */}
               <div>
-                <label className="text-slate-400 block mb-1">REST API Key (Optional)</label>
+                <label className={`block mb-1 text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                  REST API Key <span className="text-slate-500 font-normal">(Optional Token)</span>
+                </label>
                 <input
                   type="password"
                   value={kekaApiKey}
                   onChange={(e) => setKekaApiKey(e.target.value)}
-                  placeholder="Keka API Key"
-                  className="w-full bg-[#04070a] border border-slate-800 rounded px-3 py-1.5 text-slate-200 focus:border-cyan-500 outline-none"
+                  placeholder="Keka API Key / Bearer"
+                  className={`w-full border rounded-lg px-3 py-2 text-xs font-mono focus:border-cyan-500 focus:outline-none transition-colors ${
+                    isDark
+                      ? "bg-[#040810] border-slate-800 text-slate-100 placeholder-slate-600"
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400"
+                  }`}
                 />
               </div>
             </div>
 
+            {/* Inline Feedback */}
             {kekaTestResult && (
-              <div className="mb-3 p-2.5 rounded bg-slate-900 border border-slate-800 text-[11px] font-mono text-cyan-300">
-                {kekaTestResult}
-              </div>
-            )}
-
-            {kekaSyncMessage && (
-              <div className="mb-3 p-2.5 rounded bg-emerald-950/40 border border-emerald-800 text-[11px] font-mono text-emerald-300">
-                {kekaSyncMessage}
+              <div
+                className={`mb-3 p-2.5 rounded-lg border text-xs font-mono flex items-center gap-2 ${
+                  kekaTestResult.success
+                    ? isDark
+                      ? "bg-cyan-950/30 border-cyan-800/80 text-cyan-300"
+                      : "bg-cyan-50 border-cyan-200 text-cyan-800"
+                    : isDark
+                    ? "bg-rose-950/30 border-rose-800/80 text-rose-300"
+                    : "bg-rose-50 border-rose-200 text-rose-800"
+                }`}
+              >
+                {kekaTestResult.success ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                )}
+                <span>{kekaTestResult.msg}</span>
               </div>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-900">
+          {/* Action Footer */}
+          <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-800/60">
             <button
               onClick={handleTestKeka}
               disabled={kekaTesting}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-xs font-mono text-slate-200 transition-colors disabled:opacity-50"
+              className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-xs font-mono transition-all disabled:opacity-50 ${
+                isDark
+                  ? "bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-slate-200"
+                  : "bg-white hover:bg-slate-50 border-slate-300 text-slate-700 shadow-sm"
+              }`}
             >
-              {kekaTesting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5 text-cyan-400" />}
-              Test Handshake
+              {kekaTesting ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+              ) : (
+                <Activity className="w-3.5 h-3.5 text-cyan-400" />
+              )}
+              Test Connection
             </button>
+
             <button
               onClick={handleSaveKeka}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-xs font-mono text-slate-200 transition-colors"
+              disabled={kekaSaving}
+              className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold rounded-lg text-xs font-mono transition-all disabled:opacity-50 shadow-[0_0_12px_rgba(6,182,212,0.3)]"
             >
               <Save className="w-3.5 h-3.5" />
-              Save Credentials
-            </button>
-            <button
-              onClick={handleSyncKeka}
-              disabled={kekaSyncing}
-              className="flex items-center gap-1.5 px-4 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold rounded text-xs font-mono transition-all disabled:opacity-50 shadow-[0_0_12px_rgba(6,182,212,0.3)] ml-auto"
-            >
-              {kekaSyncing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-              Sync Live Pipeline Now
+              {kekaSaving ? "Saving..." : "Save Credentials"}
             </button>
           </div>
         </div>
 
-        {/* CARD 2: SLACK ENTERPRISE GRID */}
-        <div className="bg-[#070c12] border border-slate-800 rounded-lg p-5 flex flex-col justify-between">
+        {/* CARD 2: SLACK ENTERPRISE BOT */}
+        <div
+          className={`rounded-2xl border p-5 flex flex-col justify-between transition-all ${
+            isDark
+              ? "bg-[#090f1e] border-slate-800/90 shadow-[0_4px_24px_rgba(0,0,0,0.4)]"
+              : "bg-white border-slate-200 shadow-sm"
+          }`}
+        >
           <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Layers className="w-4 h-4 text-purple-400" />
-              <h3 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">
-                Slack Enterprise Grid
-              </h3>
+            <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-800/50">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-purple-400" />
+                <h3 className={`text-xs font-mono font-bold uppercase tracking-wider ${isDark ? "text-slate-200" : "text-slate-900"}`}>
+                  Slack Enterprise Bot &amp; Webhooks
+                </h3>
+              </div>
+              <span className={`text-[11px] font-mono ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                Alert Dispatcher
+              </span>
             </div>
-            <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-              Integrate Slack to sync profile avatars and dispatch automated alerts when Isolation Forest detects severe anomalies or burnout risks.
-            </p>
 
-            <div className="space-y-3 font-mono text-xs mb-4">
+            <div className="space-y-3.5 text-xs font-mono mb-4">
+              {/* Bot User OAuth Token */}
               <div>
-                <label className="text-slate-400 block mb-1">Bot User OAuth Token</label>
-                <input
-                  type="password"
-                  value={slackBotToken}
-                  onChange={(e) => setSlackBotToken(e.target.value)}
-                  placeholder="xoxb-your-slack-bot-token"
-                  className="w-full bg-[#04070a] border border-slate-800 rounded px-3 py-1.5 text-slate-200 focus:border-purple-500 outline-none"
-                />
+                <label className={`block mb-1 text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                  Bot User OAuth Token
+                </label>
+                <div className="relative">
+                  <input
+                    type={showSlackToken ? "text" : "password"}
+                    value={slackBotToken}
+                    onChange={(e) => setSlackBotToken(e.target.value)}
+                    placeholder="xoxb-your-bot-token"
+                    className={`w-full border rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:border-purple-500 focus:outline-none transition-colors ${
+                      isDark
+                        ? "bg-[#040810] border-slate-800 text-slate-100 placeholder-slate-600"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400"
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSlackToken(!showSlackToken)}
+                    className="absolute right-2.5 top-2.5 text-slate-500 hover:text-slate-300 transition-colors"
+                  >
+                    {showSlackToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              {/* Bot ID & Channel */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-slate-400 block mb-1">Bot ID</label>
+                  <label className={`block mb-1 text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                    Bot ID
+                  </label>
                   <input
                     type="text"
                     value={slackBotId}
                     onChange={(e) => setSlackBotId(e.target.value)}
                     placeholder="B0BE6TGNB09"
-                    className="w-full bg-[#04070a] border border-slate-800 rounded px-3 py-1.5 text-slate-200 focus:border-purple-500 outline-none"
+                    className={`w-full border rounded-lg px-3 py-2 text-xs font-mono focus:border-purple-500 focus:outline-none transition-colors ${
+                      isDark
+                        ? "bg-[#040810] border-slate-800 text-slate-100 placeholder-slate-600"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400"
+                    }`}
                   />
                 </div>
                 <div>
-                  <label className="text-slate-400 block mb-1">Target Channel</label>
+                  <label className={`block mb-1 text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                    Alert Channel
+                  </label>
                   <input
                     type="text"
                     value={slackChannel}
                     onChange={(e) => setSlackChannel(e.target.value)}
                     placeholder="#workforce-alerts"
-                    className="w-full bg-[#04070a] border border-slate-800 rounded px-3 py-1.5 text-slate-200 focus:border-purple-500 outline-none"
+                    className={`w-full border rounded-lg px-3 py-2 text-xs font-mono focus:border-purple-500 focus:outline-none transition-colors ${
+                      isDark
+                        ? "bg-[#040810] border-slate-800 text-slate-100 placeholder-slate-600"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400"
+                    }`}
                   />
                 </div>
               </div>
+
+              {/* Status Note */}
+              <div className={`p-2.5 rounded-lg border text-[11px] font-mono ${
+                isDark ? "bg-[#040810] border-slate-800/80 text-slate-400" : "bg-slate-50 border-slate-200 text-slate-600"
+              }`}>
+                Slack bot dispatches critical anomaly alerts and automated daily morning digests directly to target channels.
+              </div>
             </div>
 
-            {slackTestResult && (
-              <div className="mb-3 p-2.5 rounded bg-slate-900 border border-slate-800 text-[11px] font-mono text-purple-300">
-                {slackTestResult}
-              </div>
-            )}
-
-            {slackDispatchMessage && (
-              <div className="mb-3 p-2.5 rounded bg-purple-950/40 border border-purple-800 text-[11px] font-mono text-purple-300">
-                {slackDispatchMessage}
+            {/* Inline Feedback */}
+            {(slackTestResult || slackDispatchResult) && (
+              <div
+                className={`mb-3 p-2.5 rounded-lg border text-xs font-mono flex items-center gap-2 ${
+                  (slackTestResult?.success ?? slackDispatchResult?.success)
+                    ? isDark
+                      ? "bg-purple-950/30 border-purple-800/80 text-purple-300"
+                      : "bg-purple-50 border-purple-200 text-purple-800"
+                    : isDark
+                    ? "bg-rose-950/30 border-rose-800/80 text-rose-300"
+                    : "bg-rose-50 border-rose-200 text-rose-800"
+                }`}
+              >
+                {(slackTestResult?.success ?? slackDispatchResult?.success) ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                )}
+                <span>{slackTestResult?.msg || slackDispatchResult?.msg}</span>
               </div>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-900">
-            <button
-              onClick={handleTestSlack}
-              disabled={slackTesting}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-xs font-mono text-slate-200 transition-colors disabled:opacity-50"
-            >
-              {slackTesting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5 text-purple-400" />}
-              Test Handshake
-            </button>
+          {/* Action Footer */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-800/60">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleTestSlack}
+                disabled={slackTesting}
+                className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-xs font-mono transition-all disabled:opacity-50 ${
+                  isDark
+                    ? "bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-slate-200"
+                    : "bg-white hover:bg-slate-50 border-slate-300 text-slate-700 shadow-sm"
+                }`}
+              >
+                {slackTesting ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-purple-400" />
+                ) : (
+                  <Activity className="w-3.5 h-3.5 text-purple-400" />
+                )}
+                Test Bot
+              </button>
+              <button
+                onClick={handleDispatchSlackAlert}
+                disabled={slackDispatching}
+                className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-xs font-mono transition-all disabled:opacity-50 ${
+                  isDark
+                    ? "bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-slate-200"
+                    : "bg-white hover:bg-slate-50 border-slate-300 text-slate-700 shadow-sm"
+                }`}
+              >
+                {slackDispatching ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-purple-400" />
+                ) : (
+                  <Send className="w-3.5 h-3.5 text-purple-400" />
+                )}
+                Send Test Alert
+              </button>
+            </div>
+
             <button
               onClick={handleSaveSlack}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-xs font-mono text-slate-200 transition-colors"
+              disabled={slackSaving}
+              className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-lg text-xs font-mono transition-all disabled:opacity-50 shadow-[0_0_12px_rgba(168,85,247,0.3)]"
             >
               <Save className="w-3.5 h-3.5" />
-              Save Config
-            </button>
-            <button
-              onClick={handleDispatchSlackAlert}
-              disabled={slackDispatching}
-              className="flex items-center gap-1.5 px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded text-xs font-mono transition-all disabled:opacity-50 shadow-[0_0_12px_rgba(168,85,247,0.3)] ml-auto"
-            >
-              {slackDispatching ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              Dispatch Test Alert
+              {slackSaving ? "Saving..." : "Save Config"}
             </button>
           </div>
         </div>
       </div>
 
-      {/* SECTION 2.5: AUTOMATED BACKGROUND PIPELINE & MORNING SLACK DIGEST */}
-      <div className="bg-[#070b10] border border-cyan-500/30 rounded-xl p-5 mb-6 relative overflow-hidden shadow-xl">
-        <div className="absolute top-0 right-0 w-80 h-40 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
-
-        {/* Title bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-slate-800">
+      {/* ── CARD 3: AUTOMATED CDC & MORNING DIGEST CADENCE ── */}
+      <div
+        className={`rounded-2xl border p-5 transition-all ${
+          isDark
+            ? "bg-[#090f1e] border-slate-800/90 shadow-[0_4px_24px_rgba(0,0,0,0.4)]"
+            : "bg-white border-slate-200 shadow-sm"
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 mb-4 border-b border-slate-800/50">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400">
-              <Clock className="w-5 h-5 animate-pulse" />
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <Clock className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold font-mono tracking-wider text-slate-100 uppercase">
-                  Automated Background Ingestion &amp; Morning Executive Slack Digest
+                <h3 className={`text-xs font-mono font-bold uppercase tracking-wider ${isDark ? "text-slate-200" : "text-slate-900"}`}>
+                  Automated CDC Engine &amp; Executive Digest
                 </h3>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-bold">
+                <span
+                  className={`text-[9px] font-mono px-2 py-0.5 rounded-full font-bold border ${
+                    scheduler?.is_running
+                      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                      : "bg-slate-800 text-slate-400 border-slate-700"
+                  }`}
+                >
                   {scheduler?.is_running ? "DAEMON ACTIVE" : "STANDBY"}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Continuously synchronizes Keka attendance logs into OLAP hypercubes and delivers daily morning workforce readiness digests to Slack.
+              <p className={`text-[11px] ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                Continuous change data capture from Keka into OLAP hypercubes with daily morning executive briefings.
               </p>
             </div>
           </div>
@@ -586,38 +821,60 @@ export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
             <button
               onClick={handleTriggerDigestNow}
               disabled={triggeringDigest}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-mono font-bold rounded text-xs transition-all shadow-[0_0_12px_rgba(168,85,247,0.3)] disabled:opacity-50"
+              className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs font-mono font-bold transition-all disabled:opacity-50 ${
+                isDark
+                  ? "bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-purple-300"
+                  : "bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-800"
+              }`}
             >
-              {triggeringDigest ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-              Dispatch Morning Digest Now
+              {triggeringDigest ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+              )}
+              Send Digest Now
             </button>
             <button
               onClick={handleSaveScheduler}
               disabled={savingSched}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-mono font-bold rounded text-xs transition-all disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold rounded-lg text-xs font-mono transition-all disabled:opacity-50 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
             >
               <Save className="w-3.5 h-3.5" />
-              Save Cadence
+              Save CDC Policy
             </button>
           </div>
         </div>
 
         {/* Feedback message */}
-        {digestFeedback && (
-          <div className="mb-4 p-2.5 rounded bg-purple-950/40 border border-purple-800 text-xs font-mono text-purple-300 flex items-center gap-2">
-            <Bell className="w-4 h-4 text-purple-400" />
-            <span>{digestFeedback}</span>
+        {schedFeedback && (
+          <div
+            className={`mb-4 p-2.5 rounded-lg border text-xs font-mono flex items-center gap-2 ${
+              schedFeedback.success
+                ? isDark
+                  ? "bg-emerald-950/30 border-emerald-800/80 text-emerald-300"
+                  : "bg-emerald-50 border-emerald-200 text-emerald-800"
+                : isDark
+                ? "bg-rose-950/30 border-rose-800/80 text-rose-300"
+                : "bg-rose-50 border-rose-200 text-rose-800"
+            }`}
+          >
+            <Bell className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span>{schedFeedback.msg}</span>
           </div>
         )}
 
-        {/* Configuration Columns */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          {/* Automated Ingestion Cadence */}
-          <div className="bg-[#05080c] border border-slate-800/80 rounded-lg p-3.5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-mono font-bold text-slate-300 flex items-center gap-1.5">
+        {/* 2 Control Columns */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Column A: Automated CDC Ingestion */}
+          <div
+            className={`p-4 rounded-xl border transition-all ${
+              isDark ? "bg-[#040810]/70 border-slate-800/80" : "bg-slate-50 border-slate-200/90"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className={`text-xs font-mono font-bold flex items-center gap-2 ${isDark ? "text-slate-200" : "text-slate-800"}`}>
                 <Database className="w-3.5 h-3.5 text-cyan-400" />
-                Automated Ingestion (CDC)
+                Automated CDC Ingestion
               </span>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -629,13 +886,20 @@ export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
                 <div className="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500" />
               </label>
             </div>
-            <div className="space-y-2 mt-3">
+
+            <div className="space-y-3 font-mono text-xs">
               <div>
-                <label className="text-[10px] font-mono text-slate-400 uppercase">Sync Cadence</label>
+                <label className={`block text-[11px] mb-1 font-semibold ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                  Sync Cadence
+                </label>
                 <select
                   value={schedInterval}
                   onChange={(e) => setSchedInterval(Number(e.target.value))}
-                  className="w-full bg-[#0a0f16] border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 mt-1 focus:border-cyan-500 focus:outline-none font-mono"
+                  className={`w-full border rounded-lg px-3 py-2 text-xs focus:border-cyan-500 focus:outline-none ${
+                    isDark
+                      ? "bg-[#080d19] border-slate-700 text-slate-200"
+                      : "bg-white border-slate-300 text-slate-800 shadow-sm"
+                  }`}
                 >
                   <option value={15}>Every 15 Minutes (Real-Time)</option>
                   <option value={30}>Every 30 Minutes</option>
@@ -645,21 +909,26 @@ export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
                   <option value={1440}>Daily (Every 24 Hours)</option>
                 </select>
               </div>
-              <div className="text-[11px] font-mono text-slate-400 pt-1">
-                <span className="text-slate-500">Next Ingestion:</span>{" "}
-                <span className="text-cyan-300">
+
+              <div className={`flex items-center justify-between pt-1 text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                <span>Next Ingestion:</span>
+                <span className="text-cyan-400 font-bold font-mono">
                   {scheduler?.next_sync_time ? new Date(scheduler.next_sync_time).toLocaleTimeString() : "Pending"}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Morning Slack Digest */}
-          <div className="bg-[#05080c] border border-slate-800/80 rounded-lg p-3.5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-mono font-bold text-slate-300 flex items-center gap-1.5">
+          {/* Column B: Morning Slack Digest */}
+          <div
+            className={`p-4 rounded-xl border transition-all ${
+              isDark ? "bg-[#040810]/70 border-slate-800/80" : "bg-slate-50 border-slate-200/90"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className={`text-xs font-mono font-bold flex items-center gap-2 ${isDark ? "text-slate-200" : "text-slate-800"}`}>
                 <Send className="w-3.5 h-3.5 text-purple-400" />
-                Morning Slack Digest
+                Executive Morning Digest
               </span>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -671,110 +940,122 @@ export function ConnectorsHub({ onSyncCompleted }: ConnectorsHubProps) {
                 <div className="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-purple-500" />
               </label>
             </div>
-            <div className="grid grid-cols-2 gap-2 mt-3">
+
+            <div className="grid grid-cols-2 gap-3 font-mono text-xs">
               <div>
-                <label className="text-[10px] font-mono text-slate-400 uppercase">Target Time</label>
+                <label className={`block text-[11px] mb-1 font-semibold ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                  Time (IST)
+                </label>
                 <input
                   type="text"
                   value={digestTime}
                   onChange={(e) => setDigestTime(e.target.value)}
                   placeholder="09:00"
-                  className="w-full bg-[#0a0f16] border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 mt-1 font-mono focus:border-purple-500 focus:outline-none"
+                  className={`w-full border rounded-lg px-3 py-2 text-xs focus:border-purple-500 focus:outline-none ${
+                    isDark
+                      ? "bg-[#080d19] border-slate-700 text-slate-200"
+                      : "bg-white border-slate-300 text-slate-800 shadow-sm"
+                  }`}
                 />
               </div>
               <div>
-                <label className="text-[10px] font-mono text-slate-400 uppercase">Channel</label>
+                <label className={`block text-[11px] mb-1 font-semibold ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                  Channel
+                </label>
                 <input
                   type="text"
                   value={digestChannel}
                   onChange={(e) => setDigestChannel(e.target.value)}
                   placeholder="#workforce-alerts"
-                  className="w-full bg-[#0a0f16] border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 mt-1 font-mono focus:border-purple-500 focus:outline-none"
+                  className={`w-full border rounded-lg px-3 py-2 text-xs focus:border-purple-500 focus:outline-none ${
+                    isDark
+                      ? "bg-[#080d19] border-slate-700 text-slate-200"
+                      : "bg-white border-slate-300 text-slate-800 shadow-sm"
+                  }`}
                 />
               </div>
             </div>
-            <div className="text-[11px] font-mono text-slate-400 pt-2">
-              <span className="text-slate-500">Next Scheduled:</span>{" "}
-              <span className="text-purple-300">
-                {scheduler?.next_digest_time ? new Date(scheduler.next_digest_time).toLocaleString() : "Tomorrow 09:00"}
+
+            <div className={`flex items-center justify-between pt-3 text-[11px] ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+              <span>Next Scheduled Digest:</span>
+              <span className="text-purple-400 font-bold font-mono">
+                {scheduler?.next_digest_time ? new Date(scheduler.next_digest_time).toLocaleTimeString() : "Tomorrow 09:00"}
               </span>
             </div>
           </div>
-
-          {/* Last Execution Telemetry */}
-          <div className="bg-[#05080c] border border-slate-800/80 rounded-lg p-3.5 flex flex-col justify-between">
-            <div>
-              <div className="text-xs font-mono font-bold text-slate-300 mb-2 flex items-center gap-1.5">
-                <Activity className="w-3.5 h-3.5 text-emerald-400" />
-                Live Engine Telemetry
-              </div>
-              <div className="text-[11px] font-mono text-slate-400 space-y-1">
-                <div>
-                  <span className="text-slate-500">Last Sync:</span>{" "}
-                  <span className="text-slate-200">{scheduler?.last_sync_status || "None"}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Last Digest:</span>{" "}
-                  <span className="text-slate-200">{scheduler?.last_digest_status || "None"}</span>
-                </div>
-              </div>
-            </div>
-            <div className="pt-2 border-t border-slate-900 text-[10px] font-mono text-slate-500">
-              Polars Vectorized Lakehouse Cache: Instantaneous Warm Up
-            </div>
-          </div>
         </div>
+      </div>
 
-        {/* Execution History Table */}
-        {scheduler?.execution_history && scheduler.execution_history.length > 0 && (
-          <div className="mt-3 bg-[#030507] border border-slate-800/80 rounded-lg p-3 font-mono">
-            <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold mb-2 uppercase">
-              <span>Recent Automated Daemon Executions</span>
-              <span className="text-[10px] text-slate-500">Auto-Refreshed by Engine</span>
-            </div>
-            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-              {scheduler.execution_history.slice(-5).reverse().map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between gap-3 text-xs p-1.5 rounded bg-slate-900/40 border border-slate-800/50 hover:border-slate-700 transition-colors"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span
-                      className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                        item.status === "SUCCESS"
-                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                          : "bg-red-500/20 text-red-300 border border-red-500/30"
-                      }`}
-                    >
-                      {item.action}
-                    </span>
-                    <span className="text-slate-300 truncate text-[11px]">{item.details}</span>
+      {/* ── Collapsible Audit & Pipeline Execution History ── */}
+      <div
+        className={`rounded-2xl border transition-all ${
+          isDark ? "bg-[#090f1e] border-slate-800/90" : "bg-white border-slate-200 shadow-sm"
+        }`}
+      >
+        <button
+          onClick={() => setShowLogs(!showLogs)}
+          className={`w-full p-4 flex items-center justify-between text-left font-mono text-xs transition-colors rounded-2xl ${
+            isDark ? "hover:bg-slate-800/40 text-slate-300" : "hover:bg-slate-50 text-slate-700"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Terminal className="w-4 h-4 text-emerald-400" />
+            <span className="font-bold">Pipeline Execution Audit Stream &amp; History</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded font-mono ${isDark ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-600"}`}>
+              {auditLogs.length} events
+            </span>
+          </div>
+          {showLogs ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+
+        {showLogs && (
+          <div className="p-4 pt-0 border-t border-slate-800/50 space-y-3 font-mono">
+            {scheduler?.execution_history && scheduler.execution_history.length > 0 && (
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {scheduler.execution_history.slice(-6).reverse().map((item, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex items-center justify-between gap-3 text-xs p-2 rounded-lg border ${
+                      isDark
+                        ? "bg-[#040810] border-slate-800/60"
+                        : "bg-slate-50 border-slate-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                          item.status === "SUCCESS"
+                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                            : "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                        }`}
+                      >
+                        {item.action}
+                      </span>
+                      <span className={`truncate text-[11px] ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                        {item.details}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-slate-500 shrink-0">
+                      <span>{new Date(item.timestamp).toLocaleTimeString()}</span>
+                      <span className="text-cyan-400 font-bold">{item.execution_time_ms} ms</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] text-slate-500 shrink-0">
-                    <span>{new Date(item.timestamp).toLocaleTimeString()}</span>
-                    <span className="text-cyan-400/80">{item.execution_time_ms} ms</span>
-                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className={`p-3 rounded-lg text-xs space-y-1 max-h-36 overflow-y-auto ${
+              isDark ? "bg-[#02050b] border border-slate-900 text-slate-400" : "bg-slate-900 text-slate-300"
+            }`}>
+              {auditLogs.map((log, idx) => (
+                <div key={idx} className="flex items-start gap-1.5">
+                  <span className="text-emerald-400 font-bold">›</span>
+                  <span className={idx === 0 ? "text-cyan-300 font-semibold" : ""}>{log}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
-      </div>
-
-      {/* SECTION 3: LINEAGE & AUDIT LOG TERMINAL */}
-      <div className="bg-[#05080c] border border-slate-900 rounded-lg p-4 font-mono">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-          <Terminal className="w-4 h-4 text-emerald-400" />
-          Data Lineage &amp; Pipeline Execution Audit Stream
-        </div>
-        <div className="bg-[#030507] p-3 rounded border border-slate-900/90 text-xs text-slate-400 space-y-1 max-h-40 overflow-y-auto">
-          {auditLogs.map((log, idx) => (
-            <div key={idx} className="flex items-start gap-2">
-              <span className="text-emerald-500/80">›</span>
-              <span className={idx === 0 ? "text-cyan-300 font-bold" : "text-slate-400"}>{log}</span>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );

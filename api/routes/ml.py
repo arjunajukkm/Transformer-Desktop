@@ -115,10 +115,14 @@ def run_policy_simulation(request: SimulationRequest):
         wfh_weekly_allowance=request.wfh_weekly_allowance,
     )
 
+    bu_req = request.business_unit
+    if not bu_req or str(bu_req).strip().lower() in ("all", "all business units", "all business unit", "none", ""):
+        bu_req = "All"
+
     outcome = _policy_simulator.simulate(
         facts_table=engine._df_pl,
         params=params,
-        business_unit=request.business_unit,
+        business_unit=bu_req,
     )
     t_elapsed = round((time.perf_counter() - t0) * 1000, 2)
 

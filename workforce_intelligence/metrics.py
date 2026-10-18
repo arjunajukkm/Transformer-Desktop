@@ -191,134 +191,268 @@ def build_employee_day_facts(df: pd.DataFrame) -> pd.DataFrame:
             "is_metric_evaluable": is_evaluable,
             "metric_exclusion_reason": excl_reasons,
         })
-        return facts_df
+           # Multi-event aggregation path: vectorized using Polars for high performance
+    try:
+        import polars as pl
 
-    records = []
-    for (emp, dt), group in work_df.groupby(["Employee Number", "Date"], sort=False):
-        # Determine analytically included rows for this employee-day
-        group_included = group[group["include_in_analysis"] == True] if "include_in_analysis" in group.columns else group
-        eval_group = group_included if not group_included.empty else group
-
-        first_row = eval_group.iloc[0]
-
-        cats = set(eval_group["_cat"])
-        status_vals = set(eval_group["Status"].dropna().astype(str).str.upper()) if "Status" in eval_group.columns else set()
-        att_type_col = "Attendance Type" if "Attendance Type" in eval_group.columns else ("_att_type" if "_att_type" in eval_group.columns else None)
-        att_type_vals = set(eval_group[att_type_col].dropna().astype(str).str.strip().str.lower()) if att_type_col else set()
-
-        has_reg = ("regularized" in att_type_vals) or ("Attendance Regularized" in cats) or any("(R)" in s or s in ("AR", "PR") for s in status_vals)
-        has_pres = "Present" in cats or "P" in status_vals or "WOW" in status_vals or "WOH" in status_vals
-        has_lv = "Leave" in cats or any(s in ("CL", "SL", "PL", "EL", "ML", "CLSL", "L") for s in status_vals)
-        has_wfh = "Work From Home" in cats or "WFH" in status_vals
-        has_abs = "Absent" in cats or "A" in status_vals or "AB" in status_vals
-        has_ms = "Missing Swipes" in cats or any("MS" in s or s in ("P(MS)", "P (MS)") for s in status_vals)
-        has_wo = "Week Off" in cats or "WO" in status_vals or "W/O" in status_vals
-        has_hol = "Holiday" in cats or "H" in status_vals or "PH" in status_vals
-        has_od = "On Duty" in cats or "OD" in status_vals
-
-        # Exception classification
-        exception_types = []
-        if has_abs:
-            exception_types.append("ABSENT")
-        if has_ms:
-            exception_types.append("MISSING_SWIPE")
-        if has_reg:
-            exception_types.append("ATTENDANCE_REGULARIZED")
-
-        is_exception = len(exception_types) > 0
-        exception_type_str = ", ".join(exception_types) if exception_types else "NONE"
-
-        # Eligibility determination:
-        # Pure week off / holiday -> NOT eligible
-        # Any active event (present, leave, wfh, absent, missing swipes, regularization, on duty) -> ELIGIBLE
-        active_events = has_pres or has_lv or has_wfh or has_abs or has_ms or has_reg or has_od
-        is_eligible = bool(active_events)
-
-        # Quantity and DQ flags
-        raw_quantities = group["Quantity"].dropna() if "Quantity" in group.columns else pd.Series([], dtype=float)
-        raw_qty_sum = round(float(raw_quantities.sum()), 4) if not raw_quantities.empty else None
-
-        analytical_quantities = eval_group["Quantity"].dropna() if "Quantity" in eval_group.columns else pd.Series([], dtype=float)
-        analytical_qty_sum = round(float(analytical_quantities.sum()), 4) if not analytical_quantities.empty else None
-
-        has_analytical_qty_exceed = bool(
-            (eval_group["dq_analytical_daily_quantity_exceeds_one"].any() if "dq_analytical_daily_quantity_exceeds_one" in eval_group.columns else False)
-            or (analytical_qty_sum is not None and analytical_qty_sum > 1.000001)
-        )
-        has_raw_qty_exceed = bool(
-            (group["dq_daily_quantity_exceeds_one"].any() if "dq_daily_quantity_exceeds_one" in group.columns else False)
-            or (raw_qty_sum is not None and raw_qty_sum > 1.000001)
-        )
-
-        has_missing_emp = bool(group["dq_missing_employee"].any() if "dq_missing_employee" in group.columns else False)
-        has_missing_date = bool(group["dq_missing_date"].any() if "dq_missing_date" in group.columns else False)
-        has_invalid_date = bool(group["dq_invalid_date"].any() if "dq_invalid_date" in group.columns else False)
-
-        has_warning = bool(
-            (group["dq_exact_duplicate"].any() if "dq_exact_duplicate" in group.columns else False)
-            or (group["dq_cross_file_exact_duplicate"].any() if "dq_cross_file_exact_duplicate" in group.columns else False)
-            or (group["dq_missing_quantity"].any() if "dq_missing_quantity" in group.columns else False)
-            or (group["dq_unknown_attendance"].any() if "dq_unknown_attendance" in group.columns else False)
-            or (has_raw_qty_exceed and not has_analytical_qty_exceed)
-        )
-
-        # Determine employee-day data quality status & evaluability
-        is_critical = has_analytical_qty_exceed or has_missing_emp or has_missing_date or has_invalid_date
-        if is_critical:
-            quality_status = "CRITICAL"
-            is_evaluable = False
-            exclusion_reasons = []
-            if has_analytical_qty_exceed:
-                exclusion_reasons.append("DAILY_QUANTITY_EXCEEDS_ONE")
-            if has_missing_emp:
-                exclusion_reasons.append("MISSING_EMPLOYEE")
-            if has_missing_date:
-                exclusion_reasons.append("MISSING_DATE")
-            if has_invalid_date:
-                exclusion_reasons.append("INVALID_DATE")
-            exclusion_reason_str = ", ".join(exclusion_reasons) if exclusion_reasons else "CRITICAL_DATA_QUALITY"
-        elif has_warning:
-            quality_status = "WARNING"
-            is_evaluable = True
-            exclusion_reason_str = "NONE"
+        # Row-level event classification
+        cats = work_df["attendance_category"].astype(str).str.strip() if "attendance_category" in work_df.columns else pd.Series("", index=work_df.index)
+        status_vals = work_df["Status"].astype(str).str.strip().str.upper() if "Status" in work_df.columns else pd.Series("", index=work_df.index)
+        att_type_col = "Attendance Type" if "Attendance Type" in work_df.columns else ("_att_type" if "_att_type" in work_df.columns else None)
+        if att_type_col:
+            att_types = work_df[att_type_col].astype(str).str.strip().str.lower()
+            is_reg_type = (att_types == "regularized")
         else:
-            quality_status = "VALID"
-            is_evaluable = True
-            exclusion_reason_str = "NONE"
+            is_reg_type = pd.Series(False, index=work_df.index)
 
-        records.append({
-            "Employee Number": emp,
-            "Employee Name": first_row.get("Employee Name"),
-            "Business Unit": first_row.get("Business Unit"),
-            "Department": first_row.get("Department"),
-            "Sub Department": first_row.get("Sub Department"),
-            "Location": first_row.get("Location"),
-            "Reporting Manager": first_row.get("Reporting Manager"),
-            "Date": dt,
-            "record_count": len(eval_group),
-            "raw_record_count": len(group),
-            "daily_total_quantity": analytical_qty_sum,
-            "raw_daily_total_quantity": raw_qty_sum,
-            "analytical_daily_total_quantity": analytical_qty_sum,
-            "has_present": has_pres,
-            "has_leave": has_lv,
-            "has_wfh": has_wfh,
-            "has_absent": has_abs,
-            "has_missing_swipe": has_ms,
-            "has_regularization": has_reg,
-            "has_week_off": has_wo,
-            "has_holiday": has_hol,
-            "is_attendance_exception": is_exception,
-            "attendance_exception_types": exception_type_str,
-            "is_eligible_attendance_day": is_eligible,
-            "dq_daily_quantity_exceeds_one": has_raw_qty_exceed,
-            "dq_analytical_daily_quantity_exceeds_one": has_analytical_qty_exceed,
-            "employee_day_quality_status": quality_status,
-            "is_metric_evaluable": is_evaluable,
-            "metric_exclusion_reason": exclusion_reason_str,
-        })
+        work_df["_has_reg"] = is_reg_type | (cats == "Attendance Regularized") | status_vals.str.contains(r"\(R\)|AR|PR", regex=True, na=False)
+        work_df["_has_pres"] = (cats == "Present") | status_vals.isin(["P", "WOW", "WOH"])
+        work_df["_has_lv"] = (cats == "Leave") | status_vals.isin(["CL", "SL", "PL", "EL", "ML", "CLSL", "L"])
+        work_df["_has_wfh"] = (cats == "Work From Home") | (status_vals == "WFH")
+        work_df["_has_abs"] = (cats == "Absent") | status_vals.isin(["A", "AB"])
+        work_df["_has_ms"] = (cats == "Missing Swipes") | status_vals.str.contains("MS", na=False) | status_vals.isin(["P(MS)", "P (MS)"])
+        work_df["_has_wo"] = (cats == "Week Off") | status_vals.isin(["WO", "W/O"])
+        work_df["_has_hol"] = (cats == "Holiday") | status_vals.isin(["H", "PH"])
+        work_df["_has_od"] = (cats == "On Duty") | (status_vals == "OD")
 
-    return pd.DataFrame(records)
+        work_df["_inc"] = work_df["include_in_analysis"] if "include_in_analysis" in work_df.columns else True
+        work_df["_qty"] = pd.to_numeric(work_df["Quantity"], errors="coerce").fillna(0.0)
+
+        dq_cols = [
+            "dq_analytical_daily_quantity_exceeds_one", "dq_daily_quantity_exceeds_one",
+            "dq_missing_employee", "dq_missing_date", "dq_invalid_date",
+            "dq_exact_duplicate", "dq_cross_file_exact_duplicate",
+            "dq_missing_quantity", "dq_unknown_attendance"
+        ]
+        for c in dq_cols:
+            if c not in work_df.columns:
+                work_df[c] = False
+            else:
+                work_df[c] = work_df[c].fillna(False).astype(bool)
+
+        cols_to_select = [
+            "Employee Number", "Date", "Employee Name", "Business Unit", "Department",
+            "Sub Department", "Location", "Reporting Manager",
+            "_has_reg", "_has_pres", "_has_lv", "_has_wfh", "_has_abs", "_has_ms", "_has_wo", "_has_hol", "_has_od",
+            "_inc", "_qty"
+        ] + dq_cols
+
+        for c in cols_to_select:
+            if c not in work_df.columns:
+                work_df[c] = None
+
+        pl_df = pl.from_pandas(work_df[cols_to_select])
+        agg_exprs = [
+            pl.col("Employee Name").first(),
+            pl.col("Business Unit").first(),
+            pl.col("Department").first(),
+            pl.col("Sub Department").first(),
+            pl.col("Location").first(),
+            pl.col("Reporting Manager").first(),
+            pl.col("_has_pres").any().alias("has_present"),
+            pl.col("_has_lv").any().alias("has_leave"),
+            pl.col("_has_wfh").any().alias("has_wfh"),
+            pl.col("_has_abs").any().alias("has_absent"),
+            pl.col("_has_ms").any().alias("has_missing_swipe"),
+            pl.col("_has_reg").any().alias("has_regularization"),
+            pl.col("_has_wo").any().alias("has_week_off"),
+            pl.col("_has_hol").any().alias("has_holiday"),
+            pl.col("_has_od").any().alias("has_on_duty"),
+            pl.col("_qty").filter(pl.col("_inc") == True).sum().round(4).alias("analytical_daily_total_quantity"),
+            pl.col("_qty").sum().round(4).alias("raw_daily_total_quantity"),
+            pl.len().alias("raw_record_count"),
+            pl.col("_inc").filter(pl.col("_inc") == True).len().alias("record_count"),
+        ]
+        for c in dq_cols:
+            agg_exprs.append(pl.col(c).any().alias(c))
+
+        agg_pl = pl_df.group_by(["Employee Number", "Date"], maintain_order=True).agg(agg_exprs)
+        res_df = agg_pl.to_pandas()
+
+        res_df["record_count"] = np.where(res_df["record_count"] == 0, res_df["raw_record_count"], res_df["record_count"])
+        res_df["daily_total_quantity"] = np.where(res_df["analytical_daily_total_quantity"] == 0, res_df["raw_daily_total_quantity"], res_df["analytical_daily_total_quantity"])
+
+        has_abs = res_df["has_absent"]
+        has_ms = res_df["has_missing_swipe"]
+        has_reg = res_df["has_regularization"]
+        res_df["is_attendance_exception"] = has_abs | has_ms | has_reg
+
+        exc_strs = np.where(
+            has_abs & has_ms & has_reg, "ABSENT, MISSING_SWIPE, ATTENDANCE_REGULARIZED",
+            np.where(has_abs & has_ms, "ABSENT, MISSING_SWIPE",
+            np.where(has_abs & has_reg, "ABSENT, ATTENDANCE_REGULARIZED",
+            np.where(has_ms & has_reg, "MISSING_SWIPE, ATTENDANCE_REGULARIZED",
+            np.where(has_abs, "ABSENT",
+            np.where(has_ms, "MISSING_SWIPE",
+            np.where(has_reg, "ATTENDANCE_REGULARIZED", "NONE")))))))
+        res_df["attendance_exception_types"] = exc_strs
+
+        active_events = res_df["has_present"] | res_df["has_leave"] | res_df["has_wfh"] | res_df["has_absent"] | res_df["has_missing_swipe"] | res_df["has_regularization"] | res_df["has_on_duty"]
+        res_df["is_eligible_attendance_day"] = active_events
+
+        has_analytical_qty_exceed = (res_df["dq_analytical_daily_quantity_exceeds_one"] | (res_df["analytical_daily_total_quantity"] > 1.000001)).fillna(False)
+        has_raw_qty_exceed = (res_df["dq_daily_quantity_exceeds_one"] | (res_df["raw_daily_total_quantity"] > 1.000001)).fillna(False)
+        res_df["dq_analytical_daily_quantity_exceeds_one"] = has_analytical_qty_exceed
+        res_df["dq_daily_quantity_exceeds_one"] = has_raw_qty_exceed
+
+        has_missing_emp = res_df["dq_missing_employee"].fillna(False)
+        has_missing_date = res_df["dq_missing_date"].fillna(False)
+        has_invalid_date = res_df["dq_invalid_date"].fillna(False)
+
+        has_warning = (
+            res_df["dq_exact_duplicate"].fillna(False)
+            | res_df["dq_cross_file_exact_duplicate"].fillna(False)
+            | res_df["dq_missing_quantity"].fillna(False)
+            | res_df["dq_unknown_attendance"].fillna(False)
+            | (has_raw_qty_exceed & ~has_analytical_qty_exceed)
+        )
+
+        is_critical = has_analytical_qty_exceed | has_missing_emp | has_missing_date | has_invalid_date
+        res_df["employee_day_quality_status"] = np.where(is_critical, "CRITICAL", np.where(has_warning, "WARNING", "VALID"))
+        res_df["is_metric_evaluable"] = ~is_critical
+
+        excl_reasons = np.where(
+            has_analytical_qty_exceed, "DAILY_QUANTITY_EXCEEDS_ONE",
+            np.where(has_missing_emp, "MISSING_EMPLOYEE",
+            np.where(has_missing_date, "MISSING_DATE",
+            np.where(has_invalid_date, "INVALID_DATE",
+            np.where(is_critical, "CRITICAL_DATA_QUALITY", "NONE"))))
+        )
+        res_df["metric_exclusion_reason"] = excl_reasons
+
+        # Ensure all columns required exist and return
+        final_cols = [
+            "Employee Number", "Employee Name", "Business Unit", "Department",
+            "Sub Department", "Location", "Reporting Manager", "Date",
+            "record_count", "raw_record_count", "daily_total_quantity",
+            "raw_daily_total_quantity", "analytical_daily_total_quantity",
+            "has_present", "has_leave", "has_wfh", "has_absent",
+            "has_missing_swipe", "has_regularization", "has_week_off", "has_holiday",
+            "is_attendance_exception", "attendance_exception_types",
+            "is_eligible_attendance_day", "dq_daily_quantity_exceeds_one",
+            "dq_analytical_daily_quantity_exceeds_one", "employee_day_quality_status",
+            "is_metric_evaluable", "metric_exclusion_reason"
+        ]
+        return res_df[final_cols]
+    except Exception as e:
+        # Fallback to python loop only if polars fails
+        records = []
+        for (emp, dt), group in work_df.groupby(["Employee Number", "Date"], sort=False):
+            group_included = group[group["include_in_analysis"] == True] if "include_in_analysis" in group.columns else group
+            eval_group = group_included if not group_included.empty else group
+            first_row = eval_group.iloc[0]
+
+            cats = set(eval_group["_cat"])
+            status_vals = set(eval_group["Status"].dropna().astype(str).str.upper()) if "Status" in eval_group.columns else set()
+            att_type_col = "Attendance Type" if "Attendance Type" in eval_group.columns else ("_att_type" if "_att_type" in eval_group.columns else None)
+            att_type_vals = set(eval_group[att_type_col].dropna().astype(str).str.strip().str.lower()) if att_type_col else set()
+
+            has_reg = ("regularized" in att_type_vals) or ("Attendance Regularized" in cats) or any("(R)" in s or s in ("AR", "PR") for s in status_vals)
+            has_pres = "Present" in cats or "P" in status_vals or "WOW" in status_vals or "WOH" in status_vals
+            has_lv = "Leave" in cats or any(s in ("CL", "SL", "PL", "EL", "ML", "CLSL", "L") for s in status_vals)
+            has_wfh = "Work From Home" in cats or "WFH" in status_vals
+            has_abs = "Absent" in cats or "A" in status_vals or "AB" in status_vals
+            has_ms = "Missing Swipes" in cats or any("MS" in s or s in ("P(MS)", "P (MS)") for s in status_vals)
+            has_wo = "Week Off" in cats or "WO" in status_vals or "W/O" in status_vals
+            has_hol = "Holiday" in cats or "H" in status_vals or "PH" in status_vals
+            has_od = "On Duty" in cats or "OD" in status_vals
+
+            exception_types = []
+            if has_abs:
+                exception_types.append("ABSENT")
+            if has_ms:
+                exception_types.append("MISSING_SWIPE")
+            if has_reg:
+                exception_types.append("ATTENDANCE_REGULARIZED")
+
+            is_exception = len(exception_types) > 0
+            exception_type_str = ", ".join(exception_types) if exception_types else "NONE"
+            active_events = has_pres or has_lv or has_wfh or has_abs or has_ms or has_reg or has_od
+            is_eligible = bool(active_events)
+
+            raw_quantities = group["Quantity"].dropna() if "Quantity" in group.columns else pd.Series([], dtype=float)
+            raw_qty_sum = round(float(raw_quantities.sum()), 4) if not raw_quantities.empty else None
+
+            analytical_quantities = eval_group["Quantity"].dropna() if "Quantity" in eval_group.columns else pd.Series([], dtype=float)
+            analytical_qty_sum = round(float(analytical_quantities.sum()), 4) if not analytical_quantities.empty else None
+
+            has_analytical_qty_exceed = bool(
+                (eval_group["dq_analytical_daily_quantity_exceeds_one"].any() if "dq_analytical_daily_quantity_exceeds_one" in eval_group.columns else False)
+                or (analytical_qty_sum is not None and analytical_qty_sum > 1.000001)
+            )
+            has_raw_qty_exceed = bool(
+                (group["dq_daily_quantity_exceeds_one"].any() if "dq_daily_quantity_exceeds_one" in group.columns else False)
+                or (raw_qty_sum is not None and raw_qty_sum > 1.000001)
+            )
+
+            has_missing_emp = bool(group["dq_missing_employee"].any() if "dq_missing_employee" in group.columns else False)
+            has_missing_date = bool(group["dq_missing_date"].any() if "dq_missing_date" in group.columns else False)
+            has_invalid_date = bool(group["dq_invalid_date"].any() if "dq_invalid_date" in group.columns else False)
+
+            has_warning = bool(
+                (group["dq_exact_duplicate"].any() if "dq_exact_duplicate" in group.columns else False)
+                or (group["dq_cross_file_exact_duplicate"].any() if "dq_cross_file_exact_duplicate" in group.columns else False)
+                or (group["dq_missing_quantity"].any() if "dq_missing_quantity" in group.columns else False)
+                or (group["dq_unknown_attendance"].any() if "dq_unknown_attendance" in group.columns else False)
+                or (has_raw_qty_exceed and not has_analytical_qty_exceed)
+            )
+
+            is_critical = has_analytical_qty_exceed or has_missing_emp or has_missing_date or has_invalid_date
+            if is_critical:
+                quality_status = "CRITICAL"
+                is_evaluable = False
+                exclusion_reasons = []
+                if has_analytical_qty_exceed:
+                    exclusion_reasons.append("DAILY_QUANTITY_EXCEEDS_ONE")
+                if has_missing_emp:
+                    exclusion_reasons.append("MISSING_EMPLOYEE")
+                if has_missing_date:
+                    exclusion_reasons.append("MISSING_DATE")
+                if has_invalid_date:
+                    exclusion_reasons.append("INVALID_DATE")
+                exclusion_reason_str = ", ".join(exclusion_reasons) if exclusion_reasons else "CRITICAL_DATA_QUALITY"
+            elif has_warning:
+                quality_status = "WARNING"
+                is_evaluable = True
+                exclusion_reason_str = "NONE"
+            else:
+                quality_status = "VALID"
+                is_evaluable = True
+                exclusion_reason_str = "NONE"
+
+            records.append({
+                "Employee Number": emp,
+                "Employee Name": first_row.get("Employee Name"),
+                "Business Unit": first_row.get("Business Unit"),
+                "Department": first_row.get("Department"),
+                "Sub Department": first_row.get("Sub Department"),
+                "Location": first_row.get("Location"),
+                "Reporting Manager": first_row.get("Reporting Manager"),
+                "Date": dt,
+                "record_count": len(eval_group),
+                "raw_record_count": len(group),
+                "daily_total_quantity": analytical_qty_sum,
+                "raw_daily_total_quantity": raw_qty_sum,
+                "analytical_daily_total_quantity": analytical_qty_sum,
+                "has_present": has_pres,
+                "has_leave": has_lv,
+                "has_wfh": has_wfh,
+                "has_absent": has_abs,
+                "has_missing_swipe": has_ms,
+                "has_regularization": has_reg,
+                "has_week_off": has_wo,
+                "has_holiday": has_hol,
+                "is_attendance_exception": is_exception,
+                "attendance_exception_types": exception_type_str,
+                "is_eligible_attendance_day": is_eligible,
+                "dq_daily_quantity_exceeds_one": has_raw_qty_exceed,
+                "dq_analytical_daily_quantity_exceeds_one": has_analytical_qty_exceed,
+                "employee_day_quality_status": quality_status,
+                "is_metric_evaluable": is_evaluable,
+                "metric_exclusion_reason": exclusion_reason_str,
+            })
+
+        return pd.DataFrame(records)
 
 
 def _safe_rate(numerator: int, denominator: int) -> Optional[float]:

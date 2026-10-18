@@ -7,6 +7,7 @@ import { TrendBundle } from "@/lib/types";
 interface WorkforceCopilotProps {
   currentBundle: TrendBundle | null;
   selectedMetricLabel: string;
+  theme?: "dark" | "light";
 }
 
 interface Message {
@@ -15,7 +16,12 @@ interface Message {
   insights?: string[];
 }
 
-export function WorkforceCopilot({ currentBundle, selectedMetricLabel }: WorkforceCopilotProps) {
+export function WorkforceCopilot({
+  currentBundle,
+  selectedMetricLabel,
+  theme = "dark",
+}: WorkforceCopilotProps) {
+  const isDark = theme === "dark";
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([
@@ -101,26 +107,46 @@ export function WorkforceCopilot({ currentBundle, selectedMetricLabel }: Workfor
       {/* Slide-out Intelligence Drawer */}
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-end bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full sm:w-[480px] h-[85vh] sm:h-[90vh] sm:mr-6 rounded-2xl glass-panel bg-slate-950/95 border border-cyan-500/30 flex flex-col shadow-2xl overflow-hidden">
+          <div
+            className={`w-full sm:w-[480px] h-[85vh] sm:h-[90vh] sm:mr-6 rounded-2xl border flex flex-col overflow-hidden transition-all duration-200 ${
+              isDark
+                ? "bg-[#0b1222]/95 border-cyan-500/30 text-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.7)]"
+                : "bg-white/95 border-slate-200 text-slate-900 shadow-[0_20px_50px_rgba(0,0,0,0.15)]"
+            }`}
+          >
             {/* Header */}
-            <div className="p-4 border-b border-white/10 bg-slate-900/60 flex items-center justify-between">
+            <div
+              className={`p-4 border-b flex items-center justify-between transition-colors ${
+                isDark ? "border-slate-800 bg-slate-900/60" : "border-slate-200 bg-slate-50/80"
+              }`}
+            >
               <div className="flex items-center gap-2.5">
                 <div className="h-8 w-8 rounded-lg bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
                   <Bot className="h-4 w-4" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-sm text-white flex items-center gap-2">
+                  <h4
+                    className={`font-bold text-sm flex items-center gap-2 ${
+                      isDark ? "text-white" : "text-slate-900"
+                    }`}
+                  >
                     Workforce AI Copilot
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-semibold">
                       LIVE OLAP
                     </span>
                   </h4>
-                  <p className="text-[11px] text-slate-400">Natural Language Decision Intelligence</p>
+                  <p className={`text-[11px] ${isDark ? "text-slate-400" : "text-slate-500 font-medium"}`}>
+                    Natural Language Decision Intelligence
+                  </p>
                 </div>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                className={`p-1.5 rounded transition-colors cursor-pointer ${
+                  isDark
+                    ? "text-slate-400 hover:text-white hover:bg-slate-800"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-200"
+                }`}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -134,18 +160,24 @@ export function WorkforceCopilot({ currentBundle, selectedMetricLabel }: Workfor
                   className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
                 >
                   <div
-                    className={`max-w-[88%] p-3 rounded-xl leading-relaxed ${
+                    className={`max-w-[88%] p-3 rounded-xl leading-relaxed transition-all ${
                       msg.role === "user"
-                        ? "bg-cyan-600 text-white font-medium rounded-br-none shadow-[0_0_10px_rgba(6,182,212,0.2)]"
-                        : "bg-slate-900 border border-white/10 text-slate-200 rounded-bl-none shadow-md"
+                        ? "bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-medium rounded-br-none shadow-[0_0_14px_rgba(6,182,212,0.3)]"
+                        : isDark
+                        ? "bg-[#070e1b] border border-cyan-500/20 text-slate-200 rounded-bl-none shadow-md"
+                        : "bg-slate-100 border border-slate-200 text-slate-800 rounded-bl-none shadow-sm"
                     }`}
                   >
                     <p>{msg.content}</p>
                     {msg.insights && (
-                      <ul className="mt-2 pt-2 border-t border-white/10 space-y-1 text-slate-300 font-mono text-[11px]">
+                      <ul
+                        className={`mt-2 pt-2 border-t space-y-1 font-mono text-[11px] ${
+                          isDark ? "border-slate-800 text-slate-300" : "border-slate-300 text-slate-700"
+                        }`}
+                      >
                         {msg.insights.map((ins, j) => (
                           <li key={j} className="flex items-start gap-1.5">
-                            <span className="text-cyan-400 mt-0.5">•</span>
+                            <span className="text-cyan-500 font-bold mt-0.5">•</span>
                             <span>{ins}</span>
                           </li>
                         ))}
@@ -157,12 +189,20 @@ export function WorkforceCopilot({ currentBundle, selectedMetricLabel }: Workfor
             </div>
 
             {/* Suggested Prompts */}
-            <div className="px-4 py-2 bg-slate-900/40 border-t border-white/5 flex flex-wrap gap-1.5">
+            <div
+              className={`px-4 py-2 border-t flex flex-wrap gap-1.5 transition-colors ${
+                isDark ? "bg-slate-900/40 border-slate-800" : "bg-slate-50 border-slate-200"
+              }`}
+            >
               {quickPrompts.map((qp, i) => (
                 <button
                   key={i}
                   onClick={() => handleSend(qp)}
-                  className="text-[10px] px-2.5 py-1 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/5 transition-colors cursor-pointer"
+                  className={`text-[10px] px-2.5 py-1 rounded-full border transition-colors cursor-pointer font-medium ${
+                    isDark
+                      ? "bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700/60"
+                      : "bg-white hover:bg-slate-100 text-slate-700 border-slate-300 shadow-sm"
+                  }`}
                 >
                   {qp}
                 </button>
@@ -170,18 +210,26 @@ export function WorkforceCopilot({ currentBundle, selectedMetricLabel }: Workfor
             </div>
 
             {/* Input Bar */}
-            <div className="p-3 bg-slate-900/80 border-t border-white/10 flex items-center gap-2">
+            <div
+              className={`p-3 border-t flex items-center gap-2 transition-colors ${
+                isDark ? "bg-slate-900/80 border-slate-800" : "bg-slate-50 border-slate-200"
+              }`}
+            >
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSend()}
                 placeholder={`Ask Copilot about ${selectedMetricLabel}...`}
-                className="flex-1 bg-slate-950 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-sans"
+                className={`flex-1 border rounded-lg px-3 py-2 text-xs font-sans outline-none transition-colors ${
+                  isDark
+                    ? "bg-[#040810] border-slate-800 text-white placeholder-slate-500 focus:border-cyan-400"
+                    : "bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-cyan-500 shadow-inner"
+                }`}
               />
               <button
                 onClick={() => handleSend()}
-                className="p-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold transition-all shadow-[0_0_10px_rgba(6,182,212,0.3)] cursor-pointer"
+                className="p-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold transition-all shadow-[0_0_12px_rgba(6,182,212,0.35)] cursor-pointer"
               >
                 <Send className="h-4 w-4" />
               </button>

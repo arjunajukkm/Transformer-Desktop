@@ -215,63 +215,77 @@ def evaluate_policy(
     statuses = pd.Series("NOT_APPLICABLE", index=df.index)
     reasons = pd.Series("NOT_APPLICABLE", index=df.index)
 
-    # Case A: Leave Rows linked to LeaveRequests (Mapped instantly)
+    # Case A: Leave Rows linked to LeaveRequests (Vectorized dictionary lookup)
     has_req = df["request_id"].notna() & df["request_id"].isin(req_eval_map)
     if has_req.any():
+        req_df = pd.DataFrame.from_dict(req_eval_map, orient="index")
         m_req = df.loc[has_req, "request_id"]
-        rule_codes.loc[has_req] = m_req.map(lambda rid: req_eval_map[rid]["policy_rule_code"])
-        rule_descs.loc[has_req] = m_req.map(lambda rid: req_eval_map[rid]["policy_rule_description"])
-        req_notices.loc[has_req] = m_req.map(lambda rid: req_eval_map[rid]["required_notice_days"])
-        allowed_posts.loc[has_req] = m_req.map(lambda rid: req_eval_map[rid]["allowed_post_days"])
-        bench_compliants.loc[has_req] = m_req.map(lambda rid: req_eval_map[rid]["benchmark_compliant"]).astype("boolean")
-        policy_compliants.loc[has_req] = m_req.map(lambda rid: req_eval_map[rid]["policy_compliant"]).astype("boolean")
-        statuses.loc[has_req] = m_req.map(lambda rid: req_eval_map[rid]["compliance_status"])
-        reasons.loc[has_req] = m_req.map(lambda rid: req_eval_map[rid]["non_compliance_reason"])
+        rule_codes.loc[has_req] = m_req.map(req_df["policy_rule_code"])
+        rule_descs.loc[has_req] = m_req.map(req_df["policy_rule_description"])
+        req_notices.loc[has_req] = m_req.map(req_df["required_notice_days"])
+        allowed_posts.loc[has_req] = m_req.map(req_df["allowed_post_days"])
+        bench_compliants.loc[has_req] = m_req.map(req_df["benchmark_compliant"]).astype("boolean")
+        policy_compliants.loc[has_req] = m_req.map(req_df["policy_compliant"]).astype("boolean")
+        statuses.loc[has_req] = m_req.map(req_df["compliance_status"])
+        reasons.loc[has_req] = m_req.map(req_df["non_compliance_reason"])
 
-    # Case B: WFH Rows (Evaluated only on WFH rows, ~500 rows total)
-    wfh_indices = df[df["policy_event_type"] == "WFH"].index
-    if len(wfh_indices) > 0:
+    # Case B: WFH Rows (Fully Vectorized)
+    wfh_mask = (df["policy_event_type"] == "WFH")
+    if wfh_mask.any():
         rule_code = "WFH_APPLY_WITHIN_3D"
         rule_desc = POLICY_RULES[rule_code]
         allowed_post = config.wfh_max_post_days
 
-        wfh_sub = df.loc[wfh_indices]
-        for idx, row in wfh_sub.iterrows():
-            row_is_post = bool(is_post_policy.loc[idx])
-            has_dq_issue = bool(row.get("dq_analytical_daily_quantity_exceeds_one", row.get("dq_daily_quantity_exceeds_one", False)))
+        rule_codes[wfh_mask] = rule_code
+        rule_descs[wfh_mask] = rule_desc
+        allowed_posts[wfh_mask] = allowed_post
 
-            rule_codes.loc[idx] = rule_code
-            rule_descs.loc[idx] = rule_desc
-            allowed_posts.loc[idx] = allowed_post
+        wfh_post = is_post_policy & wfh_mask
 
-            if has_dq_issue:
-                statuses.loc[idx] = "DATA_QUALITY_UNCERTAIN"
-                reasons.loc[idx] = "SOURCE_DATA_QUALITY_CRITICAL"
-            elif pd.isna(row.get("Applied On")):
-                bench_compliants.loc[idx] = False
-                policy_compliants.loc[idx] = False if row_is_post else None
-                statuses.loc[idx] = "NON_COMPLIANT" if row_is_post else "PRE_POLICY_BENCHMARK_FAIL"
-                reasons.loc[idx] = "MISSING_APPLICATION_DATE"
-            else:
-                lag = row.get("application_lag_days")
-                if lag is None or pd.isna(lag):
-                    app_on = pd.to_datetime(row.get("Applied On"), errors="coerce")
-                    evt_p_ts = evt_ts.loc[idx]
-                    lag = (app_on.floor("D") - evt_p_ts.floor("D")).days if pd.notna(app_on) and pd.notna(evt_p_ts) else None
+        # Data quality check
+        dq_flag = pd.Series(False, index=df.index)
+        if "dq_analytical_daily_quantity_exceeds_one" in df.columns:
+            dq_flag = df["dq_analytical_daily_quantity_exceeds_one"].fillna(False).astype(bool)
+        elif "dq_daily_quantity_exceeds_one" in df.columns:
+            dq_flag = df["dq_daily_quantity_exceeds_one"].fillna(False).astype(bool)
 
-                lag_val = int(lag) if lag is not None and not pd.isna(lag) else 0
-                is_comp = (lag_val <= allowed_post)
+        wfh_dq = wfh_mask & dq_flag
+        statuses[wfh_dq] = "DATA_QUALITY_UNCERTAIN"
+        reasons[wfh_dq] = "SOURCE_DATA_QUALITY_CRITICAL"
 
-                if is_comp:
-                    bench_compliants.loc[idx] = True
-                    policy_compliants.loc[idx] = True if row_is_post else None
-                    statuses.loc[idx] = "COMPLIANT" if row_is_post else "PRE_POLICY_BENCHMARK_PASS"
-                    reasons.loc[idx] = "NONE"
-                else:
-                    bench_compliants.loc[idx] = False
-                    policy_compliants.loc[idx] = False if row_is_post else None
-                    statuses.loc[idx] = "NON_COMPLIANT" if row_is_post else "PRE_POLICY_BENCHMARK_FAIL"
-                    reasons.loc[idx] = "LATE_APPLICATION"
+        # Missing Applied On
+        applied_on_series = df["Applied On"] if "Applied On" in df.columns else pd.Series(None, index=df.index)
+        wfh_no_app = wfh_mask & (~wfh_dq) & applied_on_series.isna()
+
+        bench_compliants[wfh_no_app] = False
+        policy_compliants[wfh_no_app & wfh_post] = False
+        statuses[wfh_no_app & wfh_post] = "NON_COMPLIANT"
+        statuses[wfh_no_app & (~wfh_post)] = "PRE_POLICY_BENCHMARK_FAIL"
+        reasons[wfh_no_app] = "MISSING_APPLICATION_DATE"
+
+        # Valid Applied On
+        wfh_valid = wfh_mask & (~wfh_dq) & (~wfh_no_app)
+        if wfh_valid.any():
+            app_dt = pd.to_datetime(applied_on_series[wfh_valid], format="mixed", errors="coerce").dt.floor("D")
+            ev_dt = evt_ts[wfh_valid].dt.floor("D")
+            lag_s = (app_dt - ev_dt).dt.days.fillna(0)
+
+            wfh_comp = pd.Series(False, index=df.index)
+            wfh_comp[wfh_valid] = (lag_s <= allowed_post).values
+            wfh_fail = pd.Series(False, index=df.index)
+            wfh_fail[wfh_valid] = (lag_s > allowed_post).values
+
+            bench_compliants[wfh_comp] = True
+            policy_compliants[wfh_comp & wfh_post] = True
+            statuses[wfh_comp & wfh_post] = "COMPLIANT"
+            statuses[wfh_comp & (~wfh_post)] = "PRE_POLICY_BENCHMARK_PASS"
+            reasons[wfh_comp] = "NONE"
+
+            bench_compliants[wfh_fail] = False
+            policy_compliants[wfh_fail & wfh_post] = False
+            statuses[wfh_fail & wfh_post] = "NON_COMPLIANT"
+            statuses[wfh_fail & (~wfh_post)] = "PRE_POLICY_BENCHMARK_FAIL"
+            reasons[wfh_fail] = "LATE_APPLICATION"
 
     df["policy_rule_code"] = rule_codes
     df["policy_rule_description"] = rule_descs

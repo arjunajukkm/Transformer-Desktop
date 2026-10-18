@@ -25,10 +25,25 @@ def get_active_snapshot_metadata():
     """Check active snapshot status and high-level dimensional metadata."""
     snap = snapshot_cache.get_active_snapshot()
     if not snap or not snap.is_valid():
+        try:
+            from workforce_intelligence.historical_sync import HistoricalSyncManager
+            h = HistoricalSyncManager()
+            df, summary = h.load_unified_history()
+            if df is not None and not df.empty:
+                snap = create_snapshot(df, dataset_id="workforce_sync_all")
+                snapshot_cache.set_active_snapshot(snap)
+                workforce_bridge.invalidate_cache()
+        except Exception:
+            pass
+
+    if not snap or not snap.is_valid():
         return SnapshotMetadataResponse(is_loaded=False)
 
     meta = snap.metadata or {}
     opts = snap.filter_options or {}
+
+    from storage.materialized_store import materialized_store
+    mat_meta = materialized_store.get_metadata()
 
     return SnapshotMetadataResponse(
         is_loaded=True,
@@ -45,14 +60,59 @@ def get_active_snapshot_metadata():
     )
 
 
+@router.post("/sync-and-recalculate")
+def sync_and_recalculate_materialized_cache():
+    """
+    On-demand ad-hoc sync and full analytical precalculation.
+    Pulls fresh historical/live records, precalculates all 15 metrics, overviews,
+    and cascaded filter catalogs, and saves to the daily persistent disk cache.
+    """
+    from datetime import datetime
+    from storage.materialized_store import materialized_store
+    from workforce_intelligence.historical_sync import HistoricalSyncManager
+
+    t0 = time.perf_counter()
+    h = HistoricalSyncManager()
+    df, summary = h.load_unified_history()
+    if df is None or df.empty:
+        raise HTTPException(status_code=400, detail="No workforce attendance records found in archive.")
+
+    ds_id = f"workforce_sync_all_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    snap = create_snapshot(df, dataset_id=ds_id)
+    snapshot_cache.set_active_snapshot(snap)
+    workforce_bridge.invalidate_cache()
+
+    # Run full precalculation
+    precalc_res = materialized_store.precalculate_all(snap=snap, force=True)
+    duration_ms = round((time.perf_counter() - t0) * 1000, 2)
+
+    return {
+        "status": "success",
+        "dataset_id": ds_id,
+        "row_count": len(df),
+        "execution_time_ms": duration_ms,
+        "precalculation": precalc_res,
+        "last_calculated_at": materialized_store.last_calculated_at,
+        "message": f"Successfully synced {len(df):,} workforce records and refreshed daily materialized cache.",
+    }
+
+
 @router.post("/demo")
 def load_enterprise_demo_snapshot():
     """
-    Instantly ingest a realistic multi-month enterprise dataset (May, Jun, Jul 2026)
-    with multi-BU hierarchy, attendance events, and approval cycles into active memory.
+    Load real historical workforce archive dataset (July - October 2026).
     """
-    t0 = time.perf_counter()
-    from datetime import timedelta
+    from workforce_intelligence.historical_sync import HistoricalSyncManager
+    h = HistoricalSyncManager()
+    df, summary = h.load_unified_history()
+    snap = create_snapshot(df, dataset_id="workforce_sync_all")
+    snapshot_cache.set_active_snapshot(snap)
+    workforce_bridge.invalidate_cache()
+    return {
+        "status": "success",
+        "message": f"Historical workforce dataset loaded ({len(df):,} records across {df['Employee Number'].nunique() if 'Employee Number' in df.columns else df['_emp_num'].nunique()} employees).",
+        "row_count": len(df),
+    }
     bus = ["Engineering", "Lending", "Operations"]
     emp_configs = [
         {"id": "EMP101", "name": "Arjun Sharma", "bu": "Engineering", "dept": "Platform Eng", "mgr": "Vikram Malhotra"},
@@ -312,3 +372,18 @@ def export_parquet_cubes(export_dir: Optional[str] = None):
         exported_cubes=saved,
         export_dir=str(target_path),
     )
+
+
+@router.post("/sync-and-recalculate")
+def sync_and_recalculate_pipeline():
+    """
+    On-demand user-triggered sync & recalculate:
+    1. Connects to Keka API to fetch fresh revised data (including past month).
+    2. Builds and sets the active multi-month snapshot.
+    3. Invalidates workforce bridge cache.
+    4. Executes comprehensive materialized precalculation across all 15 KPI metrics, BU slices, and cascaded filters.
+    5. Persists the precalculated data to disk ('local_data/daily_materialized_cache.json').
+    """
+    from api.routes.connectors import execute_keka_sync_pipeline
+    return execute_keka_sync_pipeline(month="all")
+

@@ -417,26 +417,48 @@ class KekaDataFetcher:
     # ──────────────────────────────────────────────────────────────────────────
     def fetch_employee_master(
         self,
-        active_only: bool = True,
+        active_only: bool = False,
         progress_callback: Optional[Callable[[int, int, str], None]] = None
     ) -> Tuple[pd.DataFrame, Optional[str]]:
         """
         Fetches Employee Master from Keka API: GET /hris/employees
+        Includes active and exited employees for retroactive and historical completeness.
 
         Returns a DataFrame with columns matching what absent_management.py expects:
           Employee Number, Employee Name, Work Email, Reporting Manager,
-          Reporting Manager Email, Last Working Day, Location
+          Reporting Manager Email, Last Working Day, Location, Employment Status
         """
-        params = {}
         if active_only:
-            params["employeeStatus"] = "Active"
+            records, err = self._paginated_get(
+                "/hris/employees",
+                {"employeeStatus": "Active"},
+                progress_callback=progress_callback,
+                label="Employees"
+            )
+        else:
+            # Query all employees; if API requires explicit status, also fetch Exited employees to ensure 100% coverage
+            records, err = self._paginated_get(
+                "/hris/employees",
+                {},
+                progress_callback=progress_callback,
+                label="Employees"
+            )
+            try:
+                exited_records, _ = self._paginated_get(
+                    "/hris/employees",
+                    {"employeeStatus": "Exited"},
+                    label="Exited Employees"
+                )
+                if exited_records and isinstance(exited_records, list):
+                    seen_ids = {r.get("id") or r.get("employeeNumber") for r in (records or [])}
+                    for er in exited_records:
+                        eid = er.get("id") or er.get("employeeNumber")
+                        if eid and eid not in seen_ids:
+                            records.append(er)
+                            seen_ids.add(eid)
+            except Exception as e_err:
+                logger.debug(f"Exited employees query notice: {e_err}")
 
-        records, err = self._paginated_get(
-            "/hris/employees",
-            params,
-            progress_callback=progress_callback,
-            label="Employees"
-        )
         if err and not records:
             return pd.DataFrame(), err
 
@@ -664,6 +686,43 @@ class KekaDataFetcher:
                             f"type={g_type!r} typeName={g_type_name!r} title={g_title!r} — skipping"
                         )
 
+            # ── Employment Status & DOJ ──────────────────────────────────────
+            doj_raw = (
+                r.get("dateOfJoining") or
+                r.get("joiningDate") or
+                r.get("date_of_joining") or
+                r.get("doj") or
+                emp_details.get("joiningDate") or
+                emp_details.get("dateOfJoining") or
+                ""
+            )
+            doj = ""
+            if doj_raw:
+                try:
+                    if isinstance(doj_raw, str):
+                        if "T" in doj_raw:
+                            dt_doj = datetime.fromisoformat(doj_raw.replace("Z", "+00:00"))
+                        else:
+                            dt_doj = pd.to_datetime(doj_raw, dayfirst=True)
+                    else:
+                        dt_doj = pd.to_datetime(doj_raw)
+                    if pd.notna(dt_doj):
+                        doj = dt_doj.strftime("%d-%b-%y")
+                except Exception:
+                    doj = str(doj_raw)
+
+            raw_status = (
+                r.get("employmentStatus") or
+                r.get("employeeStatus") or
+                r.get("status") or
+                emp_details.get("employmentStatus") or
+                ""
+            )
+            if lwd or str(raw_status).strip().lower() in ("exited", "relieved", "inactive", "terminated", "resigned"):
+                emp_status = "Exited"
+            else:
+                emp_status = "Active"
+
             rows.append({
                 "Employee Number": emp_no,
                 "Employee Name": name,
@@ -678,6 +737,10 @@ class KekaDataFetcher:
                 "Department": dept,
                 "Sub Department": sub_dept,
                 "Business Unit": bu,
+                "Employment Status": emp_status,
+                "Employee Status": emp_status,
+                "Date of Joining": doj,
+                "DOJ": doj,
             })
 
         df = pd.DataFrame(rows)
@@ -1969,6 +2032,8 @@ class KekaDataFetcher:
                         "Date": att_date_str,
                         "Month": first_of_month,
                         "Last Working Day": lwd_val,
+                        "Date of Joining": doj_val,
+                        "DOJ": doj_val,
                         "In Time": in_time,
                         "Out Time": out_time,
                         "Status": st_code,
@@ -2018,6 +2083,8 @@ class KekaDataFetcher:
                         "Date": att_date_str,
                         "Month": first_of_month,
                         "Last Working Day": lwd_val,
+                        "Date of Joining": doj_val,
+                        "DOJ": doj_val,
                         "In Time": in_time if other_st in ("P", "P(R)") else "",
                         "Out Time": out_time if other_st in ("P", "P(R)") else "",
                         "Status": other_st,
@@ -2047,6 +2114,8 @@ class KekaDataFetcher:
                         "Date": att_date_str,
                         "Month": first_of_month,
                         "Last Working Day": lwd_val,
+                        "Date of Joining": doj_val,
+                        "DOJ": doj_val,
                         "In Time": in_time,
                         "Out Time": out_time,
                         "Status": st_code,
@@ -2097,6 +2166,8 @@ class KekaDataFetcher:
                         "Date": att_date_str,
                         "Month": first_of_month,
                         "Last Working Day": lwd_val,
+                        "Date of Joining": doj_val,
+                        "DOJ": doj_val,
                         "In Time": in_time,
                         "Out Time": out_time,
                         "Status": "WFH",
@@ -2146,6 +2217,8 @@ class KekaDataFetcher:
                         "Date": att_date_str,
                         "Month": first_of_month,
                         "Last Working Day": lwd_val,
+                        "Date of Joining": doj_val,
+                        "DOJ": doj_val,
                         "In Time": in_time if other_st in ("P", "P(R)") else "",
                         "Out Time": out_time if other_st in ("P", "P(R)") else "",
                         "Status": other_st,
@@ -2177,6 +2250,8 @@ class KekaDataFetcher:
                         "Date": att_date_str,
                         "Month": first_of_month,
                         "Last Working Day": lwd_val,
+                        "Date of Joining": doj_val,
+                        "DOJ": doj_val,
                         "In Time": in_time,
                         "Out Time": out_time,
                         "Status": wfh_st,
@@ -2225,6 +2300,8 @@ class KekaDataFetcher:
                     "Date": att_date_str,
                     "Month": first_of_month,
                     "Last Working Day": lwd_val,
+                    "Date of Joining": doj_val,
+                    "DOJ": doj_val,
                     "In Time": in_time,
                     "Out Time": out_time,
                     "Status": od_st,
@@ -2310,6 +2387,8 @@ class KekaDataFetcher:
                     "Date": att_date_str,
                     "Month": first_of_month,
                     "Last Working Day": lwd_val,
+                    "Date of Joining": doj_val,
+                    "DOJ": doj_val,
                     "In Time": in_time,
                     "Out Time": out_time,
                     "Status": status,
@@ -2331,7 +2410,7 @@ class KekaDataFetcher:
             df_perf = pd.DataFrame(columns=[
                 "Employee Number", "Employee Name", "Job Title", "Business Unit",
                 "Department", "Sub Department", "Location", "Reporting Manager",
-                "Date", "Month", "Last Working Day", "In Time", "Out Time", "Status", "Attendance Type",
+                "Date", "Month", "Last Working Day", "Date of Joining", "DOJ", "In Time", "Out Time", "Status", "Attendance Type",
                 "Leave Name", "Quantity", "Applied By", "Applied On", "Approval Status",
                 "Approved By", "Approved On", "Total Hours", "Break Duration", "Effective Hours"
             ])
@@ -2831,9 +2910,93 @@ class KekaDataFetcher:
                 rows.extend([r1, r2])
             else:
                 r = row.to_dict()
-                # Check status CLSL -> map to proper leave code
-                if r.get(status_col) == "CLSL":
-                    r[status_col] = KekaDataFetcher._get_leave_status_code(r.get("Leave Name", ""))
+                st_val = str(r.get(status_col) or "").strip().upper()
+
+                # Comprehensive Keka Status & Leave Mapping
+                if st_val in ("CLSL", "CL/SL"):
+                    r[status_col] = "CL/SL"
+                    r["Attendance Type"] = "Leave"
+                    r["Leave Name"] = "Casual/Sick Leave"
+                elif st_val == "WL":
+                    r[status_col] = "WL"
+                    r["Attendance Type"] = "Leave"
+                    r["Leave Name"] = "Wellness Leave"
+                elif st_val in ("PL", "EL"):
+                    r[status_col] = "PL"
+                    r["Attendance Type"] = "Leave"
+                    r["Leave Name"] = "Privilege Leave"
+                elif st_val == "GL":
+                    r[status_col] = "GL"
+                    r["Attendance Type"] = "Leave"
+                    r["Leave Name"] = "Garden Leave"
+                elif st_val == "BL":
+                    r[status_col] = "BL"
+                    r["Attendance Type"] = "Leave"
+                    r["Leave Name"] = "Bereavement Leave"
+                elif st_val == "HL":
+                    r[status_col] = "HL"
+                    r["Attendance Type"] = "Leave"
+                    r["Leave Name"] = "Happiness Leave"
+                elif st_val in ("PT", "PL_PAT"):
+                    r[status_col] = "PT"
+                    r["Attendance Type"] = "Leave"
+                    r["Leave Name"] = "Paternity Leave"
+                elif st_val in ("ML", "MAT"):
+                    r[status_col] = "ML"
+                    r["Attendance Type"] = "Leave"
+                    r["Leave Name"] = "Maternity Leave"
+                elif st_val == "CO":
+                    r[status_col] = "CO"
+                    r["Attendance Type"] = "Leave"
+                    r["Leave Name"] = "Comp Off"
+                elif st_val == "LWP":
+                    r[status_col] = "LWP"
+                    r["Attendance Type"] = "Leave"
+                    r["Leave Name"] = "Loss of Pay"
+                elif st_val == "FL":
+                    r[status_col] = "FL"
+                    r["Attendance Type"] = "Leave"
+                    r["Leave Name"] = "Floater Leave"
+                elif st_val == "P":
+                    r[status_col] = "P"
+                    r["Attendance Type"] = "Present"
+                    r["Leave Name"] = "-"
+                elif st_val in ("P(MS)", "MS"):
+                    r[status_col] = "P(MS)"
+                    r["Attendance Type"] = "Missing Swipes"
+                    r["Leave Name"] = "-"
+                elif st_val == "WO":
+                    r[status_col] = "WO"
+                    r["Attendance Type"] = "Week Off"
+                    r["Leave Name"] = "-"
+                elif st_val == "WOW":
+                    r[status_col] = "WOW"
+                    r["Attendance Type"] = "Worked on Week off"
+                    r["Leave Name"] = "-"
+                elif st_val == "H":
+                    r[status_col] = "H"
+                    r["Attendance Type"] = "Holiday"
+                    r["Leave Name"] = "-"
+                elif st_val == "WOH":
+                    r[status_col] = "WOH"
+                    r["Attendance Type"] = "Worked on Holiday"
+                    r["Leave Name"] = "-"
+                elif st_val == "WFH":
+                    r[status_col] = "WFH"
+                    r["Attendance Type"] = "Work From Home"
+                    r["Leave Name"] = "-"
+                elif st_val == "OD":
+                    r[status_col] = "OD"
+                    r["Attendance Type"] = "Onduty"
+                    r["Leave Name"] = "-"
+                elif st_val == "A":
+                    r[status_col] = "A"
+                    r["Attendance Type"] = "Absent"
+                    r["Leave Name"] = "-"
+                elif "(R)" in st_val or st_val.endswith("R"):
+                    r["Attendance Type"] = "Regularized"
+                    r["Leave Name"] = "-"
+
                 # Ensure no quantity 0!
                 try:
                     q = float(r.get("Quantity", 1.0) or 0.0)

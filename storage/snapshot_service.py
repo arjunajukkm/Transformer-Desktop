@@ -89,6 +89,8 @@ def normalize_dataset_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     work_df["_emp_name"] = work_df[canon_cols["employee_name"]].astype(str).str.strip() if "employee_name" in canon_cols else work_df["_emp_num"]
 
     work_df["_emp_num"] = work_df["_emp_num"].apply(lambda s: str(s)[:-2] if str(s).endswith(".0") else str(s))
+    work_df["_doj"] = work_df[canon_cols["date_of_joining"]].astype(str).str.strip() if "date_of_joining" in canon_cols else None
+    work_df["_lwd"] = work_df[canon_cols["last_working_day"]].astype(str).str.strip() if "last_working_day" in canon_cols else None
 
     # 3. Attendance Type & Status
     work_df["_att_type"] = work_df[canon_cols["attendance_type"]].astype(str).str.strip() if "attendance_type" in canon_cols else ""
@@ -140,26 +142,79 @@ def normalize_dataset_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     work_df["_applied_by"] = work_df[canon_cols["applied_by"]].astype(str).str.strip() if "applied_by" in canon_cols else ""
     work_df["_approved_by"] = work_df[canon_cols["approved_by"]].astype(str).str.strip() if "approved_by" in canon_cols else ""
 
+    # Calculate approval turnaround days (calendar days between application and approval)
+    if "_applied_on" in work_df.columns and "_approved_on" in work_df.columns:
+        ts_apr = pd.to_datetime(work_df["_approved_on"], errors="coerce")
+        ts_app = pd.to_datetime(work_df["_applied_on"], errors="coerce")
+        turnaround = (ts_apr.dt.floor("D") - ts_app.dt.floor("D")).dt.days
+        work_df["approval_turnaround_days"] = turnaround.astype("Int64")
+    else:
+        work_df["approval_turnaround_days"] = pd.Series([pd.NA] * len(work_df), dtype="Int64")
+
+    # Precompute vectorized attendance indicators for high-performance sub-millisecond aggregation
+    qty_series = pd.to_numeric(work_df.get("Quantity", 1.0), errors="coerce").fillna(1.0)
+    qty_clean = np.where((qty_series > 0) & (qty_series <= 0.5), 0.5, np.where(qty_series > 0.5, 1.0, 1.0))
+    work_df["_qty"] = qty_clean
+
+    at_lower = work_df["_att_type"].astype(str).str.strip().str.lower()
+    st_lower = work_df["_status"].astype(str).str.strip().str.lower()
+
+    LEAVE_STATUS_CODES = {
+        "cl", "sl", "cl/sl", "clsl", "pl", "el", "gl", "wl", "hl", "ml", "pt", "bl",
+        "spl", "ul", "fl", "hpl", "mcl", "cml", "adl", "adlm", "adm", "co", "leave", "l"
+    }
+
+    is_wfh_mask = at_lower.str.contains("wfh") | at_lower.str.contains("work from home") | st_lower.isin(["wfh", "work from home"])
+    is_leave_mask = (at_lower.str.contains("leave") | at_lower.isin(LEAVE_STATUS_CODES) | st_lower.isin(LEAVE_STATUS_CODES)) & (~is_wfh_mask)
+    is_worked_off_mask = at_lower.str.contains("worked on") | st_lower.isin(["wow", "woh", "wo-w", "h-w"])
+    is_pres_mask = (at_lower.str.contains("present") | at_lower.isin(["p", "present"]) | st_lower.isin(["p", "present"]) | is_worked_off_mask) & (~is_leave_mask) & (~is_wfh_mask)
+    is_abs_mask = (at_lower.str.contains("absent") | at_lower.isin(["absent", "a", "lop"]) | st_lower.isin(["absent", "a", "lop"])) & (~is_leave_mask) & (~is_wfh_mask) & (~is_pres_mask)
+
+    work_df["_is_p"] = is_pres_mask.astype(float) * work_df["_qty"]
+    work_df["_is_w"] = is_wfh_mask.astype(float) * work_df["_qty"]
+    work_df["_is_l"] = is_leave_mask.astype(float) * work_df["_qty"]
+    work_df["_is_a"] = is_abs_mask.astype(float) * work_df["_qty"]
+    work_df["_is_r"] = (at_lower.str.contains("regulariz") | st_lower.str.contains(r"\(r\)|ar|pr")).astype(int)
+    work_df["_clean_wh"] = pd.to_numeric(work_df["_work_hours"], errors="coerce").fillna(0.0).astype(float)
+
     return work_df
 
 
 class LazyBreakdowns(dict):
     """
-    Transparent dictionary that lazily computes the Employee-level breakdown on first access.
-    Eliminates 15-20s of upfront overhead during dataset creation while maintaining 100% contract compatibility.
+    Transparent dictionary that lazily computes level breakdowns on first access.
+    Eliminates upfront overhead during dataset creation while maintaining 100% contract compatibility.
     """
-    def __init__(self, fact_df: pd.DataFrame, initial: Dict[str, Any]):
-        super().__init__(initial)
+    def __init__(self, fact_df: pd.DataFrame, initial: Optional[Dict[str, Any]] = None):
+        super().__init__(initial or {})
         self._fact_df = fact_df
 
+    def __contains__(self, key: object) -> bool:
+        if super().__contains__(key):
+            return True
+        canonical_levels = ("business unit", "department", "reporting manager", "employee")
+        if isinstance(key, str) and key.strip().lower() in canonical_levels:
+            try:
+                self[key] = tsa.compute_level_breakdown(self._fact_df, level=key)
+                return True
+            except Exception:
+                return False
+        return False
+
     def __getitem__(self, key: str) -> Any:
-        if key not in self and str(key).strip().lower() in ("employee", "emp", "employees"):
-            self[key] = tsa.compute_level_breakdown(self._fact_df, level="Employee")
+        if not super().__contains__(key):
+            try:
+                self[key] = tsa.compute_level_breakdown(self._fact_df, level=key)
+            except Exception:
+                pass
         return super().__getitem__(key)
 
     def get(self, key: str, default: Any = None) -> Any:
-        if key not in self and str(key).strip().lower() in ("employee", "emp", "employees"):
-            self[key] = tsa.compute_level_breakdown(self._fact_df, level="Employee")
+        if not super().__contains__(key):
+            try:
+                self[key] = tsa.compute_level_breakdown(self._fact_df, level=key)
+            except Exception:
+                return default
         return super().get(key, default)
 
 
@@ -250,14 +305,7 @@ def create_snapshot(
     # Business Unit, Department, and Manager are computed eagerly (~1s total).
     # Employee breakdown (400+ entities) is wrapped in LazyBreakdowns to compute on-demand,
     # cutting 15-20s off dataset initialization.
-    standard_breakdowns = LazyBreakdowns(
-        fact_df,
-        {
-            "Business Unit": tsa.compute_level_breakdown(fact_df, level="Business Unit"),
-            "Department": tsa.compute_level_breakdown(fact_df, level="Department"),
-            "Reporting Manager": tsa.compute_level_breakdown(fact_df, level="Reporting Manager"),
-        }
-    )
+    standard_breakdowns = LazyBreakdowns(fact_df)
 
     # 5. Build Canonical Workforce Data Foundation lazily (0ms overhead)
     from workforce_intelligence.data_foundation import LazyWorkforceFoundation
@@ -420,6 +468,49 @@ class TimeSeriesSnapshotService:
         )
 
 
+
+    def sync_workforce_data_for_month(self, month_key: Optional[str] = "all") -> AnalyticalSnapshot:
+        """
+        Synchronize and load workforce attendance data for a specific month or all historical months.
+        Pulls from the verified historical archive or live Keka API.
+        """
+        from datetime import datetime
+        from workforce_intelligence.historical_sync import HistoricalSyncManager
+        h_sync = HistoricalSyncManager()
+
+        target_keys = None
+        if month_key and str(month_key).lower() != "all":
+            target_keys = [month_key]
+
+        df, summary = h_sync.load_unified_history(month_keys=target_keys)
+
+        if df is None or df.empty:
+            df, summary = h_sync.load_unified_history()
+
+        if df is None or df.empty:
+            raise RuntimeError("No workforce attendance records found in archive. Please import attendance files.")
+
+        ds_id = f"workforce_sync_{month_key}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        snap = create_snapshot(
+            df,
+            dataset_id=ds_id,
+        )
+        self.cache_manager.set_active_snapshot(snap)
+        try:
+            from workforce_intelligence.snapshot_bridge import workforce_bridge
+            workforce_bridge.invalidate_cache()
+            workforce_bridge.get_trend_intelligence("missing_swipe_rate")
+        except Exception:
+            pass
+        return snap
+
+    def sync_realtime_workforce_data(self) -> AnalyticalSnapshot:
+        """Default synchronization pipeline loading all unified months."""
+        return self.sync_workforce_data_for_month("all")
+
+
 # Global singleton service instance
 snapshot_service = TimeSeriesSnapshotService()
 get_active_snapshot = snapshot_service.get_active_snapshot
+sync_workforce_data_for_month = snapshot_service.sync_workforce_data_for_month
+sync_realtime_workforce_data = snapshot_service.sync_realtime_workforce_data

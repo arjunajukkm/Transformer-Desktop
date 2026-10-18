@@ -132,35 +132,51 @@ def build_leave_requests(
     approval_st_series = leave_df["Approval Status"] if "Approval Status" in leave_df.columns else pd.Series(None, index=leave_df.index)
 
     # Sort to ensure chronological continuity
+    leave_df["_lname_clean"] = leave_name_series.str.lower()
     leave_df["_sort_date"] = pd.to_datetime(leave_df["Date"], errors="coerce") if "Date" in leave_df.columns else pd.NaT
     leave_df["_orig_idx"] = leave_df.index
     leave_df = leave_df.sort_values(by=["Employee Number", "_sort_date", "_orig_idx"])
 
-    # Build deterministic grouping keys
-    group_keys = []
+    # Extract lists/arrays for C-speed sequential scanning
+    emps = leave_df["Employee Number"].fillna("UNKNOWN_EMP").astype(str).values
+    lnames = leave_df["_lname_clean"].values
+
+    app_col = leave_df["Applied On"] if "Applied On" in leave_df.columns else pd.Series(None, index=leave_df.index)
+    apr_on_col = leave_df["Approved On"] if "Approved On" in leave_df.columns else pd.Series(None, index=leave_df.index)
+    apr_by_col = leave_df["Approved By"] if "Approved By" in leave_df.columns else pd.Series("", index=leave_df.index)
+    apr_st_col = leave_df["Approval Status"] if "Approval Status" in leave_df.columns else pd.Series("", index=leave_df.index)
+
+    app_ons = [a.isoformat() if pd.notna(a) and hasattr(a, "isoformat") else str(a) for a in app_col]
+    apr_ons = [a.isoformat() if pd.notna(a) and hasattr(a, "isoformat") else str(a) for a in apr_on_col]
+    apr_bys = apr_by_col.astype(str).str.strip().str.lower().values
+    apr_sts = apr_st_col.astype(str).str.strip().str.lower().values
+    sort_dates = leave_df["_sort_date"].values
+
+    n_rows = len(leave_df)
+    group_keys = [None] * n_rows
     curr_group_id = 0
-    prev_row = None
+    prev_emp = None
+    prev_lname = None
+    prev_app = None
+    prev_apr_on = None
+    prev_apr_by = None
+    prev_apr_st = None
+    prev_date = None
 
-    for _, row in leave_df.iterrows():
-        emp = row.get("Employee Number")
-        lname = str(row.get("Leave Name") or row.get("Attendance Type") or "Leave").strip().lower()
-        app_on = row.get("Applied On")
-        app_on_str = app_on.isoformat() if pd.notna(app_on) and hasattr(app_on, "isoformat") else str(app_on)
-        apr_on = row.get("Approved On")
-        apr_on_str = apr_on.isoformat() if pd.notna(apr_on) and hasattr(apr_on, "isoformat") else str(apr_on)
-        apr_by = str(row.get("Approved By")).strip().lower()
-        apr_st = str(row.get("Approval Status")).strip().lower()
-        evt_dt_raw = pd.to_datetime(row.get("Date"), errors="coerce")
-        evt_date = evt_dt_raw if pd.notna(evt_dt_raw) else None
+    for i in range(n_rows):
+        emp = emps[i]
+        lname = lnames[i]
+        app_on_str = app_ons[i]
+        apr_on_str = apr_ons[i]
+        apr_by = apr_bys[i]
+        apr_st = apr_sts[i]
+        evt_date = sort_dates[i]
 
-        if prev_row is None:
+        if prev_emp is None:
             curr_group_id = 1
         else:
-            prev_emp, prev_lname, prev_app, prev_apr_on, prev_apr_by, prev_apr_st, prev_date = prev_row
-            # Check if this row belongs to the same request
             same_emp_leave = (emp == prev_emp) and (lname == prev_lname)
-            if pd.notna(app_on):
-                # Strongest evidence: Same employee, leave type, and applied on
+            if app_on_str not in ("None", "nan", "NaT", "NA"):
                 same_group = (
                     same_emp_leave
                     and (app_on_str == prev_app)
@@ -169,9 +185,8 @@ def build_leave_requests(
                     and (apr_st == prev_apr_st)
                 )
             else:
-                # If Applied On is missing, group consecutive calendar days
-                if same_emp_leave and prev_app == "None" and evt_date and prev_date:
-                    day_diff = (evt_date.floor("D") - prev_date.floor("D")).days
+                if same_emp_leave and prev_app in ("None", "nan", "NaT", "NA") and not np.isnat(evt_date) and not np.isnat(prev_date):
+                    day_diff = (evt_date.astype('datetime64[D]') - prev_date.astype('datetime64[D]')).astype(int)
                     same_group = (day_diff <= 1)
                 else:
                     same_group = False
@@ -179,85 +194,79 @@ def build_leave_requests(
             if not same_group:
                 curr_group_id += 1
 
-        group_keys.append(f"req_{curr_group_id:06d}")
-        prev_row = (emp, lname, app_on_str, apr_on_str, apr_by, apr_st, evt_date)
+        group_keys[i] = f"req_{curr_group_id:06d}"
+        prev_emp = emp
+        prev_lname = lname
+        prev_app = app_on_str
+        prev_apr_on = apr_on_str
+        prev_apr_by = apr_by
+        prev_apr_st = apr_st
+        prev_date = evt_date
 
     leave_df["request_id"] = group_keys
-
-    # Assign back to original dataframe
     df.loc[leave_df["_orig_idx"], "request_id"] = leave_df["request_id"]
 
-    # Reconstruct LeaveRequest objects
-    requests: List[LeaveRequest] = []
-    for req_id, group in leave_df.groupby("request_id", sort=False):
-        first_row = group.iloc[0]
-        emp_num = str(first_row.get("Employee Number") or "UNKNOWN")
-        emp_name = first_row.get("Employee Name")
-        emp_name = str(emp_name) if pd.notna(emp_name) else None
-        manager = first_row.get("Reporting Manager")
-        manager = str(manager) if pd.notna(manager) else None
-        leave_name = first_row.get("Leave Name") or first_row.get("Attendance Type")
-        leave_name_norm = str(leave_name).strip() if pd.notna(leave_name) else None
+    # Reconstruct LeaveRequest objects using high-performance pre-aggregations
+    grouped = leave_df.groupby("request_id", sort=False)
+    first_rows = leave_df.drop_duplicates(subset=["request_id"], keep="first").set_index("request_id")
+    min_dates = grouped["_sort_date"].min()
+    max_dates = grouped["_sort_date"].max()
+    qty_sums = grouped["Quantity"].sum() if "Quantity" in leave_df.columns else None
+    event_counts = grouped.size()
 
-        status_val = first_row.get("Status") or ""
+    dq_series = None
+    if "dq_analytical_daily_quantity_exceeds_one" in leave_df.columns:
+        dq_series = grouped["dq_analytical_daily_quantity_exceeds_one"].any()
+    elif "dq_daily_quantity_exceeds_one" in leave_df.columns:
+        dq_series = grouped["dq_daily_quantity_exceeds_one"].any()
+
+    rec_ids = grouped["record_id"].agg(list) if "record_id" in leave_df.columns else None
+    src_rows = grouped["source_row_number"].agg(list) if "source_row_number" in leave_df.columns else None
+
+    requests: List[LeaveRequest] = []
+    for req_id in first_rows.index:
+        frow = first_rows.loc[req_id]
+        emp_num = str(frow.get("Employee Number") or "UNKNOWN")
+        emp_name = frow.get("Employee Name")
+        emp_name = str(emp_name) if pd.notna(emp_name) else None
+        manager = frow.get("Reporting Manager")
+        manager = str(manager) if pd.notna(manager) else None
+        leave_name = frow.get("Leave Name") or frow.get("Attendance Type")
+        leave_name_norm = str(leave_name).strip() if pd.notna(leave_name) else None
+        status_val = frow.get("Status") or ""
         is_pl = config.is_pl_leave(leave_name_norm or "", str(status_val))
 
-        # Dates & Quantity
-        valid_dates = pd.to_datetime(group["Date"], errors="coerce").dropna()
-        start_date: Optional[date] = valid_dates.min().date() if not valid_dates.empty else None
-        end_date: Optional[date] = valid_dates.max().date() if not valid_dates.empty else None
+        min_dt = min_dates.get(req_id)
+        start_date = min_dt.date() if pd.notna(min_dt) else None
+        max_dt = max_dates.get(req_id)
+        end_date = max_dt.date() if pd.notna(max_dt) else None
 
-        # Total quantity
-        quantities = group["Quantity"].dropna() if "Quantity" in group.columns else pd.Series([], dtype=float)
-        if not quantities.empty:
-            total_qty = round(float(quantities.sum()), 4)
-        else:
-            total_qty = None
+        total_qty = round(float(qty_sums.get(req_id)), 4) if qty_sums is not None and pd.notna(qty_sums.get(req_id)) else None
+        event_cnt = int(event_counts.get(req_id, 1))
 
-        # Application & Approval metadata
-        applied_on_val = first_row.get("Applied On")
-        app_dt_raw = pd.to_datetime(applied_on_val, errors="coerce")
-        applied_dt: Optional[datetime] = (
-            app_dt_raw.to_pydatetime() if pd.notna(app_dt_raw) else None
-        )
+        app_val = frow.get("Applied On")
+        app_dt = pd.to_datetime(app_val, errors="coerce")
+        applied_dt = app_dt.to_pydatetime() if pd.notna(app_dt) else None
 
-        approved_on_val = first_row.get("Approved On")
-        apr_dt_raw = pd.to_datetime(approved_on_val, errors="coerce")
-        approved_dt: Optional[datetime] = (
-            apr_dt_raw.to_pydatetime() if pd.notna(apr_dt_raw) else None
-        )
+        apr_val = frow.get("Approved On")
+        apr_dt = pd.to_datetime(apr_val, errors="coerce")
+        approved_dt = apr_dt.to_pydatetime() if pd.notna(apr_dt) else None
 
-        approval_status = first_row.get("Approval Status")
-        approval_status_str = str(approval_status).strip() if pd.notna(approval_status) else None
+        apr_st = frow.get("Approval Status")
+        approval_status_str = str(apr_st).strip() if pd.notna(apr_st) else None
+        apr_by = frow.get("Approved By")
+        approved_by_str = str(apr_by).strip() if pd.notna(apr_by) else None
+        app_by_val = frow.get("Applied By") or frow.get("applied_by")
+        applied_by_str = str(app_by_val).strip() if pd.notna(app_by_val) else None
 
-        approved_by = first_row.get("Approved By")
-        approved_by_str = str(approved_by).strip() if pd.notna(approved_by) else None
+        req_lag_days = (applied_dt.date() - start_date).days if applied_dt and start_date else None
+        turnaround = (approved_dt.date() - applied_dt.date()).days if approved_dt and applied_dt else None
 
-        applied_by_val = first_row.get("Applied By") or first_row.get("applied_by")
-        applied_by_str = str(applied_by_val).strip() if pd.notna(applied_by_val) else None
+        r_ids = rec_ids.get(req_id, []) if rec_ids is not None else []
+        s_rows = src_rows.get(req_id, []) if src_rows is not None else []
+        has_dq = bool(dq_series.get(req_id, False)) if dq_series is not None else False
 
-        # Application lag from request start date
-        req_lag_days: Optional[int] = None
-        if applied_dt and start_date:
-            req_lag_days = (applied_dt.date() - start_date).days
-
-        # Turnaround days
-        turnaround: Optional[int] = None
-        if approved_dt and applied_dt:
-            turnaround = (approved_dt.date() - applied_dt.date()).days
-
-        # Traceability lists
-        record_ids = group["record_id"].tolist() if "record_id" in group.columns else []
-        source_rows = group["source_row_number"].tolist() if "source_row_number" in group.columns else []
-
-        # Data quality checks
-        has_dq_issue = False
-        if "dq_analytical_daily_quantity_exceeds_one" in group.columns:
-            has_dq_issue = bool(group["dq_analytical_daily_quantity_exceeds_one"].any())
-        elif "dq_daily_quantity_exceeds_one" in group.columns:
-            has_dq_issue = bool(group["dq_daily_quantity_exceeds_one"].any())
-
-        req = LeaveRequest(
+        requests.append(LeaveRequest(
             request_id=req_id,
             employee_number=emp_num,
             employee_name=emp_name,
@@ -266,7 +275,7 @@ def build_leave_requests(
             is_pl=is_pl,
             request_start_date=start_date,
             request_end_date=end_date,
-            request_event_rows=len(group),
+            request_event_rows=event_cnt,
             request_total_quantity=total_qty,
             applied_on=applied_dt,
             approved_on=approved_dt,
@@ -275,10 +284,9 @@ def build_leave_requests(
             applied_by=applied_by_str,
             request_application_lag_days=req_lag_days,
             approval_turnaround_days=turnaround,
-            record_ids=record_ids,
-            source_row_numbers=source_rows,
-            has_data_quality_issue=has_dq_issue,
-        )
-        requests.append(req)
+            record_ids=r_ids,
+            source_row_numbers=s_rows,
+            has_data_quality_issue=has_dq,
+        ))
 
     return requests, df

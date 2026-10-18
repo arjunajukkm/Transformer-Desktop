@@ -40,6 +40,20 @@ from workforce_intelligence.trends import (
 logger = logging.getLogger(__name__)
 
 
+def _safe_to_date(col_expr: pl.Expr) -> pl.Expr:
+    """Safely cast/parse column into Polars Date without format inference errors on NA/None/empty strings."""
+    return pl.coalesce([
+        col_expr.cast(pl.Date, strict=False),
+        col_expr.cast(pl.Utf8).str.slice(0, 10).str.to_date(format="%Y-%m-%d", strict=False),
+        col_expr.cast(pl.Utf8).str.to_date(format="%Y-%m-%d", strict=False),
+        col_expr.cast(pl.Utf8).str.to_date(format="%d-%b-%y", strict=False),
+        col_expr.cast(pl.Utf8).str.to_date(format="%d-%b-%Y", strict=False),
+        col_expr.cast(pl.Utf8).str.to_date(format="%d-%m-%Y", strict=False),
+        col_expr.cast(pl.Utf8).str.to_date(format="%Y/%m/%d", strict=False),
+        col_expr.cast(pl.Utf8).str.to_date(format="%d/%m/%Y", strict=False),
+    ])
+
+
 class OLAPRollupEngine:
     """
     High-performance in-memory analytical OLAP rollup engine.
@@ -132,9 +146,9 @@ class OLAPRollupEngine:
 
         # Month string "YYYY-MM-01"
         if "_date" in cols:
-            exprs.append(pl.col("_date").cast(pl.Utf8).str.slice(0, 7).add("-01").alias("_month"))
+            exprs.append(_safe_to_date(pl.col("_date")).dt.strftime("%Y-%m-01").fill_null("Unknown").alias("_month"))
         elif "Date" in cols:
-            exprs.append(pl.col("Date").cast(pl.Utf8).str.slice(0, 7).add("-01").alias("_month"))
+            exprs.append(_safe_to_date(pl.col("Date")).dt.strftime("%Y-%m-01").fill_null("Unknown").alias("_month"))
         else:
             exprs.append(pl.lit("Unknown").alias("_month"))
 
@@ -196,9 +210,9 @@ class OLAPRollupEngine:
 
         # Event date
         if "Date" in cols:
-            exprs.append(pl.col("Date").cast(pl.Utf8).str.slice(0, 10).str.to_date(strict=False).alias("_event_date"))
+            exprs.append(_safe_to_date(pl.col("Date")).alias("_event_date"))
         elif "_date" in cols:
-            exprs.append(pl.col("_date").cast(pl.Utf8).str.slice(0, 10).str.to_date(strict=False).alias("_event_date"))
+            exprs.append(_safe_to_date(pl.col("_date")).alias("_event_date"))
         else:
             exprs.append(pl.lit(None, dtype=pl.Date).alias("_event_date"))
 
@@ -211,8 +225,9 @@ class OLAPRollupEngine:
         # WFH / Approvals Applied On date & month
         app_on_col = "Applied On" if "Applied On" in cols else ("applied_on" if "applied_on" in cols else None)
         if app_on_col:
-            exprs.append(pl.col(app_on_col).cast(pl.Utf8).str.slice(0, 7).add("-01").alias("_app_month"))
-            exprs.append(pl.col(app_on_col).cast(pl.Utf8).str.slice(0, 10).str.to_date(strict=False).alias("_app_date"))
+            app_dt_expr = _safe_to_date(pl.col(app_on_col))
+            exprs.append(app_dt_expr.dt.strftime("%Y-%m-01").fill_null("Unknown").alias("_app_month"))
+            exprs.append(app_dt_expr.alias("_app_date"))
         else:
             exprs.append(pl.lit(None, dtype=pl.Utf8).alias("_app_month"))
             exprs.append(pl.lit(None, dtype=pl.Date).alias("_app_date"))
@@ -247,11 +262,58 @@ class OLAPRollupEngine:
         else:
             exprs.append(pl.lit("UNKNOWN").alias("_approval_state"))
 
-        # Turnaround days
+        # Turnaround days: use approval_turnaround_days if present, with fallback calculation
+        app_dt_c = "Applied On" if "Applied On" in cols else ("applied_on" if "applied_on" in cols else ("_applied_on" if "_applied_on" in cols else None))
+        apr_dt_c = "Approved On" if "Approved On" in cols else ("approved_on" if "approved_on" in cols else ("_approved_on" if "_approved_on" in cols else None))
+
         if "approval_turnaround_days" in cols:
-            exprs.append(pl.col("approval_turnaround_days").cast(pl.Float64, strict=False).alias("_turnaround_days"))
+            base_t = pl.col("approval_turnaround_days").cast(pl.Float64, strict=False)
+            if app_dt_c and apr_dt_c:
+                calc_t = (_safe_to_date(pl.col(apr_dt_c)) - _safe_to_date(pl.col(app_dt_c))).dt.total_days().cast(pl.Float64)
+                exprs.append(base_t.fill_null(calc_t).alias("_turnaround_days"))
+            else:
+                exprs.append(base_t.alias("_turnaround_days"))
+        elif app_dt_c and apr_dt_c:
+            calc_t = (_safe_to_date(pl.col(apr_dt_c)) - _safe_to_date(pl.col(app_dt_c))).dt.total_days().cast(pl.Float64)
+            exprs.append(calc_t.alias("_turnaround_days"))
         else:
             exprs.append(pl.lit(None, dtype=pl.Float64).alias("_turnaround_days"))
+
+        # Approver role (MANAGER vs ADMIN vs OTHER)
+        apr_by_c = "Approved By" if "Approved By" in cols else ("approved_by" if "approved_by" in cols else ("_approved_by" if "_approved_by" in cols else None))
+        if apr_by_c:
+            apr_by_clean = pl.col(apr_by_c).fill_null("").cast(pl.Utf8).str.strip_chars().str.to_lowercase()
+            exprs.append(
+                pl.when(apr_by_clean.str.contains("admin|management|hr|sys")).then(pl.lit("ADMIN"))
+                .when(apr_by_clean.str.contains("manager|rm|lead|supervisor")).then(pl.lit("MANAGER"))
+                .otherwise(pl.lit("OTHER"))
+                .alias("_approver_role")
+            )
+        else:
+            exprs.append(pl.lit("OTHER").alias("_approver_role"))
+
+        # Request type (LEAVE vs WFH vs OTHER)
+        att_c = "Attendance Type" if "Attendance Type" in cols else ("_att_type" if "_att_type" in cols else None)
+        ln_c = "Leave Name" if "Leave Name" in cols else ("_leave_name" if "_leave_name" in cols else None)
+        st_c = "Status" if "Status" in cols else ("_status" if "_status" in cols else None)
+
+        att_expr = pl.col(att_c).cast(pl.Utf8).str.to_lowercase() if att_c else pl.lit("")
+        ln_expr = pl.col(ln_c).cast(pl.Utf8).str.to_lowercase() if ln_c else pl.lit("")
+        st_expr = pl.col(st_c).cast(pl.Utf8).str.to_lowercase() if st_c else pl.lit("")
+
+        is_wfh_expr = att_expr.str.contains("wfh|work from home") | st_expr.is_in(["wfh", "work from home"])
+        is_leave_expr = ~is_wfh_expr & (
+            att_expr.str.contains("leave")
+            | ((ln_expr.str.len_bytes() > 0) & (ln_expr != "na") & (ln_expr != "none"))
+            | st_expr.is_in(["cl", "sl", "cl/sl", "clsl", "pl", "el", "gl", "wl", "hl", "ml", "pt", "bl", "spl", "ul", "fl", "hpl", "mcl", "cml", "adl", "adlm", "adm", "co", "leave", "l"])
+        )
+
+        exprs.append(
+            pl.when(is_leave_expr).then(pl.lit("LEAVE"))
+            .when(is_wfh_expr).then(pl.lit("WFH"))
+            .otherwise(pl.lit("OTHER"))
+            .alias("_req_type")
+        )
 
         # Request ID
         if "request_id" in cols:
@@ -284,8 +346,9 @@ class OLAPRollupEngine:
 
         # Month
         if "request_start_date" in cols:
-            exprs.append(pl.col("request_start_date").cast(pl.Utf8).str.slice(0, 7).add("-01").alias("_month"))
-            exprs.append(pl.col("request_start_date").cast(pl.Utf8).str.slice(0, 10).str.to_date(strict=False).alias("_st_dt"))
+            st_expr = _safe_to_date(pl.col("request_start_date"))
+            exprs.append(st_expr.dt.strftime("%Y-%m-01").fill_null("Unknown").alias("_month"))
+            exprs.append(st_expr.alias("_st_dt"))
         elif "_month" in cols:
             exprs.append(pl.col("_month").cast(pl.Utf8).alias("_month"))
             exprs.append(pl.lit(None, dtype=pl.Date).alias("_st_dt"))
@@ -295,9 +358,9 @@ class OLAPRollupEngine:
 
         # Applied On
         if "applied_on" in cols:
-            exprs.append(pl.col("applied_on").cast(pl.Utf8).str.slice(0, 10).str.to_date(strict=False).alias("_app_dt"))
+            exprs.append(_safe_to_date(pl.col("applied_on")).alias("_app_dt"))
         elif "Applied On" in cols:
-            exprs.append(pl.col("Applied On").cast(pl.Utf8).str.slice(0, 10).str.to_date(strict=False).alias("_app_dt"))
+            exprs.append(_safe_to_date(pl.col("Applied On")).alias("_app_dt"))
         else:
             exprs.append(pl.lit(None, dtype=pl.Date).alias("_app_dt"))
 
@@ -384,11 +447,13 @@ class OLAPRollupEngine:
         exprs = []
 
         if "Date" in cols:
-            exprs.append(pl.col("Date").cast(pl.Utf8).str.slice(0, 7).add("-01").alias("_month"))
-            exprs.append(pl.col("Date").cast(pl.Utf8).str.slice(0, 10).str.to_date(strict=False).alias("_event_date"))
+            dt_expr = _safe_to_date(pl.col("Date"))
+            exprs.append(dt_expr.dt.strftime("%Y-%m-01").fill_null("Unknown").alias("_month"))
+            exprs.append(dt_expr.alias("_event_date"))
         elif "_date" in cols:
-            exprs.append(pl.col("_date").cast(pl.Utf8).str.slice(0, 7).add("-01").alias("_month"))
-            exprs.append(pl.col("_date").cast(pl.Utf8).str.slice(0, 10).str.to_date(strict=False).alias("_event_date"))
+            dt_expr = _safe_to_date(pl.col("_date"))
+            exprs.append(dt_expr.dt.strftime("%Y-%m-01").fill_null("Unknown").alias("_month"))
+            exprs.append(dt_expr.alias("_event_date"))
         else:
             exprs.append(pl.lit("Unknown").alias("_month"))
             exprs.append(pl.lit(None, dtype=pl.Date).alias("_event_date"))
@@ -897,13 +962,16 @@ class OLAPRollupEngine:
 
         if date_range and len(date_range) == 2 and date_col and date_col in sub.columns:
             raw_start, raw_end = date_range
-            if raw_start is not None and raw_end is not None:
-                start_d = raw_start.date() if isinstance(raw_start, datetime) else raw_start
-                end_d = raw_end.date() if isinstance(raw_end, datetime) else raw_end
-                if isinstance(start_d, date) and isinstance(end_d, date):
-                    if start_d > end_d:
-                        return sub.clear()
-                    sub = sub.filter((pl.col(date_col) >= pl.lit(start_d, dtype=pl.Date)) & (pl.col(date_col) <= pl.lit(end_d, dtype=pl.Date)))
+            start_d = (raw_start.date() if isinstance(raw_start, datetime) else raw_start) if raw_start is not None else None
+            end_d = (raw_end.date() if isinstance(raw_end, datetime) else raw_end) if raw_end is not None else None
+            if isinstance(start_d, date) and isinstance(end_d, date):
+                if start_d > end_d:
+                    return sub.clear()
+                sub = sub.filter((pl.col(date_col) >= pl.lit(start_d, dtype=pl.Date)) & (pl.col(date_col) <= pl.lit(end_d, dtype=pl.Date)))
+            elif isinstance(start_d, date):
+                sub = sub.filter(pl.col(date_col) >= pl.lit(start_d, dtype=pl.Date))
+            elif isinstance(end_d, date):
+                sub = sub.filter(pl.col(date_col) <= pl.lit(end_d, dtype=pl.Date))
 
         return sub
 
@@ -1459,7 +1527,7 @@ class OLAPRollupEngine:
             return []
 
         # Multi-dimensional Rollup Cube routing for additive approval metrics (< 0.1ms)
-        if date_range is None and not self._approval_cube.is_empty() and metric_def.id in ("pending_approval_count", "average_approval_turnaround"):
+        if date_range is None and not self._approval_cube.is_empty() and metric_def.id == "pending_approval_count":
             sub = self._filter_polars(
                 self._approval_cube,
                 business_unit=business_unit,
@@ -1545,16 +1613,31 @@ class OLAPRollupEngine:
             (as_of_lit - pl.col("_app_date")).dt.total_days().alias("_age_days")
         )
 
+        is_appr = pl.col("_approval_state") == "APPROVED"
+        is_leave = pl.col("_req_type") == "LEAVE"
+        is_wfh = pl.col("_req_type") == "WFH"
+        is_mgr = pl.col("_approver_role") == "MANAGER"
+        is_adm = pl.col("_approver_role") == "ADMIN"
+
         agg_df = (
             sub
             .group_by("_app_month")
             .agg([
-                pl.col("_turnaround_days").filter(pl.col("_approval_state") == "APPROVED").median().alias("med_turnaround"),
-                pl.col("_turnaround_days").filter(pl.col("_approval_state") == "APPROVED").mean().alias("avg_turnaround"),
-                pl.col("_turnaround_days").filter(pl.col("_approval_state") == "APPROVED").count().alias("obs_turnaround"),
+                pl.col("_turnaround_days").filter(is_appr).median().alias("med_turnaround"),
+                pl.col("_turnaround_days").filter(is_appr).mean().alias("avg_turnaround"),
+                pl.col("_turnaround_days").filter(is_appr).count().alias("obs_turnaround"),
                 (pl.col("_approval_state") == "PENDING").sum().alias("pending_count"),
                 pl.col("_age_days").filter((pl.col("_approval_state") == "PENDING") & (pl.col("_age_days") >= 0)).mean().alias("avg_age"),
                 pl.col("_age_days").filter((pl.col("_approval_state") == "PENDING") & (pl.col("_age_days") >= 0)).count().alias("obs_age"),
+                # Breakdown metrics by request type and approver role
+                pl.col("_turnaround_days").filter(is_appr & is_leave & is_mgr).median().alias("med_leave_mgr"),
+                pl.col("_turnaround_days").filter(is_appr & is_leave & is_mgr).mean().alias("avg_leave_mgr"),
+                pl.col("_turnaround_days").filter(is_appr & is_leave & is_adm).median().alias("med_leave_admin"),
+                pl.col("_turnaround_days").filter(is_appr & is_leave & is_adm).mean().alias("avg_leave_admin"),
+                pl.col("_turnaround_days").filter(is_appr & is_wfh & is_mgr).median().alias("med_wfh_mgr"),
+                pl.col("_turnaround_days").filter(is_appr & is_wfh & is_mgr).mean().alias("avg_wfh_mgr"),
+                pl.col("_turnaround_days").filter(is_appr & is_wfh & is_adm).median().alias("med_wfh_admin"),
+                pl.col("_turnaround_days").filter(is_appr & is_wfh & is_adm).mean().alias("avg_wfh_admin"),
             ])
             .sort("_app_month")
         )
@@ -1565,17 +1648,26 @@ class OLAPRollupEngine:
             p_month = r["_app_month"]
             val: Optional[float] = None
             valid_obs = 0
+            lm_v = la_v = wm_v = wa_v = None
 
             if metric_def.id == "median_approval_turnaround":
                 v = r.get("med_turnaround")
                 val = round(float(v), 2) if v is not None else None
                 valid_obs = r.get("obs_turnaround", 0)
                 fmt_type = "days"
+                lm_v = r.get("med_leave_mgr")
+                la_v = r.get("med_leave_admin")
+                wm_v = r.get("med_wfh_mgr")
+                wa_v = r.get("med_wfh_admin")
             elif metric_def.id == "average_approval_turnaround":
                 v = r.get("avg_turnaround")
                 val = round(float(v), 2) if v is not None else None
                 valid_obs = r.get("obs_turnaround", 0)
                 fmt_type = "days"
+                lm_v = r.get("avg_leave_mgr")
+                la_v = r.get("avg_leave_admin")
+                wm_v = r.get("avg_wfh_mgr")
+                wa_v = r.get("avg_wfh_admin")
             elif metric_def.id == "pending_approval_count":
                 cnt = r.get("pending_count", 0)
                 val = float(cnt)
@@ -1586,6 +1678,11 @@ class OLAPRollupEngine:
                 val = round(float(v), 2) if v is not None else None
                 valid_obs = r.get("obs_age", 0)
                 fmt_type = "days"
+
+            lm_val = round(float(lm_v), 2) if lm_v is not None else None
+            la_val = round(float(la_v), 2) if la_v is not None else None
+            wm_val = round(float(wm_v), 2) if wm_v is not None else None
+            wa_val = round(float(wa_v), 2) if wa_v is not None else None
 
             vol_st = classify_volume_status(valid_obs)
             vol_lbl = f"Volume: {vol_st.capitalize()} · {valid_obs} observation{'s' if valid_obs != 1 else ''}"
@@ -1600,6 +1697,14 @@ class OLAPRollupEngine:
                 denominator=valid_obs,
                 volume_status=vol_st,
                 volume_label=vol_lbl,
+                leave_mgr=lm_val,
+                leave_mgr_formatted=format_metric_value(lm_val, fmt_type, metric_def.id) if lm_val is not None else "—",
+                leave_admin=la_val,
+                leave_admin_formatted=format_metric_value(la_val, fmt_type, metric_def.id) if la_val is not None else "—",
+                wfh_mgr=wm_val,
+                wfh_mgr_formatted=format_metric_value(wm_val, fmt_type, metric_def.id) if wm_val is not None else "—",
+                wfh_admin=wa_val,
+                wfh_admin_formatted=format_metric_value(wa_val, fmt_type, metric_def.id) if wa_val is not None else "—",
             ))
 
         return points

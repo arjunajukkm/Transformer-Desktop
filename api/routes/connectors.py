@@ -10,9 +10,11 @@ from __future__ import annotations
 import os
 import time
 import logging
+import threading
 from datetime import datetime, date
+from pathlib import Path
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from pydantic import BaseModel, Field
 
 import pandas as pd
@@ -33,6 +35,9 @@ _SYNC_STATE = {
     "slack_last_event": "None",
     "sync_in_progress": False,
 }
+
+# Live async sync jobs tracker
+_ACTIVE_SYNC_JOBS: Dict[str, Dict[str, Any]] = {}
 
 
 class KekaConfig(BaseModel):
@@ -186,130 +191,422 @@ def save_keka_configuration(config: KekaConfig, user: UserPersona = Depends(get_
     }
 
 
-def execute_keka_sync_pipeline() -> Dict[str, Any]:
+@router.get("/keka/months")
+def get_available_sync_months(user: UserPersona = Depends(get_current_user)):
+    """
+    Get list of all available months that can be synced (from verified local archive or live API).
+    """
+    from workforce_intelligence.historical_sync import HistoricalSyncManager
+    h_sync = HistoricalSyncManager()
+    reg = h_sync.load_registry()
+    synced_months = reg.get("months", {})
+
+    months_list = []
+    total_records = 0
+    for m_key in sorted(synced_months.keys(), reverse=True):
+        info = synced_months[m_key]
+        rc = info.get("record_count", 0)
+        total_records += rc
+        months_list.append({
+            "month_key": m_key,
+            "display_name": info.get("display_name", m_key),
+            "record_count": rc,
+            "headcount": info.get("headcount", 0),
+            "is_current": (m_key == "2026-10"),
+            "last_synced": info.get("last_synced", ""),
+        })
+
+    all_option = {
+        "month_key": "all",
+        "display_name": "All Months (Unified: Jul – Oct 2026)",
+        "record_count": total_records,
+        "headcount": max([m.get("headcount", 0) for m in months_list], default=0),
+        "is_current": False,
+    }
+
+    return {
+        "all_option": all_option,
+        "months": months_list,
+        "active_synced_month": _SYNC_STATE.get("active_month", "all"),
+    }
+
+
+def execute_keka_sync_pipeline(month: str = "all") -> Dict[str, Any]:
     """
     Execute full automated Keka Data Sync Pipeline.
-    Extracts live workforce records, builds Polars OLAP Hypercubes, and warms decision models.
-    Can be invoked by HTTP routes or background scheduler workers.
+    1. Connects to Keka HRMS via API / Portal automation.
+    2. Enforces past-month synchronization: For any requested month, the preceding
+       calendar month is also synchronized to capture retroactive regularizations,
+       leave adjustments, and revised punches.
+    3. Saves updated datasets to local Parquet/Excel archives and registry.
+    4. Builds and warms in-memory Polars OLAP Hypercubes.
+    5. Fully recalculates and persists daily materialized analytical store.
     """
     t0 = time.perf_counter()
     _SYNC_STATE["sync_in_progress"] = True
 
     try:
-        subdomain = os.getenv("KEKA_SUBDOMAIN", "moshpit")
-        client_id = os.getenv("KEKA_CLIENT_ID", "")
-        client_secret = os.getenv("KEKA_CLIENT_SECRET", "")
+        from workforce_intelligence.historical_sync import HistoricalSyncManager
+        h_sync = HistoricalSyncManager()
 
-        synced_df: Optional[pd.DataFrame] = None
+        # Rule: For any month at any point of time, sync for the past month also happens
+        target_sync_months = h_sync.resolve_sync_target_months(month)
 
-        # 1. Try live fetch if credentials exist
-        if client_id and client_secret:
+        # Check credentials and attempt live fetch
+        subdomain = id_card.clean_keka_subdomain(os.getenv("KEKA_SUBDOMAIN", "moshpit"))
+        client_id = os.getenv("KEKA_CLIENT_ID", "").strip()
+        client_secret = os.getenv("KEKA_CLIENT_SECRET", "").strip()
+        api_key = os.getenv("KEKA_API_KEY", "").strip()
+        keka_email = os.getenv("KEKA_LOGIN_EMAIL", "").strip()
+        keka_password = os.getenv("KEKA_LOGIN_PASSWORD", "").strip()
+
+        has_creds = bool(api_key or (client_id and client_secret) or (keka_email and keka_password))
+
+        if has_creds:
             try:
                 from keka_data_fetcher import KekaDataFetcher
-                fetcher = KekaDataFetcher(subdomain=subdomain)
-                emp_res = fetcher.fetch_employee_master()
-                emp_df = emp_res[0] if isinstance(emp_res, tuple) else emp_res
-                if emp_df is not None and hasattr(emp_df, "empty") and not emp_df.empty:
-                    # Enrich with dates for trend modeling
-                    logger.info(f"Live Keka employee directory fetched successfully ({len(emp_df)} records).")
-            except Exception as e:
-                logger.warning(f"Live Keka fetch encountered error: {e}. Falling back to enterprise generator.")
+                fetcher = KekaDataFetcher(
+                    subdomain=subdomain,
+                    api_key=api_key,
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    keka_email=keka_email,
+                    keka_password=keka_password,
+                )
+                # Historical closed months with verified portal archives should not be clobbered by raw API punch synthesis
+                live_sync_months = [m for m in target_sync_months if m >= "2026-10"] if month == "all" else target_sync_months
+                logger.info(f"Triggering live Keka sync for months: {live_sync_months} (requested: {month})")
+                sync_res = h_sync.sync_multiple_months_keka(
+                    month_keys=live_sync_months,
+                    keka_fetcher=fetcher,
+                )
+                logger.info(f"Keka sync completed: {sync_res.get('total_records', 0)} records processed.")
+            except Exception as keka_err:
+                logger.warning(f"Live Keka fetch encountered notice: {keka_err}. Using local archive records.")
 
-        # 2. High-volume enterprise generation if live API returned empty
+
+        # Load unified multi-month historical workforce records from local archive
+        synced_df, summary = h_sync.load_unified_history()
+
         if synced_df is None or synced_df.empty:
-            dates = [
-                date(2026, 5, 10), date(2026, 5, 15), date(2026, 5, 20),
-                date(2026, 6, 10), date(2026, 6, 15), date(2026, 6, 20),
-                date(2026, 7, 10), date(2026, 7, 15), date(2026, 7, 20),
-            ]
-            bus = ["Engineering", "Lending", "Operations", "Product", "Sales"]
-            emp_ids = list(range(101, 151))  # 50 employees across 5 BUs
+            raise HTTPException(status_code=400, detail="No workforce attendance records found in historical archive.")
 
-            records = []
-            for d in dates:
-                for idx, emp_id in enumerate(emp_ids):
-                    bu = bus[idx % len(bus)]
-                    # Inject realistic patterns: Lending has single swipe in July
-                    if bu == "Lending" and d.month == 7 and (idx % 2 == 0):
-                        att_type = "Single Swipe"
-                        in_t = "10:15"
-                        out_t = ""
-                        exc_flag = "Missing Out Punch"
-                        status = "P(MS)"
-                    elif idx % 7 == 0:
-                        att_type = "Absent"
-                        in_t = ""
-                        out_t = ""
-                        exc_flag = "Unexcused Absence"
-                        status = "A"
-                    elif idx % 4 == 0:
-                        att_type = "Present"
-                        in_t = "09:35"
-                        out_t = "18:45"
-                        exc_flag = ""
-                        status = "P"
-                    else:
-                        att_type = "Present"
-                        in_t = "09:05"
-                        out_t = "18:15"
-                        exc_flag = ""
-                        status = "P"
-
-                    records.append({
-                        "Date": d,
-                        "Employee No": f"KEKA-{emp_id}",
-                        "Employee Name": f"Employee {emp_id}",
-                        "Business Unit": bu,
-                        "Department": f"{bu} Operations",
-                        "Reporting Manager": f"Manager {bu}",
-                        "Attendance Type": att_type,
-                        "Status": status,
-                        "First In": in_t,
-                        "Last Out": out_t,
-                        "Total Duration": "09:10" if out_t else ("04:00" if in_t else "00:00"),
-                        "Exceptions": exc_flag,
-                        "Leave Type": "",
-                        "Leave Status": "",
-                    })
-
-            synced_df = pd.DataFrame(records)
-
-        # 3. Register into snapshot lakehouse and warm OLAP hypercube
+        # Register into snapshot lakehouse and warm OLAP hypercube
+        ds_id = f"workforce_sync_{month}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         snap = create_snapshot(
             synced_df,
-            dataset_id=f"keka_live_sync_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            dataset_id=ds_id,
         )
         snapshot_cache.set_active_snapshot(snap)
         workforce_bridge.invalidate_cache()
         workforce_bridge.get_trend_intelligence("missing_swipe_rate")
 
+        # Invalidate and recalculate daily materialized analytical store so portal immediately shows updated data
+        try:
+            from storage.materialized_store import materialized_store
+            materialized_store.precalculate_all(snap=snap, force=True)
+            materialized_store.save_to_disk()
+            logger.info("Materialized analytical store refreshed with revised Keka data.")
+        except Exception as mat_err:
+            logger.warning(f"Materialized store recalculation notice: {mat_err}")
+
+        synced_names = [h_sync.get_month_display_name(m) for m in target_sync_months]
+        disp_month = ", ".join(synced_names)
         t_elapsed = round((time.perf_counter() - t0) * 1000, 2)
+
+        emp_col = "Employee Number" if "Employee Number" in synced_df.columns else "_emp_num"
+        bu_col = "Business Unit" if "Business Unit" in synced_df.columns else "_bu"
+        emp_count = int(synced_df[emp_col].nunique()) if emp_col in synced_df.columns else 0
+        bu_list = sorted(synced_df[bu_col].dropna().unique().tolist()) if bu_col in synced_df.columns else []
+
         _SYNC_STATE["keka_last_sync"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         _SYNC_STATE["keka_records_synced"] = len(synced_df)
-        _SYNC_STATE["keka_employees_synced"] = synced_df["Employee No"].nunique()
+        _SYNC_STATE["keka_employees_synced"] = emp_count
+        _SYNC_STATE["active_month"] = month
+
+        diff_data = h_sync.get_latest_diff(month if month != "all" else target_sync_months[-1])
 
         return {
             "status": "success",
-            "message": f"Keka live sync completed. Ingested {len(synced_df):,} records across {synced_df['Business Unit'].nunique()} BUs.",
+            "message": f"Successfully synced {disp_month} from Keka ({len(synced_df):,} total records across {emp_count:,} employees).",
             "dataset_id": snap.dataset_id,
+            "month_synced": month,
+            "months_synced": target_sync_months,
+            "display_month": disp_month,
             "records_synced": len(synced_df),
-            "employees_synced": synced_df["Employee No"].nunique(),
-            "business_units": sorted(synced_df["Business Unit"].unique().tolist()),
+            "employees_synced": emp_count,
+            "business_units": bu_list,
             "execution_time_ms": t_elapsed,
+            "diff_summary": diff_data.get("summary") if diff_data else None,
+            "diff_records": diff_data.get("records", []) if diff_data else [],
         }
     finally:
         _SYNC_STATE["sync_in_progress"] = False
 
 
-@router.post("/keka/sync")
-def sync_keka_pipeline(user: UserPersona = Depends(get_current_user)):
+def _async_keka_sync_worker(job_id: str, month: str, include_prior_month: bool):
     """
-    Execute full automated Keka Data Sync Pipeline.
-    Extracts live workforce records, builds Polars OLAP Hypercubes, and warms decision models.
+    Background worker thread executing real-time Keka ingestion with continuous telemetry.
+    """
+    try:
+        from workforce_intelligence.historical_sync import HistoricalSyncManager
+        h_sync = HistoricalSyncManager()
+
+        _ACTIVE_SYNC_JOBS[job_id]["progress"] = 0.05
+        _ACTIVE_SYNC_JOBS[job_id]["current_step"] = "Resolving Calendar Scope..."
+        _ACTIVE_SYNC_JOBS[job_id]["detail"] = f"Target Month: {month}"
+
+        if month == "all":
+            target_months = [m for m in h_sync.resolve_sync_target_months("all") if m >= "2026-10"]
+        else:
+            target_months = [month]
+            if include_prior_month:
+                prior = h_sync.get_previous_month_key(month)
+                min_api_month_key = h_sync.format_month_key(h_sync.get_keka_api_window_start())
+                if prior >= min_api_month_key:
+                    target_months.insert(0, prior)
+
+        subdomain = id_card.clean_keka_subdomain(os.getenv("KEKA_SUBDOMAIN", "moshpit"))
+        client_id = os.getenv("KEKA_CLIENT_ID", "").strip()
+        client_secret = os.getenv("KEKA_CLIENT_SECRET", "").strip()
+        api_key = os.getenv("KEKA_API_KEY", "").strip()
+        keka_email = os.getenv("KEKA_LOGIN_EMAIL", "").strip()
+        keka_password = os.getenv("KEKA_LOGIN_PASSWORD", "").strip()
+
+        has_creds = bool(api_key or (client_id and client_secret) or (keka_email and keka_password))
+        if not has_creds:
+            raise Exception("No active Keka credentials configured. Please check Connectors settings.")
+
+        _ACTIVE_SYNC_JOBS[job_id]["progress"] = 0.15
+        _ACTIVE_SYNC_JOBS[job_id]["current_step"] = "Authenticating with Keka API Gateway..."
+        _ACTIVE_SYNC_JOBS[job_id]["detail"] = f"Connecting to {subdomain}.keka.com..."
+
+        from keka_data_fetcher import KekaDataFetcher
+        fetcher = KekaDataFetcher(
+            subdomain=subdomain,
+            api_key=api_key,
+            client_id=client_id,
+            client_secret=client_secret,
+            keka_email=keka_email,
+            keka_password=keka_password,
+        )
+
+        def _batch_prog(idx, total, disp_name, pct, msg):
+            overall_pct = 0.20 + (idx - 1) / max(total, 1) * 0.55 + (pct * 0.55 / max(total, 1))
+            _ACTIVE_SYNC_JOBS[job_id]["progress"] = round(min(overall_pct, 0.85), 2)
+            _ACTIVE_SYNC_JOBS[job_id]["current_step"] = f"Ingesting {disp_name} ({idx}/{total})..."
+            _ACTIVE_SYNC_JOBS[job_id]["detail"] = msg
+
+        sync_res = h_sync.sync_multiple_months_keka(
+            month_keys=target_months,
+            keka_fetcher=fetcher,
+            batch_progress_callback=_batch_prog
+        )
+
+        _ACTIVE_SYNC_JOBS[job_id]["progress"] = 0.88
+        _ACTIVE_SYNC_JOBS[job_id]["current_step"] = "Reconciling Consolidated Lakehouse..."
+        _ACTIVE_SYNC_JOBS[job_id]["detail"] = "Loading multi-month unified attendance records..."
+
+        synced_df, summary = h_sync.load_unified_history()
+        if synced_df is None or synced_df.empty:
+            raise Exception("No attendance records returned from Keka sync.")
+
+        ds_id = f"workforce_sync_{month}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        snap = create_snapshot(synced_df, dataset_id=ds_id)
+        snapshot_cache.set_active_snapshot(snap)
+        workforce_bridge.invalidate_cache()
+
+        _ACTIVE_SYNC_JOBS[job_id]["progress"] = 0.95
+        _ACTIVE_SYNC_JOBS[job_id]["current_step"] = "Refreshing Materialized OLAP Cubes..."
+        _ACTIVE_SYNC_JOBS[job_id]["detail"] = "Pre-calculating executive matrices for instant response..."
+
+        try:
+            from storage.materialized_store import materialized_store
+            materialized_store.precalculate_all(snap=snap, force=True)
+            materialized_store.save_to_disk()
+        except Exception as mat_err:
+            logger.warning(f"Materialized store warning during sync job: {mat_err}")
+
+        primary_target = month if month != "all" else target_months[-1]
+        diff_data = h_sync.get_latest_diff(primary_target)
+
+        emp_col = "Employee Number" if "Employee Number" in synced_df.columns else "_emp_num"
+        emp_count = int(synced_df[emp_col].nunique()) if emp_col in synced_df.columns else 0
+
+        _SYNC_STATE["keka_last_sync"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        _SYNC_STATE["keka_records_synced"] = len(synced_df)
+        _SYNC_STATE["keka_employees_synced"] = emp_count
+        _SYNC_STATE["active_month"] = month
+
+        _ACTIVE_SYNC_JOBS[job_id]["progress"] = 1.0
+        _ACTIVE_SYNC_JOBS[job_id]["status"] = "completed"
+        _ACTIVE_SYNC_JOBS[job_id]["current_step"] = "Sync Completed Successfully"
+        _ACTIVE_SYNC_JOBS[job_id]["detail"] = f"Ingested {len(synced_df):,} records for {len(target_months)} calendar month(s)."
+        _ACTIVE_SYNC_JOBS[job_id]["diff_summary"] = diff_data.get("summary") if diff_data else None
+        _ACTIVE_SYNC_JOBS[job_id]["diff_records"] = diff_data.get("records") if diff_data else []
+        _ACTIVE_SYNC_JOBS[job_id]["synced_months"] = target_months
+        _ACTIVE_SYNC_JOBS[job_id]["total_records"] = len(synced_df)
+        _ACTIVE_SYNC_JOBS[job_id]["headcount"] = emp_count
+
+    except Exception as e:
+        logger.error(f"Sync job {job_id} encountered error: {e}", exc_info=True)
+        _ACTIVE_SYNC_JOBS[job_id]["status"] = "failed"
+        _ACTIVE_SYNC_JOBS[job_id]["progress"] = 1.0
+        _ACTIVE_SYNC_JOBS[job_id]["error"] = str(e)
+        _ACTIVE_SYNC_JOBS[job_id]["current_step"] = "Sync Failed"
+        _ACTIVE_SYNC_JOBS[job_id]["detail"] = str(e)
+
+
+@router.post("/keka/sync-job")
+def start_keka_sync_job(
+    payload: Optional[Dict[str, Any]] = None,
+    user: UserPersona = Depends(get_current_user)
+):
+    """
+    Launch asynchronous Keka sync job with live progress and differential calculation.
+    """
+    if not user.can_manage_connectors:
+        raise HTTPException(status_code=403, detail="Forbidden: Connector management requires Super Admin privileges.")
+
+    target_month = (payload or {}).get("month", "all")
+    include_prior = bool((payload or {}).get("include_prior_month", True))
+
+    job_id = f"job_{int(time.time() * 1000)}"
+    _ACTIVE_SYNC_JOBS[job_id] = {
+        "job_id": job_id,
+        "month": target_month,
+        "status": "running",
+        "progress": 0.02,
+        "current_step": "Initializing Sync Pipeline...",
+        "detail": "Preparing worker thread...",
+        "started_at": datetime.now().isoformat(),
+        "diff_summary": None,
+        "diff_records": [],
+        "error": None,
+    }
+
+    t = threading.Thread(target=_async_keka_sync_worker, args=(job_id, target_month, include_prior), daemon=True)
+    t.start()
+
+    return {
+        "status": "started",
+        "job_id": job_id,
+        "month": target_month,
+    }
+
+
+@router.get("/keka/sync-job/{job_id}")
+def get_keka_sync_job_status(job_id: str, user: UserPersona = Depends(get_current_user)):
+    """Poll progress, current step, and differential report for a running sync job."""
+    if job_id not in _ACTIVE_SYNC_JOBS:
+        raise HTTPException(status_code=404, detail="Sync job not found or expired.")
+    return _ACTIVE_SYNC_JOBS[job_id]
+
+
+@router.get("/keka/diff/{month}")
+def get_keka_month_diff(month: str, user: UserPersona = Depends(get_current_user)):
+    """Retrieve the latest differential comparison report for a specific calendar month."""
+    from workforce_intelligence.historical_sync import HistoricalSyncManager
+    h_sync = HistoricalSyncManager()
+    diff = h_sync.get_latest_diff(month)
+    if not diff:
+        return {
+            "month_key": month,
+            "display_name": h_sync.get_month_display_name(month),
+            "synced_at": "Never",
+            "summary": {
+                "total_previous_records": 0,
+                "total_new_records": 0,
+                "records_modified": 0,
+                "records_added": 0,
+                "records_unchanged": 0,
+                "absences_resolved": 0,
+                "leaves_updated": 0,
+                "wfh_updated": 0,
+                "regularizations_applied": 0,
+                "headcount_delta": 0,
+            },
+            "records": []
+        }
+    return diff
+
+
+@router.post("/keka/sync-file")
+async def sync_keka_by_file(
+    file: UploadFile = File(...),
+    month: Optional[str] = Form(None),
+    user: UserPersona = Depends(get_current_user)
+):
+    """
+    Import and synchronize a Keka attendance export file directly for a chosen month.
+    Computes differential delta, updates local archive, rewarms lakehouse and OLAP cache.
     """
     if not user.can_manage_connectors:
         raise HTTPException(status_code=403, detail="Forbidden: Super Admin privileges required.")
-    return execute_keka_sync_pipeline()
+
+    import shutil
+    import tempfile
+    from workforce_intelligence.historical_sync import HistoricalSyncManager
+    from storage.snapshot_service import create_snapshot
+    from storage.cache_manager import snapshot_cache
+    from workforce_intelligence.snapshot_bridge import workforce_bridge
+    from storage.materialized_store import materialized_store
+
+    suffix = Path(file.filename).suffix if file.filename else ".xlsx"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = Path(tmp.name)
+
+    try:
+        h_sync = HistoricalSyncManager()
+        res = h_sync.import_attendance_file(tmp_path, target_month_key=month)
+        if not res.get("success"):
+            raise HTTPException(status_code=400, detail=res.get("error", "File import failed."))
+
+        # Re-warm lakehouse and materialized cache
+        synced_df, summary = h_sync.load_unified_history()
+        ds_id = f"workforce_sync_file_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        snap = create_snapshot(synced_df, dataset_id=ds_id)
+        snapshot_cache.set_active_snapshot(snap)
+        workforce_bridge.invalidate_cache()
+
+        try:
+            materialized_store.precalculate_all(snap=snap, force=True)
+            materialized_store.save_to_disk()
+        except Exception:
+            pass
+
+        target_month_key = month or (res["imported_months"][0] if res["imported_months"] else "all")
+        diff_data = res.get("latest_diff") or h_sync.get_latest_diff(target_month_key)
+
+        return {
+            "status": "success",
+            "message": f"Successfully imported and synced {res['total_records']:,} records for {', '.join(res['imported_months'])}.",
+            "imported_months": res["imported_months"],
+            "total_records": res["total_records"],
+            "diff_summary": diff_data.get("summary") if diff_data else None,
+            "diff_records": diff_data.get("records") if diff_data else [],
+        }
+    finally:
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except Exception:
+                pass
+
+
+@router.post("/keka/sync")
+def sync_keka_pipeline(
+    payload: Optional[Dict[str, Any]] = None,
+    user: UserPersona = Depends(get_current_user)
+):
+    """
+    Execute full automated Keka Data Sync Pipeline for all months or a specified month.
+    """
+    if not user.can_manage_connectors:
+        raise HTTPException(status_code=403, detail="Forbidden: Super Admin privileges required.")
+    target_month = (payload or {}).get("month", "all")
+    return execute_keka_sync_pipeline(month=target_month)
 
 
 @router.post("/slack/test")

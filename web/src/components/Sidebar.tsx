@@ -11,14 +11,13 @@ import {
   LayoutDashboard,
   ChevronLeft,
   ChevronRight,
-  Sun,
-  Moon,
   Shield,
   Zap,
   UserCheck,
   ChevronDown,
   Building2,
   Lock,
+  ArrowLeftRight,
 } from "lucide-react";
 import { UserPersona } from "../lib/types";
 import { fetchCurrentUser, fetchAvailablePersonas, switchPersona } from "../lib/api";
@@ -28,8 +27,6 @@ interface SidebarProps {
   onSelectTab: (tab: string) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
-  theme: "dark" | "light";
-  onToggleTheme: () => void;
   onPersonaChanged?: () => void;
 }
 
@@ -38,8 +35,6 @@ export function Sidebar({
   onSelectTab,
   collapsed,
   onToggleCollapse,
-  theme,
-  onToggleTheme,
   onPersonaChanged,
 }: SidebarProps) {
   const [currentUser, setCurrentUser] = useState<UserPersona | null>(null);
@@ -113,8 +108,15 @@ export function Sidebar({
       ],
     },
     {
-      group: "PIPELINES & OPS",
+      group: "OPS COMMAND CENTER",
       items: [
+        {
+          id: "datasync",
+          label: "Data Sync",
+          icon: ArrowLeftRight,
+          color: "text-cyan-400",
+          accentBorder: "border-l-cyan-400",
+        },
         {
           id: "connectors",
           label: "Connectors & CDC",
@@ -131,35 +133,32 @@ export function Sidebar({
         },
       ],
     },
-    {
-      group: "EXECUTIVE",
-      items: [
-        {
-          id: "all",
-          label: "Executive War Room",
-          icon: LayoutGrid,
-          color: "text-rose-400",
-          accentBorder: "border-l-rose-400",
-        },
-      ],
-    },
   ];
 
   return (
     <aside
-      className={`fixed top-0 left-0 bottom-0 z-40 transition-all duration-300 ease-in-out flex flex-col border-r ${
-        theme === "dark"
-          ? "bg-[#090d16] border-slate-800 text-slate-100"
-          : "bg-white border-slate-200 text-slate-800 shadow-sm"
-      } ${collapsed ? "w-[72px]" : "w-[250px]"}`}
+      className={`fixed top-0 left-0 bottom-0 z-40 transition-all duration-300 ease-in-out flex flex-col border-r bg-[#090d16] border-slate-800 text-slate-100 ${
+        collapsed ? "w-[72px]" : "w-[250px]"
+      }`}
     >
       {/* ── Brand Header ── */}
-      <div className="h-16 flex items-center justify-between px-4 border-b border-inherit shrink-0">
-        <div className="flex items-center gap-2.5 overflow-hidden">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-md shrink-0">
-            <Zap className="h-5 w-5 text-white" />
-          </div>
-          {!collapsed && (
+      {collapsed ? (
+        <div className="h-16 flex items-center justify-center px-2 border-b border-slate-800/80 shrink-0">
+          <button
+            onClick={onToggleCollapse}
+            className="h-10 w-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-md hover:scale-105 active:scale-95 transition-all group relative cursor-pointer"
+            title="Expand Menu"
+          >
+            <Zap className="h-5 w-5 text-white group-hover:opacity-0 transition-opacity" />
+            <ChevronRight className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity absolute" />
+          </button>
+        </div>
+      ) : (
+        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800/80 shrink-0">
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-md shrink-0">
+              <Zap className="h-5 w-5 text-white" />
+            </div>
             <div className="flex flex-col truncate animate-fadeIn">
               <span className="font-bold text-sm tracking-wider uppercase font-mono leading-tight">
                 Transformers
@@ -169,24 +168,24 @@ export function Sidebar({
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               </span>
             </div>
-          )}
-        </div>
+          </div>
 
-        <button
-          onClick={onToggleCollapse}
-          className={`p-1.5 rounded-lg border transition-all text-xs ${
-            theme === "dark"
-              ? "border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60"
-              : "border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-          }`}
-          title={collapsed ? "Expand Menu" : "Collapse Menu"}
-        >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </button>
-      </div>
+          <button
+            onClick={onToggleCollapse}
+            className="p-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all text-xs"
+            title="Collapse Menu"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* ── Navigation Items ── */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin">
+      <nav
+        className={`flex-1 overflow-y-auto ${
+          collapsed ? "px-2" : "px-3"
+        } py-4 space-y-5 scrollbar-thin`}
+      >
         {navItems.map((group, gIdx) => (
           <div key={gIdx} className="space-y-1">
             {!collapsed && (
@@ -202,22 +201,21 @@ export function Sidebar({
                   key={item.id}
                   onClick={() => onSelectTab(item.id)}
                   title={collapsed ? item.label : undefined}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all group relative border ${
+                  className={`w-full flex items-center ${
+                    collapsed ? "justify-center px-2" : "gap-3 px-3"
+                  } py-2.5 rounded-lg text-xs font-medium transition-all group relative border ${
                     isActive
-                      ? theme === "dark"
-                        ? "bg-slate-800/60 text-white font-semibold border-slate-700/60 shadow-xs"
-                        : "bg-slate-100 text-slate-900 font-semibold border-slate-200/80 shadow-xs"
-                      : theme === "dark"
-                      ? "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-850/50"
-                      : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
+                      ? "bg-slate-800/70 text-white font-semibold border-slate-700/60 shadow-xs"
+                      : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
                   }`}
                 >
                   {/* Subtle active left pill bar */}
                   {isActive && (
                     <span
-                      className={`absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full ${
-                        item.color.replace("text-", "bg-")
-                      }`}
+                      className={`absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full ${item.color.replace(
+                        "text-",
+                        "bg-"
+                      )}`}
                     />
                   )}
                   <Icon
@@ -235,53 +233,23 @@ export function Sidebar({
         ))}
       </nav>
 
-      {/* ── Sidebar Footer: Theme, Persona & Engine ── */}
-      <div className="p-3 border-t border-inherit shrink-0 space-y-2.5">
-        {/* Dark / Light Mode Pill */}
-        <div
-          className={`flex items-center justify-between p-1 rounded-xl border ${
-            theme === "dark" ? "bg-[#06090e] border-slate-800" : "bg-slate-100 border-slate-200"
-          }`}
-        >
-          <button
-            onClick={() => theme !== "light" && onToggleTheme()}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg text-[11px] font-medium transition-all ${
-              theme === "light"
-                ? "bg-white text-slate-900 shadow-sm font-semibold"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
-            title="Switch to Light Theme"
-          >
-            <Sun className="h-3.5 w-3.5 text-amber-500" />
-            {!collapsed && <span>Light</span>}
-          </button>
-          <button
-            onClick={() => theme !== "dark" && onToggleTheme()}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg text-[11px] font-medium transition-all ${
-              theme === "dark"
-                ? "bg-slate-800 text-cyan-300 shadow-sm font-semibold"
-                : "text-slate-500 hover:text-slate-700"
-            }`}
-            title="Switch to Dark Theme"
-          >
-            <Moon className="h-3.5 w-3.5 text-cyan-400" />
-            {!collapsed && <span>Dark</span>}
-          </button>
-        </div>
-
+      {/* ── Sidebar Footer: Persona & Engine Status ── */}
+      <div
+        className={`${
+          collapsed ? "p-2" : "p-3"
+        } border-t border-slate-800/80 shrink-0 space-y-2`}
+      >
         {/* Persona Switcher Card */}
         <div className="relative">
           <button
             onClick={() => setPersonaDropdownOpen(!personaDropdownOpen)}
             disabled={isSwitching}
-            className={`w-full flex items-center gap-2 p-2 rounded-xl border transition-all text-left ${
-              theme === "dark"
-                ? "bg-[#0b0f19] hover:bg-slate-800/60 border-slate-800 text-slate-200"
-                : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800"
-            }`}
+            className={`w-full flex items-center ${
+              collapsed ? "justify-center p-2" : "gap-2.5 p-2.5"
+            } rounded-xl border border-slate-800/80 bg-[#0b0f19] hover:bg-slate-800/60 text-slate-200 transition-all text-left shadow-sm`}
             title={collapsed ? `${currentUser?.name} (${currentUser?.role_label})` : undefined}
           >
-            <div className="h-7 w-7 rounded-lg bg-gradient-to-tr from-cyan-600 to-indigo-600 text-white font-mono font-bold text-xs flex items-center justify-center shrink-0 shadow-sm">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-indigo-600 text-white font-mono font-bold text-xs flex items-center justify-center shrink-0 shadow-sm">
               {currentUser?.avatar_initials || "U"}
             </div>
             {!collapsed && (
@@ -305,14 +273,12 @@ export function Sidebar({
           {/* Persona Selection Dropdown Modal */}
           {personaDropdownOpen && (
             <div
-              className={`absolute bottom-full left-0 mb-2 w-64 rounded-xl shadow-2xl border p-2 z-50 animate-fadeIn ${
-                theme === "dark"
-                  ? "bg-[#0d1322] border-slate-700 text-slate-100"
-                  : "bg-white border-slate-200 text-slate-900"
-              }`}
+              className={`absolute bottom-full ${
+                collapsed ? "left-full ml-3" : "left-0"
+              } mb-2 w-64 rounded-xl shadow-2xl border border-slate-700 bg-[#0d1322] text-slate-100 p-2 z-50 animate-fadeIn`}
             >
-              <div className="px-2 py-1 text-[10px] font-mono uppercase font-bold text-slate-400 border-b border-inherit pb-1.5 mb-1.5 flex items-center justify-between">
-                <span>Select Enterprise Persona</span>
+              <div className="px-2 py-1 text-[10px] font-mono uppercase font-bold text-slate-400 border-b border-slate-800 pb-1.5 mb-1.5 flex items-center justify-between">
+                <span>Select Persona</span>
                 <span className="text-cyan-400">RBAC / RLS</span>
               </div>
               <div className="space-y-1">
@@ -325,9 +291,7 @@ export function Sidebar({
                       className={`w-full flex items-start gap-2.5 p-2 rounded-lg text-left text-xs transition-colors ${
                         isSelected
                           ? "bg-cyan-500/15 text-cyan-300 font-semibold"
-                          : theme === "dark"
-                          ? "hover:bg-slate-800 text-slate-300"
-                          : "hover:bg-slate-100 text-slate-700"
+                          : "hover:bg-slate-800 text-slate-300"
                       }`}
                     >
                       <div className="h-6 w-6 rounded bg-slate-800 text-cyan-300 font-mono text-[11px] font-bold flex items-center justify-center shrink-0">
@@ -340,7 +304,9 @@ export function Sidebar({
                           Scope: {p.allowed_business_units.join(", ")}
                         </div>
                       </div>
-                      {isSelected && <UserCheck className="h-4 w-4 text-cyan-400 shrink-0 mt-0.5" />}
+                      {isSelected && (
+                        <UserCheck className="h-4 w-4 text-cyan-400 shrink-0 mt-0.5" />
+                      )}
                     </button>
                   );
                 })}
@@ -354,7 +320,7 @@ export function Sidebar({
           <div className="flex items-center justify-between px-2 pt-1 text-[10px] font-mono text-slate-500">
             <span className="flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Polars OLAP Engine
+              Polars Engine
             </span>
             <span className="text-cyan-400 font-semibold">&lt; 1.5ms</span>
           </div>

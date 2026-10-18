@@ -16,6 +16,7 @@ from api.routes.snapshots import router as snapshots_router
 from api.routes.ml import router as ml_router
 from api.routes.auth import router as auth_router
 from api.routes.connectors import router as connectors_router
+from api.routes.operations import router as operations_router
 from storage.cache_manager import snapshot_cache
 
 logging.basicConfig(
@@ -27,7 +28,7 @@ logger = logging.getLogger("workforce_api")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifecycle hook: pre-warm demo dataset if no snapshot is loaded."""
+    """Lifecycle hook: pre-warm demo dataset and load daily materialized cache."""
     logger.info("Initializing Transformers 2.0 Analytical Gateway...")
     active = snapshot_cache.get_active_snapshot()
     if not active or not active.is_valid():
@@ -38,6 +39,20 @@ async def lifespan(app: FastAPI):
             logger.info("Enterprise demo dataset pre-warmed successfully.")
         except Exception as e:
             logger.warning(f"Demo pre-warming encountered an error: {e}")
+
+    # Load or initialize daily materialized analytical cache for instant <5ms responses
+    try:
+        from storage.materialized_store import materialized_store
+        loaded = materialized_store.load_from_disk()
+        if not loaded:
+            logger.info("Materialized cache not present on disk. Running initial precalculation in background thread...")
+            active = snapshot_cache.get_active_snapshot()
+            if active and active.is_valid():
+                import threading
+                threading.Thread(target=materialized_store.precalculate_all, args=(active,), daemon=True).start()
+    except Exception as e:
+        logger.warning(f"Materialized store initialization warning: {e}")
+
     # Start automated background CDC and Slack digest scheduler
     try:
         from api.services.scheduler import workforce_scheduler
@@ -78,6 +93,7 @@ app.include_router(snapshots_router, prefix="/api")
 app.include_router(ml_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(connectors_router, prefix="/api")
+app.include_router(operations_router, prefix="/api")
 
 
 @app.get("/health", tags=["System"])
@@ -96,4 +112,4 @@ def health_check() -> Dict[str, str]:
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("api.main.py:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("api.main:app", host="127.0.0.1", port=8000, reload=True)

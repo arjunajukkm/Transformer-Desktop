@@ -3811,26 +3811,48 @@ class WorkforceDashboardView(ctk.CTkFrame):
         self.lbl_dq_info.bind("<Button-1>", lambda e: self._show_dq_details_dialog())
         ui.create_tooltip(self.lbl_dq_info, "Click to view Data Quality diagnostics and reconciliation details")
 
-        # Right: Export, Sync from Time & Leave & Go to Upload buttons
+        # Right: Real-Time Sync, Demo Data, Export, Sync from Time & Leave & Go to Upload buttons
         btn_box = ctk.CTkFrame(inner, fg_color="transparent")
         btn_box.grid(row=0, column=3, sticky="e")
 
+        self.btn_realtime_sync = ui.create_primary_button(
+            btn_box,
+            "⚡ Real-Time Sync",
+            command=self._on_realtime_sync,
+            width=135,
+            height=28,
+            icon="refresh"
+        )
+        self.btn_realtime_sync.pack(side="left", padx=(0, 6))
+        ui.create_tooltip(self.btn_realtime_sync, "Pull real-time workforce data into Executive Overview and Trends")
+
+        self.btn_load_demo = ui.create_secondary_button(
+            btn_box,
+            "Demo Data",
+            command=self._on_load_demo_dataset,
+            width=90,
+            height=28,
+            icon="refresh"
+        )
+        self.btn_load_demo.pack(side="left", padx=(0, 6))
+        ui.create_tooltip(self.btn_load_demo, "Pre-warm multi-month enterprise demo dataset with 12+ employees and 3 BUs")
+
         self.btn_export_excel = ui.create_secondary_button(
             btn_box,
-            "Export Excel",
+            "Export",
             command=self._on_export_excel,
-            width=110,
+            width=75,
             height=28,
             icon="export"
         )
         self.btn_export_excel.pack(side="left", padx=(0, 6))
         ui.create_tooltip(self.btn_export_excel, "Export complete multi-level drilldown analysis report to Excel")
 
-        self.btn_sync_tl = ui.create_primary_button(
+        self.btn_sync_tl = ui.create_secondary_button(
             btn_box,
-            "Sync Time & Leave",
+            "Time & Leave",
             command=self._on_sync_from_time_leave,
-            width=140,
+            width=100,
             height=28,
             icon="refresh"
         )
@@ -3841,7 +3863,7 @@ class WorkforceDashboardView(ctk.CTkFrame):
             btn_box,
             "Upload",
             command=self._on_go_to_upload,
-            width=80,
+            width=70,
             height=28,
             icon="upload"
         )
@@ -3923,6 +3945,42 @@ class WorkforceDashboardView(ctk.CTkFrame):
         """Navigate user to the upload section to load/replace data."""
         if self.app and hasattr(self.app, "select_frame_by_name"):
             self.app.select_frame_by_name("analyse_upload")
+
+    def _on_load_demo_dataset(self):
+        """Instantly load and warm the multi-month enterprise demo dataset in desktop."""
+        self._set_overview_state("loading")
+        def _worker():
+            try:
+                snap = snapshot_service.load_demo_dataset()
+                def _done():
+                    self.sync_snapshot_state(snap)
+                    if hasattr(self.app, "show_toast"):
+                        self.app.show_toast("Enterprise demo dataset active (450 records across 3 BUs).")
+                self.after(0, _done)
+            except Exception as e:
+                err_msg = str(e)
+                def _err():
+                    self._set_overview_state("error", f"Failed to load demo dataset: {err_msg}")
+                self.after(0, _err)
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_realtime_sync(self):
+        """Execute real-time workforce sync and reload Executive Overview and Trends."""
+        self._set_overview_state("loading")
+        def _worker():
+            try:
+                snap = snapshot_service.sync_realtime_workforce_data()
+                def _done():
+                    self.sync_snapshot_state(snap)
+                    if hasattr(self.app, "show_toast"):
+                        self.app.show_toast(f"Real-time sync complete: {snap.row_count:,} records ingested.")
+                self.after(0, _done)
+            except Exception as e:
+                err_msg = str(e)
+                def _err():
+                    self._set_overview_state("error", f"Real-time sync failed: {err_msg}")
+                self.after(0, _err)
+        threading.Thread(target=_worker, daemon=True).start()
 
     # ─────────────────────────────────────────────────────────────────────────
     # B. Global Filters Toolbar (Functional Step 29)
@@ -4605,18 +4663,36 @@ class WorkforceDashboardView(ctk.CTkFrame):
 
         ui.create_primary_button(
             e_btns,
-            "⚡ Sync Time & Leave Master",
-            command=self._on_sync_from_time_leave,
-            width=200,
+            "⚡ Load Real-Time Data",
+            command=self._on_realtime_sync,
+            width=180,
             height=28,
             icon="refresh"
-        ).pack(side="left", padx=(0, 10))
+        ).pack(side="left", padx=(0, 8))
 
         ui.create_secondary_button(
             e_btns,
-            "📂 Upload File Manually",
-            command=self._on_go_to_upload,
+            "📊 Load Demo Dataset",
+            command=self._on_load_demo_dataset,
+            width=165,
+            height=28,
+            icon="refresh"
+        ).pack(side="left", padx=(0, 8))
+
+        ui.create_secondary_button(
+            e_btns,
+            "🔄 Sync Time & Leave",
+            command=self._on_sync_from_time_leave,
             width=160,
+            height=28,
+            icon="refresh"
+        ).pack(side="left", padx=(0, 8))
+
+        ui.create_secondary_button(
+            e_btns,
+            "📂 Upload File",
+            command=self._on_go_to_upload,
+            width=120,
             height=28,
             icon="upload"
         ).pack(side="left")
@@ -5286,11 +5362,25 @@ class WorkforceDashboardView(ctk.CTkFrame):
         )
         self.lbl_trend_active_scope.grid(row=0, column=4, sticky="e", padx=(4, 6))
 
+        # Real-time sync trigger right on trends bar
+        self.btn_trend_live_sync = ctk.CTkButton(
+            ctrl_inner,
+            text="⚡ Live Sync",
+            width=88,
+            height=28,
+            fg_color=ui.COLOR_ACCENT,
+            hover_color=ui.COLOR_ACCENT_HOVER,
+            text_color="#FFFFFF",
+            font=ctk.CTkFont(family=ui.FONT_FAMILY, size=11, weight="bold"),
+            command=self._on_realtime_sync,
+        )
+        self.btn_trend_live_sync.grid(row=0, column=5, sticky="e", padx=(2, 4))
+
         # Reset button directly inside Trends controls bar
         self.btn_reset_trend_scope = ctk.CTkButton(
             ctrl_inner,
-            text="↺ Reset Scope",
-            width=96,
+            text="↺ Reset",
+            width=70,
             height=28,
             fg_color="transparent",
             hover_color=ui.COLOR_CARD_HOVER,
@@ -5298,7 +5388,7 @@ class WorkforceDashboardView(ctk.CTkFrame):
             font=ctk.CTkFont(family=ui.FONT_FAMILY, size=11, weight="bold"),
             command=self._on_reset_filters_clicked,
         )
-        self.btn_reset_trend_scope.grid(row=0, column=5, sticky="e", padx=(2, 2))
+        self.btn_reset_trend_scope.grid(row=0, column=6, sticky="e", padx=(2, 2))
 
         # 2. State Containers (Empty, Loading, Error, Live Trends Content)
         # 2A. Empty State Container
@@ -5328,19 +5418,39 @@ class WorkforceDashboardView(ctk.CTkFrame):
 
         t_btns = ctk.CTkFrame(t_empty_inner, fg_color="transparent")
         t_btns.pack(anchor="w")
+
         ui.create_primary_button(
             t_btns,
-            "⚡ Sync Time & Leave Master",
-            command=self._on_sync_from_time_leave,
-            width=200,
+            "⚡ Load Real-Time Data",
+            command=self._on_realtime_sync,
+            width=180,
             height=28,
             icon="refresh"
-        ).pack(side="left", padx=(0, 10))
+        ).pack(side="left", padx=(0, 8))
+
         ui.create_secondary_button(
             t_btns,
-            "📂 Upload File Manually",
-            command=self._on_go_to_upload,
+            "📊 Load Demo Dataset",
+            command=self._on_load_demo_dataset,
+            width=165,
+            height=28,
+            icon="refresh"
+        ).pack(side="left", padx=(0, 8))
+
+        ui.create_secondary_button(
+            t_btns,
+            "🔄 Sync Time & Leave",
+            command=self._on_sync_from_time_leave,
             width=160,
+            height=28,
+            icon="refresh"
+        ).pack(side="left", padx=(0, 8))
+
+        ui.create_secondary_button(
+            t_btns,
+            "📂 Upload File",
+            command=self._on_go_to_upload,
+            width=120,
             height=28,
             icon="upload"
         ).pack(side="left")

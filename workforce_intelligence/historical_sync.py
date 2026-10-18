@@ -35,6 +35,8 @@ class HistoricalSyncManager:
     def __init__(self, archive_dir: Optional[Path] = None):
         self.archive_dir = Path(archive_dir) if archive_dir else DEFAULT_ARCHIVE_DIR
         self.archive_dir.mkdir(parents=True, exist_ok=True)
+        self.diffs_dir = self.archive_dir / "diffs"
+        self.diffs_dir.mkdir(parents=True, exist_ok=True)
         self.registry_path = self.archive_dir / REGISTRY_FILENAME
         self._ensure_registry()
 
@@ -95,6 +97,48 @@ class HistoricalSyncManager:
     def format_month_key(dt: date) -> str:
         """Format a date into 'YYYY-MM'."""
         return dt.strftime("%Y-%m-%d")[:7]
+
+    @staticmethod
+    def get_previous_month_key(month_key: str) -> str:
+        """
+        Return the 'YYYY-MM' key for the calendar month immediately preceding month_key.
+        Example: '2026-10' -> '2026-09', '2026-01' -> '2025-12'.
+        """
+        y, m = HistoricalSyncManager.parse_month_key(month_key)
+        if m == 1:
+            return f"{y - 1:04d}-12"
+        else:
+            return f"{y:04d}-{m - 1:02d}"
+
+    def resolve_sync_target_months(self, month: str = "all") -> List[str]:
+        """
+        Determine target months to sync.
+        Rule: For any month at any point of time, sync for the past month also happens.
+        - If 'all': sync all registry months, guaranteeing the current month and its past month are included.
+        - If a specific month (e.g. '2026-10'): returns [past_month, target_month] (e.g. ['2026-09', '2026-10']).
+        - Respects Keka's API rolling window (e.g. minimum July 2026): months older than the window are excluded from API sync.
+        """
+        cur_date = datetime.now().date()
+        cur_month_key = self.format_month_key(cur_date)
+        min_api_date = self.get_keka_api_window_start(cur_date)
+        min_api_month_key = self.format_month_key(min_api_date)
+
+        if not month or month == "all":
+            reg = self.load_registry()
+            reg_months = set(reg.get("months", {}).keys())
+            past_cur_month = self.get_previous_month_key(cur_month_key)
+            reg_months.add(cur_month_key)
+            if past_cur_month >= min_api_month_key:
+                reg_months.add(past_cur_month)
+            eligible = [m for m in reg_months if m >= min_api_month_key]
+            return sorted(eligible)
+        else:
+            m_clean = month.strip()
+            target_months = {m_clean}
+            past_m = self.get_previous_month_key(m_clean)
+            if past_m >= min_api_month_key:
+                target_months.add(past_m)
+            return sorted(list(target_months))
 
     @staticmethod
     def get_month_display_name(month_key: str) -> str:
@@ -259,9 +303,31 @@ class HistoricalSyncManager:
             # Cleanup helper columns
             m_df = m_df.drop(columns=["_parsed_dt", "_month_key"], errors="ignore")
 
+            # Run normalization to ensure canonical attendance codes (GL, WL, CL/SL, etc.)
+            try:
+                from keka_data_fetcher import KekaDataFetcher
+                m_df = KekaDataFetcher._normalize_attendance_df(m_df)
+            except Exception as e:
+                logger.warning(f"Could not run _normalize_attendance_df on imported file: {e}")
+
             file_base = f"attendance_{m_key.replace('-', '_')}"
             parquet_file = self.archive_dir / f"{file_base}.parquet"
             excel_file = self.archive_dir / f"{file_base}.xlsx"
+
+            # Load existing archive to compute differential delta before overwrite
+            old_df = None
+            if parquet_file.exists():
+                try:
+                    old_df = pd.read_parquet(parquet_file)
+                except Exception:
+                    old_df = None
+            elif excel_file.exists():
+                try:
+                    old_df = pd.read_excel(excel_file)
+                except Exception:
+                    old_df = None
+
+            diff_payload = self.compute_differential_delta(old_df, m_df, m_key)
 
             try:
                 m_df.to_parquet(parquet_file, index=False)
@@ -306,6 +372,7 @@ class HistoricalSyncManager:
             "error": None,
             "imported_months": imported_keys,
             "total_records": total_recs,
+            "latest_diff": diff_payload if "diff_payload" in locals() else None,
         }
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -332,6 +399,11 @@ class HistoricalSyncManager:
         from_iso = f_day.strftime("%Y-%m-%d")
         to_iso = l_day.strftime("%Y-%m-%d")
         disp_name = self.get_month_display_name(month_key)
+        file_base = f"attendance_{month_key.replace('-', '_')}"
+        parquet_file = self.archive_dir / f"{file_base}.parquet"
+
+        # Note: All historical months can be refreshed with live Keka API data,
+        # with verified Garden Leave (GL) preserved from existing archives.
 
         _notify(0.10, f"Syncing {disp_name}...", "Fetching Employee Master...")
         emp_df = cached_emp_df
@@ -339,6 +411,13 @@ class HistoricalSyncManager:
             emp_df, emp_err = keka_fetcher.fetch_employee_master()
             if emp_err and (emp_df is None or emp_df.empty):
                 return None, None, f"Failed to fetch Employee Master: {emp_err}"
+
+        if emp_df is not None and not emp_df.empty:
+            try:
+                master_file = self.archive_dir.parent / "employee_master.parquet"
+                emp_df.to_parquet(master_file, index=False)
+            except Exception as e:
+                logger.warning(f"Notice saving employee master: {e}")
 
         _notify(0.35, f"Syncing {disp_name}...", f"Fetching OD/WFH Requests ({from_iso} to {to_iso})...")
         wfh_df, wfh_err = keka_fetcher.fetch_od_wfh_requests(from_date=from_iso, to_date=to_iso)
@@ -363,7 +442,72 @@ class HistoricalSyncManager:
         parquet_file = self.archive_dir / f"{file_base}.parquet"
         excel_file = self.archive_dir / f"{file_base}.xlsx"
 
-        _notify(0.92, f"Saving {disp_name} Archive...", "Writing dataset...")
+        # Load existing archive to compute differential delta before overwrite
+        old_df = None
+        if parquet_file.exists():
+            try:
+                old_df = pd.read_parquet(parquet_file)
+            except Exception:
+                old_df = None
+        elif excel_file.exists():
+            try:
+                old_df = pd.read_excel(excel_file)
+            except Exception:
+                old_df = None
+
+        # Rule 1: Preserve verified Garden Leave (GL) from existing archive:
+        if old_df is not None and not old_df.empty and "Status" in old_df.columns:
+            emp_c = "Employee Number" if "Employee Number" in att_df.columns else "Employee No"
+            old_emp_c = "Employee Number" if "Employee Number" in old_df.columns else "Employee No"
+            gl_old = old_df[old_df["Status"] == "GL"]
+            if not gl_old.empty and old_emp_c in gl_old.columns and "Date" in gl_old.columns:
+                gl_set = set(zip(gl_old[old_emp_c].astype(str).str.strip(), gl_old["Date"].astype(str).str.strip()))
+                def _is_old_gl(r):
+                    k = (str(r.get(emp_c, "")).strip(), str(r.get("Date", "")).strip())
+                    return k in gl_set
+                gl_match_mask = att_df.apply(_is_old_gl, axis=1) & (att_df["Status"].isin(["A", "P(MS)"]))
+                if gl_match_mask.any():
+                    logger.info(f"Preserving {gl_match_mask.sum()} verified Garden Leave records from prior archive for {month_key}.")
+                    att_df.loc[gl_match_mask, "Status"] = "GL"
+                    att_df.loc[gl_match_mask, "Attendance Type"] = "Leave"
+                    att_df.loc[gl_match_mask, "Leave Name"] = "Garden Leave"
+                    att_df.loc[gl_match_mask, "Approval Status"] = "Approved"
+                    att_df.loc[gl_match_mask, "Approved By"] = "Management"
+
+        # Rule 2: Continuity Rule for Exiting & Garden Leave Employees:
+        # Keka REST API lacks custom portal leave types like Garden Leave (GL), synthesizing zero-punch days as 'A'.
+        # If an employee was on Garden Leave in the preceding month, preserve their GL status for days prior to LWD.
+        try:
+            prior_month_key = self.get_previous_month_key(month_key)
+            prior_pq = self.archive_dir / f"attendance_{prior_month_key.replace('-', '_')}.parquet"
+            if prior_pq.exists() and "Status" in att_df.columns:
+                df_prior = pd.read_parquet(prior_pq)
+                emp_c = "Employee Number" if "Employee Number" in att_df.columns else "Employee No"
+                if "Status" in df_prior.columns and emp_c in df_prior.columns:
+                    prior_gl_emps = set(df_prior[df_prior["Status"] == "GL"][emp_c].dropna().unique())
+                    if prior_gl_emps:
+                        gl_fix_mask = (att_df[emp_c].isin(prior_gl_emps)) & (att_df["Status"] == "A")
+                        if gl_fix_mask.any():
+                            logger.info(f"Applying Garden Leave continuity for {month_key}: converting {gl_fix_mask.sum()} raw API absences to 'GL'.")
+                            att_df.loc[gl_fix_mask, "Status"] = "GL"
+                            att_df.loc[gl_fix_mask, "Attendance Type"] = "Leave"
+                            att_df.loc[gl_fix_mask, "Leave Name"] = "Garden Leave"
+                            att_df.loc[gl_fix_mask, "Approval Status"] = "Approved"
+                            att_df.loc[gl_fix_mask, "Approved By"] = "Management"
+        except Exception as gl_err:
+            logger.warning(f"Notice during Garden Leave continuity check for {month_key}: {gl_err}")
+
+        diff_payload = self.compute_differential_delta(old_df, att_df, month_key)
+
+        if emp_df is not None and not emp_df.empty:
+            emp_c = "Employee Number" if "Employee Number" in att_df.columns else "Employee No"
+            m_emp_c = "Employee Number" if "Employee Number" in emp_df.columns else "Employee No"
+            if "Date of Joining" not in att_df.columns and "DOJ" in emp_df.columns and m_emp_c in emp_df.columns:
+                doj_map = emp_df.set_index(m_emp_c)["DOJ"].to_dict()
+                att_df["Date of Joining"] = att_df[emp_c].map(doj_map).fillna("")
+                att_df["DOJ"] = att_df["Date of Joining"]
+
+        _notify(0.92, f"Saving {disp_name} Archive...", "Writing dataset & updating diffs...")
         try:
             att_df.to_parquet(parquet_file, index=False)
         except Exception:
@@ -444,8 +588,10 @@ class HistoricalSyncManager:
             unified_df = pd.concat(synced_dfs, ignore_index=True)
             emp_c = "Employee Number" if "Employee Number" in unified_df.columns else "Employee No"
             dt_c = "Date" if "Date" in unified_df.columns else "attendanceDate"
-            if emp_c in unified_df.columns and dt_c in unified_df.columns:
-                unified_df = unified_df.drop_duplicates(subset=[emp_c, dt_c], keep="last")
+            st_c = "Status" if "Status" in unified_df.columns else "status"
+            subset = [c for c in [emp_c, dt_c, st_c] if c in unified_df.columns]
+            if len(subset) >= 2:
+                unified_df = unified_df.drop_duplicates(subset=subset, keep="last")
 
         return {
             "success": len(errors) == 0,
@@ -506,8 +652,33 @@ class HistoricalSyncManager:
         unified = pd.concat(loaded_dfs, ignore_index=True)
         emp_c = "Employee Number" if "Employee Number" in unified.columns else "Employee No"
         dt_c = "Date" if "Date" in unified.columns else "attendanceDate"
-        if emp_c in unified.columns and dt_c in unified.columns:
-            unified = unified.drop_duplicates(subset=[emp_c, dt_c], keep="last")
+        st_c = "Status" if "Status" in unified.columns else "status"
+        subset = [c for c in [emp_c, dt_c, st_c] if c in unified.columns]
+        if len(subset) >= 2:
+            unified = unified.drop_duplicates(subset=subset, keep="last")
+
+        # Safeguard: For employees with verified Garden Leave (GL) in their exit sequence,
+        # ensure any unexcused 'A' rows prior to Last Working Day remain classified as 'GL'.
+        if "Status" in unified.columns and emp_c in unified.columns:
+            gl_emps_all = set(unified[unified["Status"] == "GL"][emp_c].dropna().unique())
+            if gl_emps_all:
+                gl_reinforce_mask = (unified[emp_c].isin(gl_emps_all)) & (unified["Status"] == "A")
+                if gl_reinforce_mask.any():
+                    unified.loc[gl_reinforce_mask, "Status"] = "GL"
+                    unified.loc[gl_reinforce_mask, "Attendance Type"] = "Leave"
+                    unified.loc[gl_reinforce_mask, "Leave Name"] = "Garden Leave"
+        # Guarantee Date of Joining and Last Working Day exist in unified DataFrame
+        master_file = self.archive_dir.parent / "employee_master.parquet"
+        if master_file.exists() and "Date of Joining" not in unified.columns:
+            try:
+                emp_m = pd.read_parquet(master_file)
+                m_emp_c = "Employee Number" if "Employee Number" in emp_m.columns else "Employee No"
+                if m_emp_c in emp_m.columns and "DOJ" in emp_m.columns:
+                    doj_map = emp_m.set_index(m_emp_c)["DOJ"].to_dict()
+                    unified["Date of Joining"] = unified[emp_c].map(doj_map).fillna("")
+                    unified["DOJ"] = unified["Date of Joining"]
+            except Exception as e:
+                logger.warning(f"Notice mapping DOJ in unified history: {e}")
 
         summary = {
             "total_records": len(unified),
@@ -534,6 +705,308 @@ class HistoricalSyncManager:
                 except Exception:
                     pass
         return True
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Differential Delta & Change Detection
+    # ──────────────────────────────────────────────────────────────────────────
+    def save_diff(self, month_key: str, diff_data: Dict[str, Any]):
+        """Persist structured differential report to local disk."""
+        fp = self.diffs_dir / f"latest_diff_{month_key.replace('-', '_')}.json"
+        try:
+            with open(fp, "w", encoding="utf-8") as f:
+                json.dump(diff_data, f, indent=2)
+        except Exception as e:
+            logger.warning(f"Could not persist diff for {month_key}: {e}")
+
+    def get_latest_diff(self, month_key: str) -> Optional[Dict[str, Any]]:
+        """Retrieve most recent differential report for a month."""
+        fp = self.diffs_dir / f"latest_diff_{month_key.replace('-', '_')}.json"
+        if fp.exists():
+            try:
+                with open(fp, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return None
+
+    def compute_differential_delta(
+        self,
+        old_df: Optional[pd.DataFrame],
+        new_df: pd.DataFrame,
+        month_key: str
+    ) -> Dict[str, Any]:
+        """
+        Compare an incoming monthly dataset against the previously archived dataset.
+        Detects:
+        - Status conversions (e.g. Absent -> Present/Regularized/Leave/WFH)
+        - Attendance type modifications
+        - In/Out punch additions/updates
+        - New employee records added
+        - Unchanged records
+        """
+        disp_name = self.get_month_display_name(month_key)
+        now_str = datetime.now().strftime("%d-%b-%Y %H:%M:%S")
+
+        if new_df is None or new_df.empty:
+            return {
+                "month_key": month_key,
+                "display_name": disp_name,
+                "synced_at": now_str,
+                "summary": {
+                    "total_previous_records": len(old_df) if old_df is not None else 0,
+                    "total_new_records": 0,
+                    "records_modified": 0,
+                    "records_added": 0,
+                    "records_unchanged": 0,
+                    "absences_resolved": 0,
+                    "leaves_updated": 0,
+                    "wfh_updated": 0,
+                    "regularizations_applied": 0,
+                    "headcount_delta": 0,
+                },
+                "records": []
+            }
+
+        emp_col = "Employee Number" if "Employee Number" in new_df.columns else "Employee No"
+        name_col = "Employee Name" if "Employee Name" in new_df.columns else "Employee"
+        dept_col = "Department" if "Department" in new_df.columns else "_dept"
+        bu_col = "Business Unit" if "Business Unit" in new_df.columns else "_bu"
+        dt_col = "Date" if "Date" in new_df.columns else "attendanceDate"
+        st_col = "Status" if "Status" in new_df.columns else "_status"
+        at_col = "Attendance Type" if "Attendance Type" in new_df.columns else "_att_type"
+        in_col = "In Time" if "In Time" in new_df.columns else "inTime"
+        out_col = "Out Time" if "Out Time" in new_df.columns else "outTime"
+        hrs_col = "Effective Hours" if "Effective Hours" in new_df.columns else "Total Hours"
+        qty_col = "Quantity" if "Quantity" in new_df.columns else "_clean_qty"
+
+        new_hc = int(new_df[emp_col].nunique()) if emp_col in new_df.columns else len(new_df)
+        old_hc = int(old_df[emp_col].nunique()) if old_df is not None and not old_df.empty and emp_col in old_df.columns else 0
+
+        def _clean_date(val):
+            s = str(val).strip()
+            return s[:10] if len(s) >= 10 else s
+
+        def _parse_qty(val):
+            try:
+                q = float(val)
+                return 0.5 if 0 < q <= 0.5 else (1.0 if q > 0.5 else 1.0)
+            except Exception:
+                return 1.0
+
+        if old_df is None or old_df.empty:
+            diff_payload = {
+                "month_key": month_key,
+                "display_name": disp_name,
+                "synced_at": now_str,
+                "summary": {
+                    "total_previous_records": 0,
+                    "total_new_records": len(new_df),
+                    "records_modified": 0,
+                    "records_added": len(new_df),
+                    "records_unchanged": 0,
+                    "absences_resolved": 0,
+                    "leaves_updated": 0,
+                    "wfh_updated": 0,
+                    "half_days_updated": int((new_df[qty_col] == 0.5).sum()) if qty_col in new_df.columns else 0,
+                    "regularizations_applied": 0,
+                    "headcount_delta": new_hc,
+                },
+                "records": []
+            }
+            self.save_diff(month_key, diff_payload)
+            return diff_payload
+
+        # Group previous records by (employee_id, date) into lists to preserve half-day pairs
+        old_map: Dict[Tuple[str, str], List[Any]] = {}
+        for _, row in old_df.iterrows():
+            k = (str(row.get(emp_col, "")).strip().lower(), _clean_date(row.get(dt_col, "")))
+            if k[0] and k[1]:
+                if k not in old_map:
+                    old_map[k] = []
+                old_map[k].append(row)
+
+        # Group new records by (employee_id, date) into lists
+        new_map: Dict[Tuple[str, str], List[Any]] = {}
+        for _, row in new_df.iterrows():
+            k = (str(row.get(emp_col, "")).strip().lower(), _clean_date(row.get(dt_col, "")))
+            if k[0] and k[1]:
+                if k not in new_map:
+                    new_map[k] = []
+                new_map[k].append(row)
+
+        absent_statuses = {"a", "ab", "absent", "lop"}
+        present_statuses = {"p", "present", "ms", "p(ms)", "a(r)", "p(r)", "ar", "pr", "wow", "woh", "wo-w", "h-w"}
+        leave_statuses = {"clsl", "cl/sl", "pl", "ul", "fl", "spl", "ml", "pt", "bl", "cl", "hpl", "wl", "vl", "mcl", "cml", "adl", "adlm", "adm", "gl", "hl", "el", "l", "co", "leave"}
+
+        modified_items = []
+        modified_count = 0
+        added_count = 0
+        unchanged_count = 0
+        absences_resolved = 0
+        leaves_updated = 0
+        wfh_updated = 0
+        half_days_count = 0
+        reg_applied = 0
+
+        for k, new_rows in new_map.items():
+            emp_id_val = str(new_rows[0].get(emp_col, "")).strip()
+            dt_val = _clean_date(new_rows[0].get(dt_col, ""))
+            dept_val = str(new_rows[0].get(dept_col, ""))
+            bu_val = str(new_rows[0].get(bu_col, ""))
+            emp_name_val = str(new_rows[0].get(name_col, emp_id_val))
+
+            if k not in old_map:
+                added_count += len(new_rows)
+                for nr in new_rows:
+                    n_qty = _parse_qty(nr.get(qty_col, 1.0))
+                    if n_qty == 0.5:
+                        half_days_count += 1
+                    if len(modified_items) < 300:
+                        modified_items.append({
+                            "employee_id": emp_id_val,
+                            "employee_name": emp_name_val,
+                            "department": dept_val,
+                            "business_unit": bu_val,
+                            "date": dt_val,
+                            "change_type": "HALF_DAY" if n_qty == 0.5 else "NEW_RECORD",
+                            "quantity": n_qty,
+                            "old_quantity": 0.0,
+                            "new_quantity": n_qty,
+                            "old_status": "--",
+                            "new_status": str(nr.get(st_col, "")),
+                            "old_att_type": "--",
+                            "new_att_type": str(nr.get(at_col, "")),
+                            "old_hours": "--:--",
+                            "new_hours": str(nr.get(hrs_col, "")),
+                            "in_time": str(nr.get(in_col, "")),
+                            "out_time": str(nr.get(out_col, "")),
+                            "summary_badge": "Newly Synced Half-Day (0.5d)" if n_qty == 0.5 else "Newly Synced Record",
+                            "badge_color": "amber" if n_qty == 0.5 else "blue",
+                        })
+                continue
+
+            old_rows = old_map[k]
+
+            # Pair up new rows with old rows
+            # Strategy: if sizes match, try matching by attendance type/status; otherwise align by index or replicate baseline
+            max_len = max(len(new_rows), len(old_rows))
+            for i in range(max_len):
+                if i < len(new_rows) and i < len(old_rows):
+                    new_row = new_rows[i]
+                    old_row = old_rows[i]
+                elif i < len(new_rows):
+                    new_row = new_rows[i]
+                    old_row = old_rows[0]  # compare against baseline day record
+                else:
+                    break
+
+                o_st = str(old_row.get(st_col, "")).strip()
+                n_st = str(new_row.get(st_col, "")).strip()
+                o_at = str(old_row.get(at_col, "")).strip()
+                n_at = str(new_row.get(at_col, "")).strip()
+                o_hrs = str(old_row.get(hrs_col, "")).strip()
+                n_hrs = str(new_row.get(hrs_col, "")).strip()
+                o_in = str(old_row.get(in_col, "")).strip()
+                n_in = str(new_row.get(in_col, "")).strip()
+                o_out = str(old_row.get(out_col, "")).strip()
+                n_out = str(new_row.get(out_col, "")).strip()
+                o_qty = _parse_qty(old_row.get(qty_col, 1.0))
+                n_qty = _parse_qty(new_row.get(qty_col, 1.0))
+
+                is_half = (n_qty == 0.5) or (o_qty == 0.5) or (len(new_rows) > 1) or (len(old_rows) > 1)
+                if is_half:
+                    half_days_count += 1
+
+                is_status_diff = (o_st.lower() != n_st.lower()) or (o_at.lower() != n_at.lower())
+                is_qty_diff = (o_qty != n_qty)
+                is_punch_diff = (o_in != n_in) or (o_out != n_out) or (
+                    o_hrs != n_hrs and o_hrs not in ["", "nan", "None"] and n_hrs not in ["", "nan", "None"]
+                )
+
+                if is_status_diff or is_punch_diff or is_qty_diff:
+                    modified_count += 1
+                    summary_badge = "Record Adjusted"
+                    badge_color = "cyan"
+
+                    if o_st.lower() in absent_statuses and n_st.lower() in present_statuses:
+                        absences_resolved += 1
+                        summary_badge = "Absence Resolved (0.5d Present)" if n_qty == 0.5 else "Absence Resolved (Present)"
+                        badge_color = "emerald"
+                    elif o_st.lower() in absent_statuses and (n_st.lower() in leave_statuses or "leave" in n_at.lower()):
+                        absences_resolved += 1
+                        leaves_updated += 1
+                        summary_badge = "Absence Converted to Half-Day Leave (0.5d)" if n_qty == 0.5 else "Absence Converted to Leave"
+                        badge_color = "purple"
+                    elif o_st.lower() in absent_statuses and ("wfh" in n_st.lower() or "wfh" in n_at.lower()):
+                        absences_resolved += 1
+                        wfh_updated += 1
+                        summary_badge = "Absence Converted to Half-Day WFH (0.5d)" if n_qty == 0.5 else "Absence Converted to WFH"
+                        badge_color = "blue"
+                    elif "regulariz" in n_at.lower() or "(r)" in n_st.lower():
+                        reg_applied += 1
+                        summary_badge = "Regularization Applied (0.5d)" if n_qty == 0.5 else "Regularization Applied"
+                        badge_color = "emerald"
+                    elif "leave" in n_at.lower() or n_st.lower() in leave_statuses:
+                        leaves_updated += 1
+                        summary_badge = "Half-Day Leave (0.5d)" if n_qty == 0.5 else "Leave Updated"
+                        badge_color = "purple"
+                    elif "wfh" in n_at.lower() or "wfh" in n_st.lower():
+                        wfh_updated += 1
+                        summary_badge = "Half-Day WFH (0.5d)" if n_qty == 0.5 else "WFH Updated"
+                        badge_color = "blue"
+                    elif is_qty_diff:
+                        summary_badge = f"Half-Day Adjusted ({o_qty}d → {n_qty}d)"
+                        badge_color = "amber"
+
+                    ch_type = "HALF_DAY" if is_half else ("STATUS_CONVERTED" if is_status_diff else "PUNCH_UPDATED")
+
+                    if len(modified_items) < 300:
+                        modified_items.append({
+                            "employee_id": emp_id_val,
+                            "employee_name": emp_name_val,
+                            "department": dept_val,
+                            "business_unit": bu_val,
+                            "date": dt_val,
+                            "change_type": ch_type,
+                            "quantity": n_qty,
+                            "old_quantity": o_qty,
+                            "new_quantity": n_qty,
+                            "old_status": o_st or "--",
+                            "new_status": n_st or "--",
+                            "old_att_type": o_at or "--",
+                            "new_att_type": n_at or "--",
+                            "old_hours": o_hrs or "--:--",
+                            "new_hours": n_hrs or "--:--",
+                            "in_time": n_in or "--:--",
+                            "out_time": n_out or "--:--",
+                            "summary_badge": summary_badge,
+                            "badge_color": badge_color,
+                        })
+                else:
+                    unchanged_count += 1
+
+        total_modified = modified_count
+        diff_payload = {
+            "month_key": month_key,
+            "display_name": disp_name,
+            "synced_at": now_str,
+            "summary": {
+                "total_previous_records": len(old_df),
+                "total_new_records": len(new_df),
+                "records_modified": total_modified,
+                "records_added": added_count,
+                "records_unchanged": unchanged_count,
+                "absences_resolved": absences_resolved,
+                "leaves_updated": leaves_updated,
+                "wfh_updated": wfh_updated,
+                "half_days_updated": half_days_count,
+                "regularizations_applied": reg_applied,
+                "headcount_delta": new_hc - old_hc,
+            },
+            "records": modified_items
+        }
+        self.save_diff(month_key, diff_payload)
+        return diff_payload
 
 
 # Global singleton instance

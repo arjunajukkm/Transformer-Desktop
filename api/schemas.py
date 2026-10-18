@@ -39,6 +39,9 @@ class TrendQueryRequest(BaseModel):
     department: Optional[str] = None
     manager: Optional[str] = None
     employee: Optional[str] = None
+    month: Optional[str] = None
+    peer_bu: Optional[str] = None
+    peer_department: Optional[str] = None
     date_start: Optional[date] = None
     date_end: Optional[date] = None
     analysis_as_of_date: Optional[date] = None

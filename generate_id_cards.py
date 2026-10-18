@@ -1878,7 +1878,8 @@ def validate_employee_record(row, col_map, seen_emp_nums=None):
         issues.insert(0, f"Missing required employee information: {missing_str}")
         hr_actions.insert(0, f"Collect missing fields from employee: {missing_str}")
 
-    is_valid = (len(missing_fields) == 0 and len(issues) == 0)
+    fatal_issues = [iss for iss in issues if not iss.endswith("(Flagged for HR review)")]
+    is_valid = (len(missing_fields) == 0 and len(fatal_issues) == 0)
 
     return {
         "is_valid": is_valid,

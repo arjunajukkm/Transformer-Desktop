@@ -40,6 +40,8 @@ ALIASES = {
     "approved_on": ["approved on", "approval date", "approved date", "approved_on"],
     "approval_status": ["approval status", "request status", "approval_status"],
     "total_hours": ["total hours", "total hrs", "hours", "work hours", "duration_hours"],
+    "date_of_joining": ["date of joining", "date_of_joining", "doj", "joining date", "joining_date"],
+    "last_working_day": ["last working day", "last_working_day", "lwd", "date of leaving", "date_of_leaving", "dol", "exit date", "exit_date", "relieving date"],
 }
 
 

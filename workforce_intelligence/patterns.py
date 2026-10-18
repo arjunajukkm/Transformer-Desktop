@@ -492,15 +492,27 @@ def _calculate_pattern_score_and_badges(
 
 
 def _safe_to_date(d: Any) -> Optional[date]:
-    """Safely extract datetime.date from any object, returning None on failure."""
+    """Safely and rapidly convert date-like value to date object."""
     if d is None or pd.isna(d):
         return None
     if isinstance(d, date) and not isinstance(d, datetime):
         return d
     if isinstance(d, datetime):
         return d.date()
+    if isinstance(d, str):
+        # Ultra-fast ISO format parsing: YYYY-MM-DD
+        if len(d) >= 10 and d[4] == '-' and d[7] == '-':
+            try:
+                return date(int(d[:4]), int(d[5:7]), int(d[8:10]))
+            except ValueError:
+                pass
+        elif len(d) >= 10 and (d[2] == '-' or d[2] == '/') and (d[5] == '-' or d[5] == '/'):
+            try:
+                return date(int(d[6:10]), int(d[3:5]), int(d[:2]))
+            except ValueError:
+                pass
     try:
-        ts = pd.to_datetime(d, errors="coerce")
+        ts = pd.to_datetime(d, format="mixed", errors="coerce")
         if pd.notna(ts):
             return ts.date()
     except Exception:
@@ -509,11 +521,18 @@ def _safe_to_date(d: Any) -> Optional[date]:
 
 
 def _safe_dt_str(d: Any, fmt: str = "%Y-%m-%d") -> str:
-    """Safely format date-like value to string, handling strings like 'NA', nulls, etc."""
+    """Safely and rapidly format date-like value to string, handling strings like 'NA', nulls, etc."""
     if d is None or pd.isna(d):
         return ""
+    if isinstance(d, str):
+        if len(d) >= 10 and d[4] == '-' and d[7] == '-':
+            return d[:10]
+    if isinstance(d, date) and not isinstance(d, datetime):
+        return d.strftime(fmt)
+    if isinstance(d, datetime):
+        return d.strftime(fmt)
     try:
-        ts = pd.to_datetime(d, errors="coerce")
+        ts = pd.to_datetime(d, format="mixed", errors="coerce")
         if pd.notna(ts):
             return ts.strftime(fmt)
     except Exception:
@@ -533,7 +552,7 @@ def _safe_days_since(max_date: Optional[date], last_d: Any) -> int:
 
 
 def _extract_date_metadata(dates: Sequence[Union[date, str, datetime]]) -> Tuple[Optional[str], Optional[str], List[str], int]:
-    """Extract first date, last date, distinct month labels (e.g. 'Sep 2026'), and count."""
+    """Extract first date, last date, distinct month labels (e.g. 'Sep 2026'), and count with sub-microsecond speed."""
     clean_dates: List[date] = []
     for d in dates:
         if d is None or pd.isna(d):
@@ -549,10 +568,15 @@ def _extract_date_metadata(dates: Sequence[Union[date, str, datetime]]) -> Tuple
     first_d = sorted_dates[0].strftime("%Y-%m-%d")
     last_d = sorted_dates[-1].strftime("%Y-%m-%d")
 
-    month_keys = sorted(
-        list({d.strftime("%b %Y") for d in sorted_dates}),
-        key=lambda m: pd.to_datetime(m, errors="coerce")
-    )
+    # Chronologically ordered month keys without slow string parsing
+    seen = set()
+    month_keys: List[str] = []
+    for d in sorted_dates:
+        mk = d.strftime("%b %Y")
+        if mk not in seen:
+            seen.add(mk)
+            month_keys.append(mk)
+
     return first_d, last_d, month_keys, len(month_keys)
 
 
@@ -670,21 +694,35 @@ def detect_weekday_exception_patterns(ctx: PatternContext) -> List[PatternResult
     if ctx.facts.empty:
         return results
 
-    eval_facts = ctx.facts[ctx.facts["is_metric_evaluable"] == True].copy()
+    eval_facts = ctx.facts[ctx.facts["is_metric_evaluable"] == True]
     if eval_facts.empty or "Date" not in eval_facts.columns:
         return results
 
-    eval_facts["weekday_name"] = pd.to_datetime(eval_facts["Date"], errors="coerce").dt.day_name()
+    exc_facts = eval_facts[eval_facts["is_attendance_exception"] == True]
+    if exc_facts.empty:
+        return results
 
-    # Detect at Employee level
-    for (emp_num, emp_name), group in eval_facts.groupby(["Employee Number", "Employee Name"]):
+    emp_exc_counts = exc_facts.groupby("Employee Number").size()
+    qual_emps = set(emp_exc_counts[emp_exc_counts >= ctx.min_events].index)
+    if not qual_emps:
+        return results
+
+    qual_exc_facts = exc_facts[exc_facts["Employee Number"].isin(qual_emps)].copy()
+    if "weekday_name" not in qual_exc_facts.columns:
+        qual_exc_facts["weekday_name"] = pd.to_datetime(qual_exc_facts["Date"], format="mixed", errors="coerce").dt.day_name()
+
+    qual_eval_facts = eval_facts[eval_facts["Employee Number"].isin(qual_emps)].copy()
+    if "weekday_name" not in qual_eval_facts.columns:
+        qual_eval_facts["weekday_name"] = pd.to_datetime(qual_eval_facts["Date"], format="mixed", errors="coerce").dt.day_name()
+    opp_by_emp_wday = qual_eval_facts.groupby(["Employee Number", "weekday_name"]).size().to_dict()
+
+    rm_col = "Reporting Manager" if "Reporting Manager" in qual_exc_facts.columns else None
+    exc_col = "attendance_exception_types" if "attendance_exception_types" in qual_exc_facts.columns else None
+
+    for (emp_num, emp_name), exception_rows in qual_exc_facts.groupby(["Employee Number", "Employee Name"]):
         emp_num_str = str(emp_num)
         emp_name_str = str(emp_name) if pd.notna(emp_name) else emp_num_str
-        total_exceptions = int((group["is_attendance_exception"] == True).sum())
-        if total_exceptions < ctx.min_events:
-            continue
-
-        exception_rows = group[group["is_attendance_exception"] == True]
+        total_exceptions = len(exception_rows)
 
         for weekday, w_exc_rows in exception_rows.groupby("weekday_name"):
             w_exc_count = len(w_exc_rows)
@@ -695,8 +733,7 @@ def detect_weekday_exception_patterns(ctx: PatternContext) -> List[PatternResult
             if conc_ratio < 0.40:
                 continue
 
-            # Calculate opportunity denominator on that weekday
-            w_eligible_days = int((group["weekday_name"] == weekday).sum())
+            w_eligible_days = opp_by_emp_wday.get((emp_num, weekday), w_exc_count)
             weekday_rate = round((w_exc_count / w_eligible_days) * 100.0, 1) if w_eligible_days > 0 else 100.0
 
             dates = w_exc_rows["Date"].tolist()
@@ -712,19 +749,23 @@ def detect_weekday_exception_patterns(ctx: PatternContext) -> List[PatternResult
                 concentration_ratio=conc_ratio,
             )
 
-            # Build evidence
             evidence_items = []
-            for _, r in w_exc_rows.iterrows():
-                dt_str = _safe_dt_str(r.get("Date"))
+            date_list = w_exc_rows["Date"].tolist()
+            rm_list = w_exc_rows[rm_col].tolist() if rm_col else [None] * w_exc_count
+            exc_list = w_exc_rows[exc_col].tolist() if exc_col else [None] * w_exc_count
+
+            for d_val, rm_val, exc_val in zip(date_list, rm_list, exc_list):
+                dt_str = _safe_dt_str(d_val)
+                st_val = str(exc_val) if pd.notna(exc_val) and exc_val else "Exception"
                 evidence_items.append(
                     PatternEvidenceItem(
                         date=dt_str,
                         employee_number=emp_num_str,
                         employee_name=emp_name_str,
-                        reporting_manager=str(r.get("Reporting Manager")) if pd.notna(r.get("Reporting Manager")) else None,
+                        reporting_manager=str(rm_val) if pd.notna(rm_val) else None,
                         event_type="ATTENDANCE_EXCEPTION",
-                        status=str(r.get("attendance_exception_types") or "Exception"),
-                        details=f"{weekday} attendance exception ({r.get('attendance_exception_types') or 'Exception'})",
+                        status=st_val,
+                        details=f"{weekday} attendance exception ({st_val})",
                     )
                 )
 
@@ -773,14 +814,18 @@ def detect_weekday_exception_patterns(ctx: PatternContext) -> List[PatternResult
 def detect_attendance_recurrence_patterns(ctx: PatternContext) -> List[PatternResult]:
     """
     Detect recurring Missing Swipes, Recurring Absence, and Recurring Regularisation.
+    Vectorized and pre-filtered for sub-second execution.
     """
     results: List[PatternResult] = []
     if ctx.facts.empty:
         return results
 
-    eval_facts = ctx.facts[ctx.facts["is_metric_evaluable"] == True].copy()
+    eval_facts = ctx.facts[ctx.facts["is_metric_evaluable"] == True]
     if eval_facts.empty:
         return results
+
+    opp_series = eval_facts.groupby("Employee Number").size()
+    opp_dict = opp_series.to_dict()
 
     check_configs = [
         ("has_missing_swipe", "RECURRING_MISSING_SWIPE", "Recurring Missing Swipes", PatternCategory.ATTENDANCE, PatternSeverity.ATTENTION, "missing swipe"),
@@ -789,16 +834,25 @@ def detect_attendance_recurrence_patterns(ctx: PatternContext) -> List[PatternRe
     ]
 
     for col_flag, p_type, title_prefix, cat, sev, term in check_configs:
-        for (emp_num, emp_name), group in eval_facts.groupby(["Employee Number", "Employee Name"]):
+        flag_df = eval_facts[eval_facts[col_flag] == True]
+        if flag_df.empty:
+            continue
+
+        emp_counts = flag_df.groupby("Employee Number").size()
+        qual_emps = set(emp_counts[emp_counts >= ctx.min_events].index)
+        if not qual_emps:
+            continue
+
+        qual_df = flag_df[flag_df["Employee Number"].isin(qual_emps)]
+        rm_col = "Reporting Manager" if "Reporting Manager" in qual_df.columns else None
+        exc_col = "attendance_exception_types" if "attendance_exception_types" in qual_df.columns else None
+
+        for (emp_num, emp_name), matched_rows in qual_df.groupby(["Employee Number", "Employee Name"]):
             emp_num_str = str(emp_num)
             emp_name_str = str(emp_name) if pd.notna(emp_name) else emp_num_str
 
-            matched_rows = group[group[col_flag] == True]
             count = len(matched_rows)
-            if count < ctx.min_events:
-                continue
-
-            total_opp = len(group)
+            total_opp = opp_dict.get(emp_num, count)
             rate = round((count / total_opp) * 100.0, 1) if total_opp > 0 else 100.0
 
             dates = matched_rows["Date"].tolist()
@@ -814,16 +868,21 @@ def detect_attendance_recurrence_patterns(ctx: PatternContext) -> List[PatternRe
             )
 
             evidence_items = []
-            for _, r in matched_rows.iterrows():
-                dt_str = _safe_dt_str(r.get("Date"))
+            date_list = matched_rows["Date"].tolist()
+            rm_list = matched_rows[rm_col].tolist() if rm_col else [None] * count
+            exc_list = matched_rows[exc_col].tolist() if exc_col else [None] * count
+
+            for d_val, rm_val, exc_val in zip(date_list, rm_list, exc_list):
+                dt_str = _safe_dt_str(d_val)
+                st_val = str(exc_val) if pd.notna(exc_val) and exc_val else term.title()
                 evidence_items.append(
                     PatternEvidenceItem(
                         date=dt_str,
                         employee_number=emp_num_str,
                         employee_name=emp_name_str,
-                        reporting_manager=str(r.get("Reporting Manager")) if pd.notna(r.get("Reporting Manager")) else None,
+                        reporting_manager=str(rm_val) if pd.notna(rm_val) else None,
                         event_type=p_type,
-                        status=str(r.get("attendance_exception_types") or term.title()),
+                        status=st_val,
                         details=f"{term.capitalize()} observed on {dt_str}",
                     )
                 )
@@ -1552,44 +1611,43 @@ def detect_sequence_patterns(ctx: PatternContext) -> List[PatternResult]:
     eval_facts["dt"] = pd.to_datetime(eval_facts["Date"], errors="coerce").dt.date
     eval_facts = eval_facts.sort_values(["Employee Number", "dt"])
 
-    for (emp_num, emp_name), group in eval_facts.groupby(["Employee Number", "Employee Name"]):
-        emp_num_str = str(emp_num)
-        emp_name_str = str(emp_name) if pd.notna(emp_name) else emp_num_str
+    emp_nums = eval_facts["Employee Number"].astype(str).values
+    emp_names = eval_facts["Employee Name"].fillna("").astype(str).values
+    dts = eval_facts["dt"].values
+    has_leaves = eval_facts["has_leave"].fillna(False).astype(bool).values
+    has_wfhs = eval_facts["has_wfh"].fillna(False).astype(bool).values
+    dates = eval_facts["Date"].astype(str).values
+    managers = eval_facts["Reporting Manager"].fillna("").astype(str).values if "Reporting Manager" in eval_facts.columns else [""] * len(emp_nums)
 
-        sorted_rows = group.to_dict("records")
-        if len(sorted_rows) < 2:
-            continue
+    emp_l_to_wfh: Dict[Tuple[str, str], List[Tuple[str, str, str]]] = {}
+    emp_wfh_to_l: Dict[Tuple[str, str], List[Tuple[str, str, str]]] = {}
+    emp_bridge: Dict[Tuple[str, str], List[Tuple[str, str, str, str, str]]] = {}
 
-        l_to_wfh_matches = []
-        wfh_to_l_matches = []
-        remote_bridge_matches = []
-
-        for i in range(len(sorted_rows) - 1):
-            curr = sorted_rows[i]
-            nxt = sorted_rows[i + 1]
-
-            d_curr = curr["dt"]
-            d_nxt = nxt["dt"]
+    n = len(emp_nums)
+    for i in range(n - 1):
+        if emp_nums[i] == emp_nums[i + 1]:
+            d_curr = dts[i]
+            d_nxt = dts[i + 1]
             day_diff = (d_nxt - d_curr).days
+            emp_key = (emp_nums[i], emp_names[i] or emp_nums[i])
 
-            # 1. 1-day proximity (consecutive calendar days)
             if day_diff == 1:
-                if curr.get("has_leave") and nxt.get("has_wfh"):
-                    l_to_wfh_matches.append((curr, nxt))
-                elif curr.get("has_wfh") and nxt.get("has_leave"):
-                    wfh_to_l_matches.append((curr, nxt))
-
-            # 2. Weekend bridge (Friday -> Monday, day_diff == 3, Friday is weekday 4, Monday is weekday 0)
+                if has_leaves[i] and has_wfhs[i + 1]:
+                    emp_l_to_wfh.setdefault(emp_key, []).append((dates[i], dates[i + 1], managers[i]))
+                elif has_wfhs[i] and has_leaves[i + 1]:
+                    emp_wfh_to_l.setdefault(emp_key, []).append((dates[i], dates[i + 1], managers[i]))
             elif day_diff == 3 and d_curr.weekday() == 4 and d_nxt.weekday() == 0:
-                if (curr.get("has_wfh") and nxt.get("has_leave")) or (curr.get("has_leave") and nxt.get("has_wfh")):
-                    remote_bridge_matches.append((curr, nxt))
+                if (has_wfhs[i] and has_leaves[i + 1]) or (has_leaves[i] and has_wfhs[i + 1]):
+                    t1 = "WFH" if has_wfhs[i] else "Leave"
+                    t2 = "Leave" if has_leaves[i + 1] else "WFH"
+                    emp_bridge.setdefault(emp_key, []).append((dates[i], dates[i + 1], managers[i], t1, t2))
 
-        # A. Leave -> WFH
-        if len(l_to_wfh_matches) >= ctx.min_events:
-            count = len(l_to_wfh_matches)
-            dates = [p[0]["Date"] for p in l_to_wfh_matches]
-            first_d, last_d, months_active, dist_months = _extract_date_metadata(dates)
-
+    # A. Leave -> WFH
+    for (emp_num_str, emp_name_str), matches in emp_l_to_wfh.items():
+        if len(matches) >= ctx.min_events:
+            count = len(matches)
+            match_dates = [m[0] for m in matches]
+            first_d, last_d, months_active, dist_months = _extract_date_metadata(match_dates)
             days_since = _safe_days_since(ctx.dataset_max_date, last_d)
             score, components, strength, persistence, status = _calculate_pattern_score_and_badges(
                 event_count=count,
@@ -1598,23 +1656,18 @@ def detect_sequence_patterns(ctx: PatternContext) -> List[PatternResult]:
                 distinct_months=dist_months,
                 days_since_last=days_since,
             )
-
-            evidence_items = []
-            for c, n in l_to_wfh_matches:
-                d1 = _safe_dt_str(c.get("Date"))
-                d2 = _safe_dt_str(n.get("Date"))
-                evidence_items.append(
-                    PatternEvidenceItem(
-                        date=d1,
-                        employee_number=emp_num_str,
-                        employee_name=emp_name_str,
-                        reporting_manager=str(c.get("Reporting Manager")) if pd.notna(c.get("Reporting Manager")) else None,
-                        event_type="SEQUENCE",
-                        status="Leave → WFH",
-                        details=f"Leave on {d1} followed by WFH on {d2}",
-                    )
+            evidence_items = [
+                PatternEvidenceItem(
+                    date=d1,
+                    employee_number=emp_num_str,
+                    employee_name=emp_name_str,
+                    reporting_manager=mgr if mgr else None,
+                    event_type="SEQUENCE",
+                    status="Leave → WFH",
+                    details=f"Leave on {d1} followed by WFH on {d2}",
                 )
-
+                for d1, d2, mgr in matches
+            ]
             results.append(
                 PatternResult(
                     pattern_id=f"LEAVE_TO_WFH_SEQUENCE_EMP_{emp_num_str}",
@@ -1646,12 +1699,12 @@ def detect_sequence_patterns(ctx: PatternContext) -> List[PatternResult]:
                 )
             )
 
-        # B. WFH -> Leave
-        if len(wfh_to_l_matches) >= ctx.min_events:
-            count = len(wfh_to_l_matches)
-            dates = [p[0]["Date"] for p in wfh_to_l_matches]
-            first_d, last_d, months_active, dist_months = _extract_date_metadata(dates)
-
+    # B. WFH -> Leave
+    for (emp_num_str, emp_name_str), matches in emp_wfh_to_l.items():
+        if len(matches) >= ctx.min_events:
+            count = len(matches)
+            match_dates = [m[0] for m in matches]
+            first_d, last_d, months_active, dist_months = _extract_date_metadata(match_dates)
             days_since = _safe_days_since(ctx.dataset_max_date, last_d)
             score, components, strength, persistence, status = _calculate_pattern_score_and_badges(
                 event_count=count,
@@ -1660,23 +1713,18 @@ def detect_sequence_patterns(ctx: PatternContext) -> List[PatternResult]:
                 distinct_months=dist_months,
                 days_since_last=days_since,
             )
-
-            evidence_items = []
-            for c, n in wfh_to_l_matches:
-                d1 = _safe_dt_str(c.get("Date"))
-                d2 = _safe_dt_str(n.get("Date"))
-                evidence_items.append(
-                    PatternEvidenceItem(
-                        date=d1,
-                        employee_number=emp_num_str,
-                        employee_name=emp_name_str,
-                        reporting_manager=str(c.get("Reporting Manager")) if pd.notna(c.get("Reporting Manager")) else None,
-                        event_type="SEQUENCE",
-                        status="WFH → Leave",
-                        details=f"WFH on {d1} followed by Leave on {d2}",
-                    )
+            evidence_items = [
+                PatternEvidenceItem(
+                    date=d1,
+                    employee_number=emp_num_str,
+                    employee_name=emp_name_str,
+                    reporting_manager=mgr if mgr else None,
+                    event_type="SEQUENCE",
+                    status="WFH → Leave",
+                    details=f"WFH on {d1} followed by Leave on {d2}",
                 )
-
+                for d1, d2, mgr in matches
+            ]
             results.append(
                 PatternResult(
                     pattern_id=f"WFH_TO_LEAVE_SEQUENCE_EMP_{emp_num_str}",
@@ -1708,12 +1756,12 @@ def detect_sequence_patterns(ctx: PatternContext) -> List[PatternResult]:
                 )
             )
 
-        # C. Extended Remote-Leave Weekend Bridge
-        if len(remote_bridge_matches) >= ctx.min_events:
-            count = len(remote_bridge_matches)
-            dates = [p[0]["Date"] for p in remote_bridge_matches]
-            first_d, last_d, months_active, dist_months = _extract_date_metadata(dates)
-
+    # C. Extended Remote-Leave Weekend Bridge
+    for (emp_num_str, emp_name_str), matches in emp_bridge.items():
+        if len(matches) >= ctx.min_events:
+            count = len(matches)
+            match_dates = [m[0] for m in matches]
+            first_d, last_d, months_active, dist_months = _extract_date_metadata(match_dates)
             days_since = _safe_days_since(ctx.dataset_max_date, last_d)
             score, components, strength, persistence, status = _calculate_pattern_score_and_badges(
                 event_count=count,
@@ -1722,25 +1770,18 @@ def detect_sequence_patterns(ctx: PatternContext) -> List[PatternResult]:
                 distinct_months=dist_months,
                 days_since_last=days_since,
             )
-
-            evidence_items = []
-            for c, n in remote_bridge_matches:
-                d1 = _safe_dt_str(c.get("Date"))
-                d2 = _safe_dt_str(n.get("Date"))
-                t1 = "WFH" if c.get("has_wfh") else "Leave"
-                t2 = "Leave" if n.get("has_leave") else "WFH"
-                evidence_items.append(
-                    PatternEvidenceItem(
-                        date=d1,
-                        employee_number=emp_num_str,
-                        employee_name=emp_name_str,
-                        reporting_manager=str(c.get("Reporting Manager")) if pd.notna(c.get("Reporting Manager")) else None,
-                        event_type="SEQUENCE",
-                        status="Weekend Bridge",
-                        details=f"Friday {t1} ({d1}) bridging weekend to Monday {t2} ({d2})",
-                    )
+            evidence_items = [
+                PatternEvidenceItem(
+                    date=d1,
+                    employee_number=emp_num_str,
+                    employee_name=emp_name_str,
+                    reporting_manager=mgr if mgr else None,
+                    event_type="SEQUENCE",
+                    status="Weekend Bridge",
+                    details=f"Friday {t1} ({d1}) bridging weekend to Monday {t2} ({d2})",
                 )
-
+                for d1, d2, mgr, t1, t2 in matches
+            ]
             results.append(
                 PatternResult(
                     pattern_id=f"EXTENDED_REMOTE_LEAVE_SEQUENCE_EMP_{emp_num_str}",

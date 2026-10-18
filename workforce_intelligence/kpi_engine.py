@@ -866,39 +866,65 @@ def compute_workforce_intelligence_bundle(
     # ─────────────────────────────────────────────────────────────────────────
     # Section 1: Executive Overview & Attendance Composition
     # ─────────────────────────────────────────────────────────────────────────
+    st_clean = filtered["_status"].astype(str).str.strip().str.lower()
+    at_clean = filtered["_att_type"].astype(str).str.strip().str.lower()
+
+    # Leave status codes and variations
+    LEAVE_CODES = {
+        "cl", "sl", "cl/sl", "clsl", "pl", "el", "gl", "wl", "hl", "ml", "pt", "bl",
+        "spl", "ul", "fl", "hpl", "mcl", "cml", "adl", "adlm", "adm", "co", "leave", "l"
+    }
+
+    # WFH: Work from home
     is_wfh = (
-        filtered["_att_type"].str.contains("work from home", case=False, na=False) |
-        (filtered["_att_type"].str.lower() == "wfh") |
-        filtered["_status"].str.lower().isin(["wfh", "work from home"])
+        at_clean.str.contains("work from home|wfh", regex=True, na=False) |
+        st_clean.isin(["wfh", "work from home"])
     )
+
+    # Leave: Approved/taken leaves (CL/SL, PL, EL, GL, WL, HL, etc.)
     is_leave = (
-        filtered["_att_type"].str.contains("leave", case=False, na=False) |
-        filtered["_status"].str.lower().isin(["cl", "sl", "pl", "el", "co", "leave", "l"])
+        at_clean.str.contains("leave|casual|sick|privilege|earned|maternity|paternity|bereavement|compensatory", regex=True, na=False) |
+        st_clean.isin(LEAVE_CODES) |
+        at_clean.isin(LEAVE_CODES)
     ) & (~is_wfh)
+
+    # On Duty: OD
     is_od = (
-        filtered["_att_type"].str.contains("on duty|duty", case=False, na=False) |
-        filtered["_status"].str.lower().isin(["od", "on duty"])
+        at_clean.str.contains("on duty|onduty|duty", regex=True, na=False) |
+        st_clean.isin(["od", "on duty", "onduty"])
     ) & (~is_wfh) & (~is_leave)
+
+    # Worked on Week Off / Holiday (WOW, WOH) -> Present
+    is_worked_off = (
+        at_clean.str.contains("worked on", na=False) |
+        st_clean.isin(["wow", "woh", "wo-w", "h-w"])
+    )
+
+    # Holiday: Exclude worked on holiday
     is_hol = (
-        filtered["_att_type"].str.contains("holiday", case=False, na=False) |
-        filtered["_status"].str.lower().isin(["h", "ho", "holiday"])
-    ) & (~is_wfh) & (~is_leave) & (~is_od)
+        at_clean.str.contains("holiday", case=False, na=False) |
+        st_clean.isin(["h", "ho", "holiday", "ph"])
+    ) & (~is_worked_off) & (~is_wfh) & (~is_leave) & (~is_od)
+
+    # Week Off: Exclude worked on week off
     is_wo = (
-        filtered["_att_type"].str.contains("week off|weekly off|off", case=False, na=False) |
-        filtered["_status"].str.lower().isin(["wo", "w/o", "off", "week off"])
-    ) & (~is_wfh) & (~is_leave) & (~is_od) & (~is_hol)
+        at_clean.str.contains("week off|weekly off", case=False, na=False) |
+        st_clean.isin(["wo", "w/o", "week off", "weekly off"])
+    ) & (~is_worked_off) & (~is_wfh) & (~is_leave) & (~is_od) & (~is_hol)
+
     is_ms = _is_missing_swipe_series(filtered)
     is_reg_series = _is_regularized_series(filtered)
-    # MC14: A(R)/AR is already regularized attendance evidence. Classify its
-    # quantity before employee-day aggregation, without requiring approval metadata.
-    is_ar = filtered["_status"].str.strip().str.lower().isin(["a(r)", "ar"])
+    # Regularized attendance evidence: A(R), AR, PR, P(R)
+    is_ar = st_clean.isin(["a(r)", "ar", "p(r)", "pr"]) | at_clean.str.contains("regulariz", na=False)
+
     is_ab = (
-        filtered["_att_type"].str.contains("absent", case=False, na=False) |
-        filtered["_status"].str.lower().isin(["ab", "absent", "a"])
-    ) & (~is_leave) & (~is_wfh) & (~is_od) & (~is_hol) & (~is_wo) & (~is_ar)
+        at_clean.str.contains("absent", case=False, na=False) |
+        st_clean.isin(["ab", "absent", "a", "lop"])
+    ) & (~is_leave) & (~is_wfh) & (~is_od) & (~is_hol) & (~is_wo) & (~is_ar) & (~is_worked_off)
+
     is_pres = (
-        filtered["_att_type"].str.contains("present", case=False, na=False) |
-        filtered["_status"].str.lower().isin(["p", "present"]) | is_ar
+        at_clean.str.contains("present", case=False, na=False) |
+        st_clean.isin(["p", "present"]) | is_ar | is_worked_off
     ) & (~is_ms) & (~is_leave) & (~is_wfh) & (~is_od) & (~is_hol) & (~is_wo) & (~is_ab)
 
     is_classified = (is_pres | is_ms | is_od | is_leave | is_wfh | is_hol | is_wo | is_ab)
@@ -1296,7 +1322,7 @@ def compute_workforce_intelligence_bundle(
             "label": "On Duty",
             "days": round(q_od, 1),
             "pct": pct_od,
-            "color": "#0EA5E9",
+            "color": "#06B6D4",
             "description": "Official duty assignments",
             "is_exception": False,
         },
@@ -1305,7 +1331,7 @@ def compute_workforce_intelligence_bundle(
             "label": "Leave",
             "days": round(q_leave, 1),
             "pct": pct_leave,
-            "color": "#8B5CF6",
+            "color": "#A855F7",
             "description": "Quantity-weighted leave days",
             "is_exception": False,
         },
@@ -1323,7 +1349,7 @@ def compute_workforce_intelligence_bundle(
             "label": "Holiday",
             "days": round(q_hol, 1),
             "pct": pct_hol,
-            "color": "#F59E0B",
+            "color": "#FBBF24",
             "description": "Recognized organization holidays",
             "is_exception": False,
         },
@@ -1332,7 +1358,7 @@ def compute_workforce_intelligence_bundle(
             "label": "Week Off",
             "days": round(q_wo, 1),
             "pct": pct_wo,
-            "color": "#94A3B8",
+            "color": "#64748B",
             "description": "Scheduled weekly rest days",
             "is_exception": False,
         },
@@ -1341,7 +1367,7 @@ def compute_workforce_intelligence_bundle(
             "label": "Absent",
             "days": round(q_absent, 1),
             "pct": pct_absent,
-            "color": "#EF4444",
+            "color": "#F43F5E",
             "description": "Recorded employee absence days",
             "is_exception": False,
         },
@@ -1390,6 +1416,7 @@ def compute_workforce_intelligence_bundle(
         })
 
     # 3. Business Unit Attendance Comparison Data
+    cal_days = (date_range[1] - date_range[0]).days + 1 if (date_range and len(date_range) == 2 and date_range[0] and date_range[1]) else len(daily_att_dict)
     sorted_bus = sorted(bu_dict.keys(), key=lambda x: str(x).lower())
     bu_attendance_comparison = []
     for bu_name in sorted_bus:
@@ -1427,6 +1454,8 @@ def compute_workforce_intelligence_bundle(
             "business_unit": bu_name,
             "observed_headcount": hc,
             "recorded_employee_days": rec_days,
+            "total_days": rec_days,
+            "calendar_days": cal_days,
             "present_days": pres_d,
             "present_pct": pres_pct,
             "leave_days": lv_d,
@@ -1456,6 +1485,8 @@ def compute_workforce_intelligence_bundle(
         "business_unit": "Total (Organization-Wide)",
         "observed_headcount": unique_employees,
         "recorded_employee_days": recorded_employee_days,
+        "total_days": recorded_employee_days,
+        "calendar_days": cal_days,
         "present_days": round(q_total_present, 1),
         "present_pct": pct_pres,
         "leave_days": round(q_leave, 1),
