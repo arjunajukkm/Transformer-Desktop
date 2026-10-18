@@ -423,8 +423,8 @@ export default function WorkforceIntelligenceDashboard() {
 
               {/* Row 2: 2-Column Responsive Layout (Main Chart & Heatmap Side-by-Side) */}
               {bundle && (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-                  <div className="lg:col-span-7 flex flex-col relative">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+                  <div className="flex flex-col relative">
                     <MainTrendChart
                       points={bundle.chart.points}
                       metricName={bundle.chart.metric_name}
@@ -442,11 +442,13 @@ export default function WorkforceIntelligenceDashboard() {
                     />
                     <ChartLoadingOverlay active={isTrendLoading} />
                   </div>
-                  <div className="lg:col-span-5 flex flex-col">
+                  <div className="flex flex-col">
                     <BusinessUnitHeatmap
                       months={bundle.heatmap.months}
                       rows={bundle.heatmap.rows}
                       metricLabel={metricLabel}
+                      lowerIsBetter={bundle.heatmap.lower_is_better}
+                      orgBenchmarks={bundle.heatmap.org_benchmarks}
                     />
                   </div>
                 </div>

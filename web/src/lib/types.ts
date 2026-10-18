@@ -91,7 +91,7 @@ export interface HeatmapRow {
   current_formatted: string;
   trend_direction: string;
   monthly_values: { period: string; value: number | null; formatted_value: string }[];
-  monthly_deltas: { period: string; delta: number | null; formatted_delta: string; bu_value: number | null; org_value: number | null }[];
+  monthly_deltas: { period: string; delta: number | null; formatted_delta: string; bu_value: number | null; org_value: number | null; org_formatted?: string }[];
 }
 
 export interface BenchmarkTableRow {
@@ -189,6 +189,7 @@ export interface TrendBundle {
     months: string[];
     rows: HeatmapRow[];
     lower_is_better: boolean;
+    org_benchmarks?: { period: string; period_display: string; value: number | null; formatted_value: string }[];
   };
   benchmark_table: {
     columns: [string, string, number, string][];

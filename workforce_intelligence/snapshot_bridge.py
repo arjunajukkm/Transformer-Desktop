@@ -375,11 +375,13 @@ def _empty_trend_bundle(metric_id: str = "missing_swipe_rate", benchmark_type: s
             "months": [],
             "rows": [],
             "lower_is_better": metric_def.direction == "lower_is_better",
+            "org_benchmarks": [],
         },
         "bu_heatmap": {
             "months": [],
             "rows": [],
             "lower_is_better": metric_def.direction == "lower_is_better",
+            "org_benchmarks": [],
         },
         "what_changed": {
             "has_change": False,
@@ -1727,6 +1729,15 @@ class WorkforceIntelligenceBridge:
 
         # 10. Business Unit Trend Heatmap & Benchmark Table Rows
         heatmap_months = [org_pt_map[p]["period_display"] for p in periods]
+        org_benchmarks = [
+            {
+                "period": p,
+                "period_display": org_pt_map[p].get("period_display", p),
+                "value": org_pt_map[p].get("value"),
+                "formatted_value": org_pt_map[p].get("formatted_value") or "—",
+            }
+            for p in periods
+        ]
         heatmap_rows = []
         table_rows = []
 
@@ -1787,6 +1798,7 @@ class WorkforceIntelligenceBridge:
                     "formatted_delta": d_fmt,
                     "bu_value": bv,
                     "org_value": ov,
+                    "org_formatted": o_p.get("formatted_value") or "—",
                 })
 
             heatmap_rows.append({
@@ -2536,11 +2548,13 @@ class WorkforceIntelligenceBridge:
                 "months": heatmap_months,
                 "rows": heatmap_rows,
                 "lower_is_better": metric_def.direction == "lower_is_better",
+                "org_benchmarks": org_benchmarks,
             },
             "bu_heatmap": {
                 "months": heatmap_months,
                 "rows": heatmap_rows,
                 "lower_is_better": metric_def.direction == "lower_is_better",
+                "org_benchmarks": org_benchmarks,
             },
             "contextual_comparison": contextual_comparison,
             "contextual_summary": contextual_summary,
