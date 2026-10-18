@@ -12,8 +12,11 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
+  HelpCircle,
+  X,
 } from "lucide-react";
 import { TrendChartPoint } from "@/lib/types";
+import { formatToMMMYY } from "./BusinessUnitHeatmap";
 
 interface MainTrendChartProps {
   points: TrendChartPoint[];
@@ -30,6 +33,8 @@ interface MainTrendChartProps {
   buLabel?: string;
   orgLabel?: string;
   peerLabel?: string;
+  metricId?: string;
+  metricDirection?: string;
 }
 
 // Catmull-Rom to Cubic Bezier curve path generator
@@ -78,6 +83,7 @@ export function MainTrendChart({
   peerLabel,
 }: MainTrendChartProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
 
   // Series visibility toggles for executive customization
   const [visibleSeries, setVisibleSeries] = useState({
@@ -473,8 +479,187 @@ export function MainTrendChart({
               <span>Tolerance Corridor</span>
             </button>
           )}
+
+          {/* Quick Guide Trigger Button */}
+          <button
+            type="button"
+            onClick={() => setShowGuide(!showGuide)}
+            className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+              showGuide
+                ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-[0_0_8px_rgba(6,182,212,0.25)]"
+                : "bg-slate-800/50 text-slate-400 border-slate-700/60 hover:text-slate-200 hover:border-slate-600"
+            }`}
+            title="Click to view/hide chart interpretation guide"
+          >
+            <HelpCircle className="h-3 w-3 text-cyan-400" />
+            <span>Guide</span>
+          </button>
         </div>
       </div>
+
+      {/* ── Expandable Quick Guide Card ── */}
+      {showGuide && (
+        <div className="mb-3 p-3 rounded-lg bg-slate-900/95 border border-cyan-500/35 text-xs shadow-xl backdrop-blur-md transition-all">
+          <div className="flex items-start justify-between gap-2">
+            <div className="space-y-1.5 text-[11px] text-slate-300 w-full">
+              <div className="flex items-center gap-1.5 font-semibold text-cyan-300 font-mono text-xs">
+                <Info className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                <span>How to Read this Trend Chart:</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1 font-sans text-xs">
+                {/* Card 1: Actual Line */}
+                <div className="bg-slate-950/70 p-2 rounded border border-slate-800 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="h-2 w-4 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(56,189,248,0.8)] inline-block" />
+                      <span className="text-cyan-300 font-mono font-bold text-[10.5px] uppercase">
+                        Actual Trajectory
+                      </span>
+                    </div>
+                    <p className="text-slate-300 text-[10.5px] leading-snug">
+                      Actual monthly performance for {entityLabel || "selected scope"}. Filled nodes mark monthly readings; spline curve reflects momentum.
+                    </p>
+                  </div>
+                  <span className="text-[9px] text-slate-500 font-mono mt-1.5 block">SOLID CYAN LINE</span>
+                </div>
+
+                {/* Card 2: Benchmark Line */}
+                <div className="bg-slate-950/70 p-2 rounded border border-slate-800 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="h-0.5 w-4 border-t-2 border-dashed border-amber-400 inline-block" />
+                      <span className="text-amber-300 font-mono font-bold text-[10.5px] uppercase">
+                        Benchmark Baseline
+                      </span>
+                    </div>
+                    <p className="text-slate-300 text-[10.5px] leading-snug">
+                      Comparison cohort baseline ({benchmarkLabel || "Organisation"}). Distance between Actual and Benchmark reveals relative advantage or deficit.
+                    </p>
+                  </div>
+                  <span className="text-[9px] text-slate-500 font-mono mt-1.5 block">DASHED AMBER LINE</span>
+                </div>
+
+                {/* Card 3: Historical Baseline */}
+                <div className="bg-slate-950/70 p-2 rounded border border-slate-800 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="h-0.5 w-4 border-t-2 border-dotted border-rose-400 inline-block" />
+                      <span className="text-rose-300 font-mono font-bold text-[10.5px] uppercase">
+                        Historical Baseline
+                      </span>
+                    </div>
+                    <p className="text-slate-300 text-[10.5px] leading-snug">
+                      Pre-policy long-term median anchor. Shows if modern trends represent sustained shifts from prior operational norms.
+                    </p>
+                  </div>
+                  <span className="text-[9px] text-slate-500 font-mono mt-1.5 block">DOTTED ROSE LINE</span>
+                </div>
+
+                {/* Card 4: Policy Effective Date */}
+                {policyEffectiveDate && (
+                  <div className="bg-slate-950/70 p-2 rounded border border-slate-800 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Calendar className="h-3 w-3 text-rose-400" />
+                        <span className="text-rose-400 font-mono font-bold text-[10.5px] uppercase">
+                          Policy Date ({policyEffectiveDate})
+                        </span>
+                      </div>
+                      <p className="text-slate-300 text-[10.5px] leading-snug">
+                        Vertical dashed marker indicating policy enactment. Compare the curve slope before vs after this marker to measure policy impact.
+                      </p>
+                    </div>
+                    <span className="text-[9px] text-slate-500 font-mono mt-1.5 block">VERTICAL RED LINE</span>
+                  </div>
+                )}
+
+                {/* Card 5: Tolerance Corridor */}
+                {referenceRange && (
+                  <div className="bg-slate-950/70 p-2 rounded border border-slate-800 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="h-2 w-3 rounded bg-slate-500/50 inline-block" />
+                        <span className="text-slate-300 font-mono font-bold text-[10.5px] uppercase">
+                          Tolerance Corridor
+                        </span>
+                      </div>
+                      <p className="text-slate-300 text-[10.5px] leading-snug">
+                        Standard SLA operational envelope. Points falling inside this shaded band meet expected corporate performance tolerances.
+                      </p>
+                    </div>
+                    <span className="text-[9px] text-slate-500 font-mono mt-1.5 block">SHADED SLA BAND</span>
+                  </div>
+                )}
+
+                {/* Card 6: Peer / Approvals / Interactive Tips */}
+                {hasPeer ? (
+                  <div className="bg-slate-950/70 p-2 rounded border border-slate-800 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="h-2 w-4 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.8)] inline-block" />
+                        <span className="text-emerald-300 font-mono font-bold text-[10.5px] uppercase">
+                          Peer Comparison
+                        </span>
+                      </div>
+                      <p className="text-slate-300 text-[10.5px] leading-snug">
+                        Side-by-side trajectory for {peerLabel} to evaluate direct parity and competitiveness.
+                      </p>
+                    </div>
+                    <span className="text-[9px] text-slate-500 font-mono mt-1.5 block">SOLID EMERALD LINE</span>
+                  </div>
+                ) : isApprovalMetric ? (
+                  <div className="bg-slate-950/70 p-2 rounded border border-slate-800 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Layers className="h-3 w-3 text-purple-400" />
+                        <span className="text-purple-300 font-mono font-bold text-[10.5px] uppercase">
+                          Multi-Tier Approvals
+                        </span>
+                      </div>
+                      <p className="text-slate-300 text-[10.5px] leading-snug">
+                        Compares turnaround speeds between Manager vs Admin approval tiers across Leave and WFH requests.
+                      </p>
+                    </div>
+                    <span className="text-[9px] text-slate-500 font-mono mt-1.5 block">TIER COMPARISONS</span>
+                  </div>
+                ) : (
+                  <div className="bg-slate-950/70 p-2 rounded border border-slate-800 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <CheckCircle2 className="h-3 w-3 text-cyan-400" />
+                        <span className="text-cyan-300 font-mono font-bold text-[10.5px] uppercase">
+                          Point Inspection
+                        </span>
+                      </div>
+                      <p className="text-slate-300 text-[10.5px] leading-snug">
+                        Hover over any monthly node on the chart to inspect the active metric value, sample count, and benchmark delta in the bottom strip.
+                      </p>
+                    </div>
+                    <span className="text-[9px] text-slate-500 font-mono mt-1.5 block">INTERACTIVE HUD</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="text-[10px] text-slate-400 font-mono pt-1 border-t border-slate-800/80 flex items-center gap-1.5">
+                <CheckCircle2 className="h-3 w-3 text-cyan-400 shrink-0" />
+                <span>
+                  Tip: Click any series pill in the toolbar above to isolate or hide individual lines. Hover over nodes to inspect details.
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowGuide(false)}
+              className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 cursor-pointer shrink-0"
+              title="Close guide"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── SVG Canvas Viewport ── */}
       <div className="relative w-full overflow-x-auto">
@@ -936,7 +1121,7 @@ export function MainTrendChart({
                   fontWeight={isHovered ? "700" : "600"}
                   fontFamily="monospace"
                 >
-                  {p.period_display || p.period}
+                  {formatToMMMYY(p.period_display || p.period)}
                 </text>
               </g>
             );
@@ -988,7 +1173,7 @@ export function MainTrendChart({
             {/* Period */}
             <div className="flex flex-col min-w-0 overflow-hidden">
               <span className="text-[10px] text-slate-500 uppercase tracking-wider font-sans whitespace-nowrap">Period</span>
-              <span className="font-bold text-slate-200 mt-0.5 whitespace-nowrap truncate">{activePt.period_display || activePt.period}</span>
+              <span className="font-bold text-slate-200 mt-0.5 whitespace-nowrap truncate">{formatToMMMYY(activePt.period_display || activePt.period)}</span>
               <span className="text-[10px] text-slate-400 mt-0.5 font-sans whitespace-nowrap truncate">{activePt.evaluable?.toLocaleString()} records</span>
             </div>
 

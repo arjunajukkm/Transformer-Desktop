@@ -418,6 +418,10 @@ export default function WorkforceIntelligenceDashboard() {
                   cards={bundle.trend_pulse}
                   pulse={bundle.pulse}
                   metricLabel={metricLabel}
+                  metricId={selectedMetricId}
+                  metricDirection={currentMetric?.direction}
+                  benchmarkLabel={bundle.benchmark_label}
+                  entityLabel={bundle.chart.entity_label}
                 />
               )}
 
@@ -439,6 +443,8 @@ export default function WorkforceIntelligenceDashboard() {
                       buLabel={bundle.chart.bu_label}
                       orgLabel={bundle.chart.org_label}
                       peerLabel={(peerBU || peerDept) ? bundle.chart.peer_label : undefined}
+                      metricId={selectedMetricId}
+                      metricDirection={currentMetric?.direction}
                     />
                     <ChartLoadingOverlay active={isTrendLoading} />
                   </div>
